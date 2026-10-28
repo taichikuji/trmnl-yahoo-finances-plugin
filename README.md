@@ -50,7 +50,9 @@ For the official local tool, install [trmnlp](https://github.com/usetrmnl/trmnlp
 
 ## Verification status and provider limits
 
-On 28 October 2026, a direct request to the specified NTNX endpoint returned **HTTP 429**, with a plain-text `Edge: Too Many Requests` body. No alternate endpoints, cookie/crumb workarounds, browser scraping, or proxy rotation were attempted. A successful live NTNX response and a live TRMNL import/device render are **not verified**.
+During local development on 28 October 2026, a direct request to the specified NTNX endpoint returned **HTTP 429**, with a plain-text `Edge: Too Many Requests` body. No alternate endpoints, cookie/crumb workarounds, browser scraping, or proxy rotation were attempted.
+
+Later that day, the user imported `STONKS.zip` into TRMNL and supplied a successful rendered screenshot: **72.38 USD**, **+3.31 (+4.79%)** over the requested year, with the market timestamp **Oct 28, 2026, 15:15 EDT**. This is user-provided evidence of a successful import, live data fetch, and TRMNL render. Quote accuracy was not independently checked; physical-device appearance and Saved State fallback during a real provider outage remain unverified. The automated tests exercise fallback locally.
 
 Before implementing the parser, the successful response structure was inspected in [yahoo-finance2's recorded AAPL chart response](https://github.com/gadicc/yahoo-finance2/blob/main/tests/fixtures/http/chart-AAPL.json). Its response body is retained in `TRMNL/fixtures/yahoo-chart-recorded.json`; request headers/cookies are omitted. The separate synthetic NTNX fixture uses that structure to exercise a complete year. Neither fixture is a real NTNX quote history.
 
