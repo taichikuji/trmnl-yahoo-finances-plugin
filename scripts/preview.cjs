@@ -1,10 +1,9 @@
 // Local-only preview matrix. The imported plugin uses no browser or chart library.
 const fs = require('node:fs');
 const path = require('node:path');
-const { createLiquid } = require('./liquid.cjs');
+const { createLiquid, loadPlugin } = require('./render-liquid.cjs');
 const { chromium } = require('playwright-core');
 const YAML = require('yaml');
-const { loadPlugin } = require('./load-plugin.cjs');
 const { sample, NOW } = require('../TRMNL/fixtures/sample.cjs');
 
 // Profiles from the pinned framework's db/data/framework_devices.yml.

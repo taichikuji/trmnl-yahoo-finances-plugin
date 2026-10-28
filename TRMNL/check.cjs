@@ -2,9 +2,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { createLiquid } = require('../scripts/liquid.cjs');
+const { createLiquid, loadPlugin } = require('../scripts/render-liquid.cjs');
 const YAML = require('yaml');
-const { loadPlugin } = require('../scripts/load-plugin.cjs');
 const { sample, NOW } = require('./fixtures/sample.cjs');
 class Clock extends Date { static now() { return NOW; } }
 const ok = data => async () => ({ ok: true, json: async () => structuredClone(data) });
@@ -431,4 +430,17 @@ test('the transform generates only the selected chart geometry without changing 
   assert.equal(line.stonks.up + line.stonks.down + line.stonks.flat + line.stonks.missing_path, '');
   assert.equal(candles.stonks.path, '');
   assert.ok(candles.stonks.up.length + candles.stonks.down.length + candles.stonks.flat.length > 0);
+});
+
+test('trmnlp supplies an offline sample that renders all native views', async () => {
+  const local = YAML.parse(fs.readFileSync(path.join(__dirname, '.trmnlp.yml'), 'utf8'));
+  assert.equal(local.transform_runtime, 'disabled');
+  assert.equal(local.variables.stonks.has_data, true);
+  assert.match(local.variables.stonks.name, /SAMPLE/);
+  for (const name of layoutNames) {
+    const html = await render(local.variables, local.custom_fields, name);
+    assert.match(html, /data-stonks-price/);
+    assert.match(html, /data-stonks-line/);
+    assert.doesNotMatch(html, /NaN|Infinity|{{|{%/);
+  }
 });

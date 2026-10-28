@@ -3,5 +3,8 @@ node_modules/
 dist/
 .env
 .env.*
-!.env.example
-TRMNL/.trmnlp.yml
+_build/
+*.zip
+*.local.*
+AGENTS.md
+.agents
