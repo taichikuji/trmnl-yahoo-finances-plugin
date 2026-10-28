@@ -93,10 +93,11 @@ function parseYahoo(payload, now, config, expectedSymbol = config.symbol, fx = f
   const { meta: m, timestamp: times, indicators } = results[0] || {};
   const q = indicators?.quote?.[0];
   const accepted = config.interval === '30m' ? ['15m', '30m'] : config.interval === '60m' ? ['60m', '1h'] : [config.interval];
-  if (String(m?.symbol).toUpperCase() !== expectedSymbol || !positive(m.regularMarketPrice) ||
-      !stamp(m.regularMarketTime) || m.regularMarketTime > now + 300 || !accepted.includes(m.dataGranularity) ||
-      !Array.isArray(times) || !Array.isArray(q?.close) || times.length !== q.close.length || times.length > 30000 ||
-      typeof m.currency !== 'string' || !/^[A-Za-z]{3}$/.test(m.currency)) throw new Error('Market response could not be validated');
+  if (String(m?.symbol).toUpperCase() !== expectedSymbol) throw new Error('Provider returned a different symbol');
+  if (!positive(m.regularMarketPrice) || !stamp(m.regularMarketTime) || m.regularMarketTime > now + 300) throw new Error('Invalid provider quote or timestamp');
+  if (!accepted.includes(m.dataGranularity)) throw new Error(`${fx ? 'FX' : 'Provider'} interval ${String(m.dataGranularity).slice(0, 10)} unavailable for ${config.interval}`);
+  if (!Array.isArray(times) || !Array.isArray(q?.close) || times.length !== q.close.length || times.length > 30000) throw new Error('Invalid provider price series');
+  if (typeof m.currency !== 'string' || !/^[A-Za-z]{3}$/.test(m.currency)) throw new Error('Provider currency unavailable');
   const timezone = validZone(m.exchangeTimezoneName || 'UTC');
   const unit = ['GBp', 'GBX', 'ZAc'].includes(m.currency) ? 0.01 : 1;
   const currency = ['GBp', 'GBX'].includes(m.currency) ? 'GBP' : m.currency === 'ZAc' ? 'ZAR' : m.currency.toUpperCase();

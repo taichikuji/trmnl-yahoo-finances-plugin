@@ -4,7 +4,7 @@
 </style>
 <div class="layout layout--col layout--top gap--xsmall p--2" data-stonks style="--stonks-font: {{ stonks.font_size | default: 10 }}px;">
   <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
-    <span class="title {% if stonks.header == 'large' %}title--base lg:title--large{% elsif stonks.header == 'small' %}title--small{% else %}title--small lg:title--base{% endif %} truncate w--min-0" title="{{ stonks.name | default: stonks.symbol | escape }}">{{ stonks.name | default: stonks.symbol | escape }}</span>
+    <span class="title {% if stonks.header == 'large' %}title--base lg:title--large{% elsif stonks.header == 'small' %}title--small{% else %}title--small lg:title--base{% endif %} w--min-0" title="{{ stonks.name | default: stonks.symbol | escape }}">{{ stonks.name | default: stonks.symbol | escape }}</span>
     <span class="label label--small no-shrink">{{ stonks.symbol | escape }}</span>
   </div>
   {% if stonks.has_data == true %}
@@ -17,7 +17,7 @@
       <span class="label label--small">{{ stonks.range_label | escape }}</span>
     </div>
     <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
-      <span class="description truncate w--min-0" title="{{ stonks.detail | escape }} {{ stonks.chart_note | escape }}">{% if stonks.stale == true %}{{ stonks.detail | escape }}{% else %}{{ stonks.source_label | escape }} · {{ stonks.session_label | escape }}{% if stonks.chart_note != '' %} · {{ stonks.chart_note | escape }}{% endif %}{% if stonks.fx_label != '' %} · {{ stonks.fx_label | escape }}{% endif %}{% endif %}</span>
+      <span class="description w--min-0" title="{{ stonks.detail | escape }} {{ stonks.chart_note | escape }}{% if stonks.fx_iso != '' %} FX: {{ stonks.fx_iso | escape }}{% endif %}">{% if stonks.stale == true %}{{ stonks.detail | escape }}{% else %}{{ stonks.source_label | escape }} · {{ stonks.session_label | escape }}{% if stonks.chart_note != '' %} · {{ stonks.chart_note | escape }}{% endif %}{% endif %}{% if stonks.fx_label != '' %} · {{ stonks.fx_label | escape }}{% endif %}</span>
       {% if stonks.stale == true %}<span class="label label--small label--filled no-shrink">{{ stonks.labels.stale | escape }}</span>{% endif %}
     </div>
     <div class="stretch flex flex--row gap--xsmall w--full" data-stonks-chart>
