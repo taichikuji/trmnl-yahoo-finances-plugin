@@ -57,7 +57,7 @@ Use the registered **`trmnl` MCP server** to manage the existing STONKS installa
 
 The plugin uses Static strategy, `{}` static data, Node Serverless, a 60-minute refresh, Framework 3.4.3, and normal screen padding. `full.liquid`, `half_horizontal.liquid`, `half_vertical.liquid` and `quadrant.liquid` each own their layout and typography choices. Full keeps the existing prominent quote, half vertical stacks the quote and return, half horizontal limits the largest quote, and quadrant uses compact type. `shared.liquid` defines named templates for the heading, price, return, status, chart, unavailable state and footer, called with explicit parameters through native `{% render %}`. These components use native Layout, Flex, Title, Value, Label, Description and Title Bar components. Small scoped CSS supplies numeric font sizes, and inline styles place axis labels and the last-price dot. A container query hides the middle date label in narrow slots to prevent large-font date collisions; the framework handles the layout and typography.
 
-Use MCP to transfer the seven source files and preview/refresh the plugin. Keep local commits for each iteration. No automatic Git push or deploy-on-push is configured. Checks and CI do not create ZIP files. The historical manual `npm run build` command is retained only for an explicitly requested import archive.
+Use MCP to transfer the seven source files and preview/refresh the plugin. Commit and push each iteration to [the GitHub repository](https://github.com/taichikuji/trmnl-yahoo-finances-plugin), tracked locally as `origin/main`. TRMNL deployment on push is not configured. Checks and CI do not create ZIP files. The historical manual `npm run build` command is retained only for an explicitly requested import archive.
 
 ## Develop and verify
 
@@ -74,7 +74,7 @@ npx playwright-core install --with-deps chromium
 TRMNL_BROWSER=chromium npm run preview
 ```
 
-CI runs data checks and the full visual matrix under Node 20, with a 15-minute job limit. It uses synthetic data and needs no TRMNL credential. It does not deploy anything. The pinned browser path and Node 20 checks were also exercised locally; GitHub-hosted CI awaits a repository push.
+CI runs data checks and the full visual matrix under Node 20, with a 15-minute job limit. It uses synthetic data and needs no TRMNL credential. It does not deploy anything. The pinned browser path and Node 20 checks were also exercised locally. GitHub Actions runs on pushes to `main` and pull requests.
 
 Node 20+ is required. **50 checks** cover every range, symbol normalization, return calculations, OHLCV grouping, missing values, FX/crypto conversion, pence, stale data, state isolation and corruption, FX regressions and return baselines, streamed response limits, bounded requests, smooth paths, all six locales, direction cues, neutral candles, unique SVG clipping all view registrations, isolated Shared templates, and generation of only the selected chart geometry. Runtime code has no package dependencies.
 
@@ -100,7 +100,7 @@ The local LiquidJS harness implements native Shared template registration and is
 
 The view/Shared refactor passes **50 Node 20 checks**, **512 local previews**, and **12 hosted previews**: full, half horizontal, half vertical and quadrant on OG Plus, X and B/W/R/Y. The saved OG full, X landscape and B/W/R/Y candle PNGs are byte-for-byte identical to the pre-refactor renders; full-screen chart dimensions remain unchanged throughout the matrix. An offline check with the actual hosted v2 snapshot preserved state, selected chart geometry, formatted money and exchange timestamps exactly. For that snapshot, the `stonks` merge object decreased from 10,214 to 4,892 bytes by omitting unused geometry and presentation fields.
 
-Final source was transferred through MCP and all six markup/Serverless files matched on readback. The plugin was healthy with fresh data, and the active NTNX/USD three-month line chart, visible grid, and complete custom field map were preserved. Saved State was retained. No Git push or deploy-on-push was configured.
+Final source was transferred through MCP and all six markup/Serverless files matched on readback. The plugin was healthy with fresh data, and the active NTNX/USD three-month line chart, visible grid, and complete custom field map were preserved. Saved State was retained. TRMNL deployment on push remains unconfigured.
 
 The existing STONKS installation is updated through MCP without an archive or Saved State reset. Keep the user's current market and display selections. Read back all six markup/Serverless files after importing the seven source files; normalized hosted YAML can differ from the local settings file. Refresh and inspect new merge variables before starting previews so they use the current schema.
 
