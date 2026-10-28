@@ -1,186 +1,355 @@
-// TRMNL Node 20 Serverless. No imports, packages, browser code, or credentials.
-const YAHOO_URL = 'https://query1.finance.yahoo.com/v8/finance/chart/NTNX?range=1y&interval=1d';
-const REQUEST_TIMEOUT_MS = 2800;
+// TRMNL Node 20 Serverless. Provider requests and rendering share a 3.8s deadline.
+// All network access stays here; the Shared view contains no remote widget or JS.
+const REQUEST_TIMEOUT_MS = 3800;
 const DAY = 86400;
 const STATE_LIMIT = 8192;
-// Conservative age limit: a normal weekend or US exchange holiday is not an outage.
-// Fetch failures are marked stale immediately, independently of market age.
 const MAX_MARKET_AGE = 7 * DAY;
 const PLOT = { left: 4, right: 696, top: 12, bottom: 274 };
-
-const positive = value => Number.isFinite(value) && value > 0;
-const timestamp = value => Number.isSafeInteger(value) && value > 0;
+const RANGES = {
+  '1d|1': { range: '1d', interval: '1m', seconds: 60, label: '1D' },
+  '1m|30': { range: '1mo', interval: '30m', seconds: 1800, label: '1M' },
+  '3m|60': { range: '3mo', interval: '60m', seconds: 3600, label: '3M' },
+  '12m|1D': { range: '1y', interval: '1d', seconds: DAY, label: '1Y' },
+  '60m|1W': { range: '5y', interval: '1wk', seconds: 7 * DAY, label: '5Y' },
+  'all|1M': { range: 'max', interval: '1mo', seconds: 31 * DAY, label: 'ALL' }
+};
+const LOCALES = { en: 'en-US', de_DE: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pl: 'pl-PL' };
+const COPY = {
+  en: ['DATA UNAVAILABLE', 'STALE DATA', 'Next refresh will try again.', 'Volume', 'Low', 'High', 'Market data', 'FX estimate', 'Extended', 'Regular', 'Saved chart', 'Invalid settings', 'No saved prices for this selection'],
+  de_DE: ['KEINE DATEN', 'ALTE DATEN', 'Erneuter Versuch beim nächsten Update.', 'Volumen', 'Tief', 'Hoch', 'Marktdaten', 'FX-Schätzung', 'Erweitert', 'Regulär', 'Gespeichert', 'Ungültige Einstellungen', 'Keine gespeicherten Kurse für diese Auswahl'],
+  fr: ['DONNÉES INDISPONIBLES', 'DONNÉES ANCIENNES', 'Nouvel essai à la prochaine mise à jour.', 'Volume', 'Bas', 'Haut', 'Données du marché', 'Estimation FX', 'Étendue', 'Normale', 'Enregistré', 'Réglages invalides', 'Aucun cours enregistré pour cette sélection'],
+  es: ['DATOS NO DISPONIBLES', 'DATOS ANTIGUOS', 'Se intentará en la próxima actualización.', 'Volumen', 'Mín.', 'Máx.', 'Datos de mercado', 'Estimación FX', 'Extendida', 'Regular', 'Guardado', 'Ajustes no válidos', 'Sin precios guardados para esta selección'],
+  it: ['DATI NON DISPONIBILI', 'DATI NON AGGIORNATI', 'Nuovo tentativo al prossimo aggiornamento.', 'Volume', 'Min.', 'Max.', 'Dati di mercato', 'Stima FX', 'Estesa', 'Regolare', 'Salvato', 'Impostazioni non valide', 'Nessun prezzo salvato per questa selezione'],
+  pl: ['BRAK DANYCH', 'NIEAKTUALNE DANE', 'Kolejna próba przy następnym odświeżeniu.', 'Wolumen', 'Min.', 'Maks.', 'Dane rynkowe', 'Szacunek FX', 'Rozszerzona', 'Zwykła', 'Zapisany', 'Nieprawidłowe ustawienia', 'Brak zapisanych cen dla tego wyboru']
+};
+const positive = n => Number.isFinite(n) && n > 0;
+const stamp = n => Number.isSafeInteger(n) && n > 0;
+const barStamp = n => Number.isSafeInteger(n) && n >= -62135596800;
 const bytes = value => new TextEncoder().encode(JSON.stringify(value)).length;
-const marketDay = value => new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'
-}).format(new Date(value * 1000));
+const round = n => +n.toPrecision(9);
+const choose = (v, list, fallback) => list.includes(String(v)) ? String(v) : fallback;
+const bounded = (v, min, max, fallback) => v === '' || v == null || !Number.isFinite(+v) ? fallback : Math.min(max, Math.max(min, +v));
 
-// Provider-specific response parsing lives here. Keep charting/state independent.
-function parseYahoo(payload, now) {
-  const results = payload?.chart?.result;
-  if (payload?.chart?.error || !Array.isArray(results) || results.length !== 1) {
-    throw new Error('Invalid market response');
+function symbolFor(value) {
+  let text;
+  try { text = decodeURIComponent(String(value || 'NTNX').trim()).toUpperCase(); }
+  catch { throw new Error('Use a Yahoo Finance symbol, e.g. NTNX or VWCE.DE'); }
+  if (text.includes(':')) {
+    const [exchange, ticker, extra] = text.split(':');
+    if (extra || !ticker) throw new Error('Invalid symbol');
+    const indices = { 'SP:SPX': '^GSPC', 'NASDAQ:NDX': '^NDX', 'DJ:DJI': '^DJI', 'TVC:VIX': '^VIX' };
+    if (indices[text]) return indices[text];
+    const suffix = { NASDAQ: '', NYSE: '', AMEX: '', NYSEARCA: '', ARCA: '', CBOE: '', XETR: '.DE', XETRA: '.DE', LSE: '.L', EURONEXT: '.PA', BME: '.MC', MIL: '.MI', SIX: '.SW', TSX: '.TO', ASX: '.AX', TSE: '.T', HKEX: '.HK' };
+    if (exchange === 'FX' || exchange === 'FX_IDC') {
+      if (!/^[A-Z]{6}$/.test(ticker)) throw new Error('Use a Yahoo forex symbol, e.g. EURUSD=X');
+      text = ticker + '=X';
+    } else if (['BINANCE', 'COINBASE', 'BITSTAMP', 'KRAKEN'].includes(exchange)) {
+      const pair = ticker.match(/^([A-Z0-9]+?)(USDT|USD|EUR|GBP|BTC)$/);
+      if (!pair) throw new Error('Use a Yahoo crypto symbol, e.g. BTC-USD');
+      text = pair[1] + '-' + (pair[2] === 'USDT' ? 'USD' : pair[2]);
+    } else if (Object.hasOwn(suffix, exchange)) text = ticker + suffix[exchange];
+    else throw new Error('Unknown exchange; enter the exact Yahoo Finance symbol');
   }
-  const { meta, timestamp: times, indicators } = results[0] || {};
-  const closes = indicators?.quote?.[0]?.close;
-  if (meta?.symbol !== 'NTNX' || meta.currency !== 'USD' ||
-      meta.instrumentType !== 'EQUITY' || meta.dataGranularity !== '1d' ||
-      !['NMS', 'NGM', 'NCM', 'NAS'].includes(meta.exchangeName) ||
-      !positive(meta.regularMarketPrice) || !timestamp(meta.regularMarketTime) ||
-      meta.regularMarketTime > now + 300 || !Array.isArray(times) ||
-      !Array.isArray(closes) || times.length !== closes.length || times.length > 370) {
-    throw new Error('Invalid market response');
-  }
-  const points = [];
-  for (let i = 0; i < times.length; i++) {
-    if (!timestamp(times[i]) || times[i] > now + 300 || (i > 0 && times[i] <= times[i - 1])) {
-      throw new Error('Invalid market timestamps');
-    }
-    // Null daily bars occur in real chart responses. Never coerce null to zero.
-    if (positive(closes[i])) points.push({ t: times[i], p: closes[i] });
-  }
-  if (points.length < 120) throw new Error('Incomplete year of prices');
-  const first = points[0];
-  const last = points[points.length - 1];
-  const quoteTime = meta.regularMarketTime;
-  if (last.t > quoteTime || quoteTime - last.t > MAX_MARKET_AGE ||
-      quoteTime - first.t < 350 * DAY || quoteTime - first.t > 370 * DAY) {
-    throw new Error('Incomplete year of prices');
-  }
-  // quote.close and regularMarketPrice share Yahoo's price basis. adjclose is
-  // deliberately unused: mixing it with an unadjusted current quote skews returns.
-  // Replace today's bar, or append the quote if today's historical bar is absent.
-  const quote = { t: quoteTime, p: meta.regularMarketPrice };
-  if (marketDay(last.t) === marketDay(quoteTime)) points[points.length - 1] = quote;
-  else points.push(quote);
-  return { points, market_at: quoteTime };
+  if (!/^[A-Z0-9^][A-Z0-9.^=\-]{0,39}$/.test(text)) throw new Error('Invalid Yahoo Finance symbol');
+  return text;
 }
 
-function chart(points) {
-  if (points.length < 2 || points.some(p => !positive(p.p) || !timestamp(p.t)) ||
-      points.some((p, i) => i > 0 && p.t <= points[i - 1].t)) {
-    throw new Error('Not enough chart data');
-  }
-  const start = points[0].t;
-  const end = points[points.length - 1].t;
-  const prices = points.map(p => p.p);
-  const low = Math.min(...prices);
-  const high = Math.max(...prices);
-  const padding = Math.max((high - low) * 0.08, high * 0.01, 0.01);
-  const min = Math.max(0, low - padding);
-  const max = high + padding;
-  const x = t => PLOT.left + (t - start) / (end - start) * (PLOT.right - PLOT.left);
-  const y = p => PLOT.bottom - (p - min) / (max - min) * (PLOT.bottom - PLOT.top);
-  const path = points.map((p, i) => `${i ? 'L' : 'M'}${x(p.t).toFixed(1)},${y(p.p).toFixed(1)}`).join('');
-  const ticks = Array.from({ length: 5 }, (_, i) => ({
-    y: +(PLOT.top + i * (PLOT.bottom - PLOT.top) / 4).toFixed(1),
-    label: (max - i * (max - min) / 4).toFixed(2)
-  }));
-  const dates = Array.from({ length: 5 }, (_, i) => {
-    const t = start + (end - start) * i / 4;
-    return {
-      x: +x(t).toFixed(1),
-      label: new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York', month: 'short', year: '2-digit'
-      }).format(new Date(t * 1000))
-    };
-  });
-  return { path, ticks, dates };
-}
-
-function makeState(data, now) {
-  const first = data.points[0];
-  const price = data.points[data.points.length - 1].p;
-  const change = price - first.p;
-  const state = {
-    v: 1, price, change, percent: change / first.p * 100,
-    start_at: first.t, market_at: data.market_at, fetched_at: now,
-    ...chart(data.points)
+function settings(input) {
+  const f = input?.trmnl?.plugin_settings?.custom_fields_values || {};
+  const symbol = symbolFor(f.symbol);
+  const currency = String(f.currency || 'USD').trim().toUpperCase();
+  if (!/^(NATIVE|[A-Z]{3})$/.test(currency)) throw new Error('Use a currency code, e.g. USD, EUR, BTC or NATIVE');
+  const dateRanges = choose(f.dateRanges, Object.keys(RANGES), '12m|1D');
+  const extended = ['show', 'true', 'yes'].includes(String(f.extendedHours));
+  return {
+    symbol, currency, dateRanges, ...RANGES[dateRanges], extended,
+    key: [symbol, currency, dateRanges, extended ? 'extended' : 'regular'].join('|'),
+    chartType: choose(f.chartType, ['line', 'bars', 'candles'], 'line'),
+    locale: choose(f.locale, Object.keys(LOCALES), 'en'),
+    lineWidth: bounded(f.lineWidth, 1, 5, 2), lineType: choose(f.lineType, ['0', '1', '2'], '2'),
+    grid: f.showGridlines === 'show', volume: f.showVolume === 'show',
+    reference: f.showReference === 'show',
+    header: choose(f.headerFontSize, ['small', 'medium', 'large'], 'medium'),
+    fontSize: bounded(f.fontSize, 8, 16, 10), precision: choose(f.precision, ['auto', '0', '2', '4', '6'], 'auto')
   };
-  if (bytes(state) > STATE_LIMIT) throw new Error('Saved state too large');
+}
+
+function yahooURL(symbol, config) {
+  return 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) +
+    '?range=' + config.range + '&interval=' + config.interval + '&includePrePost=' + config.extended;
+}
+function localDay(t, zone) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t * 1000));
+}
+function validZone(zone) {
+  try { new Intl.DateTimeFormat('en', { timeZone: zone }).format(); return zone; }
+  catch { return 'UTC'; }
+}
+
+// Each candle is [time, open, high, low, close, volume]. Never invent OHLC/volume.
+function parseYahoo(payload, now, config, expectedSymbol = config.symbol, fx = false) {
+  const results = payload?.chart?.result;
+  if (payload?.chart?.error || !Array.isArray(results) || results.length !== 1) throw new Error('Symbol or range unavailable from Yahoo');
+  const { meta: m, timestamp: times, indicators } = results[0] || {};
+  const q = indicators?.quote?.[0];
+  const accepted = config.interval === '30m' ? ['15m', '30m'] : config.interval === '60m' ? ['60m', '1h'] : [config.interval];
+  if (String(m?.symbol).toUpperCase() !== expectedSymbol || !positive(m.regularMarketPrice) ||
+      !stamp(m.regularMarketTime) || m.regularMarketTime > now + 300 || !accepted.includes(m.dataGranularity) ||
+      !Array.isArray(times) || !Array.isArray(q?.close) || times.length !== q.close.length || times.length > 30000 ||
+      typeof m.currency !== 'string' || !/^[A-Za-z]{3}$/.test(m.currency)) throw new Error('Market response could not be validated');
+  const timezone = validZone(m.exchangeTimezoneName || 'UTC');
+  const unit = ['GBp', 'GBX', 'ZAc'].includes(m.currency) ? 0.01 : 1;
+  const currency = ['GBp', 'GBX'].includes(m.currency) ? 'GBP' : m.currency === 'ZAc' ? 'ZAR' : m.currency.toUpperCase();
+  const bars = [];
+  for (let i = 0; i < times.length; i++) {
+    const t = times[i];
+    if (!barStamp(t) || t > now + 300 || (i && t <= times[i - 1])) throw new Error('Invalid market timestamps');
+    if (!positive(q.close[i])) continue;
+    const c = q.close[i] * unit;
+    const o = positive(q.open?.[i]) ? q.open[i] * unit : null;
+    const h = positive(q.high?.[i]) ? q.high[i] * unit : null;
+    const l = positive(q.low?.[i]) ? q.low[i] * unit : null;
+    const ohlc = positive(o) && positive(h) && positive(l) && h >= Math.max(o, c) - 1e-7 && l <= Math.min(o, c) + 1e-7;
+    bars.push([t, ohlc ? o : null, ohlc ? h : null, ohlc ? l : null, c,
+      Number.isFinite(q.volume?.[i]) && q.volume[i] >= 0 ? q.volume[i] : null]);
+  }
+  if (bars.length < 2) throw new Error('Not enough prices for this range');
+  const price = m.regularMarketPrice * unit;
+  const quoteTime = m.regularMarketTime;
+  const last = bars.at(-1);
+  // Extended-hours bars may be newer than the regular-session quote. Keep those
+  // bars and quote their last close with its own timestamp; never rewind the path.
+  let market_at = quoteTime;
+  let latest = price;
+  if (config.extended && last[0] > quoteTime) { latest = last[4]; market_at = last[0]; }
+  else {
+    if (last[0] > quoteTime || quoteTime - last[0] > Math.max(MAX_MARKET_AGE, config.seconds * 2)) throw new Error('Quote and history are out of sync');
+    const same = config.interval === '1d' ? localDay(last[0], timezone) === localDay(quoteTime, timezone) :
+      config.interval === '1mo' ? localDay(last[0], timezone).slice(0, 7) === localDay(quoteTime, timezone).slice(0, 7) :
+      quoteTime - last[0] < config.seconds;
+    if (same) {
+      last[4] = price;
+      if (last[1] !== null) { last[2] = Math.max(last[2], price); last[3] = Math.min(last[3], price); }
+    } else bars.push([quoteTime, null, null, null, price, null]);
+  }
+  // Yahoo occasionally answers 30m with 15m bars. Aggregate rather than relabel.
+  const normalized = !fx && config.interval === '30m' && m.dataGranularity === '15m' ? aggregateByTime(bars, 1800) : bars;
+  return { bars: normalized, symbol: expectedSymbol, name: String(m.longName || m.shortName || expectedSymbol).slice(0, 140),
+    currency, native_currency: currency, timezone, price: latest, market_at,
+    previous_close: positive(m.chartPreviousClose || m.previousClose) ? (m.chartPreviousClose || m.previousClose) * unit : null };
+}
+
+function combine(group) {
+  const complete = group.every(b => b[1] !== null);
+  const volume = group.every(b => b[5] !== null);
+  return [group[0][0], complete ? group[0][1] : null,
+    complete ? Math.max(...group.map(b => b[2])) : null,
+    complete ? Math.min(...group.map(b => b[3])) : null, group.at(-1)[4],
+    volume ? group.reduce((sum, b) => sum + b[5], 0) : null];
+}
+function aggregateByTime(bars, seconds) {
+  const groups = [];
+  for (const bar of bars) {
+    const bucket = Math.floor(bar[0] / seconds);
+    if (groups.at(-1)?.bucket !== bucket) groups.push({ bucket, rows: [] });
+    groups.at(-1).rows.push(bar);
+  }
+  return groups.map(g => combine(g.rows));
+}
+
+function makeState(data, config, now) {
+  const baseline = config.range === '1d' && positive(data.previous_close) ? data.previous_close : data.bars[0][4];
+  const high = Math.max(...data.bars.map(b => b[2] ?? b[4]));
+  const low = Math.min(...data.bars.map(b => b[3] ?? b[4]));
+  let group = 1;
+  let state;
+  do {
+    const bars = [];
+    for (let i = 0; i < data.bars.length; i += group) bars.push(combine(data.bars.slice(i, i + group)).map(n => n === null ? null : round(n)));
+    state = { v: 2, key: config.key, symbol: data.symbol, name: data.name, currency: data.currency,
+      native_currency: data.native_currency, timezone: data.timezone, market_at: data.market_at, fetched_at: now,
+      price: data.price, baseline, high, low, fx_at: data.fx_at || null, fx_rate: data.fx_rate || null,
+      group, source_count: data.bars.length, bars };
+    group++;
+  } while ((state.bars.length > 360 || bytes(state) > STATE_LIMIT) && group < data.bars.length);
+  if (!validState(state, now, config)) throw new Error('Saved chart could not be validated');
   return state;
 }
 
-function validState(state, now) {
-  if (!state || state.v !== 1 || !positive(state.price) ||
-      !Number.isFinite(state.change) || !Number.isFinite(state.percent) ||
-      !timestamp(state.start_at) || !timestamp(state.market_at) || !timestamp(state.fetched_at) ||
-      state.start_at >= state.market_at || state.market_at > now + 300 ||
-      state.fetched_at > now + 300 || bytes(state) > STATE_LIMIT ||
-      !Array.isArray(state.ticks) || state.ticks.length !== 5 ||
-      !state.ticks.every(t => Number.isFinite(t.y) && t.y >= PLOT.top && t.y <= PLOT.bottom &&
-        typeof t.label === 'string' && /^\d+\.\d{2}$/.test(t.label)) ||
-      !Array.isArray(state.dates) || state.dates.length !== 5 ||
-      !state.dates.every(d => Number.isFinite(d.x) && d.x >= PLOT.left && d.x <= PLOT.right &&
-        typeof d.label === 'string' && /^[A-Z][a-z]{2} \d{2}$/.test(d.label)) ||
-      typeof state.path !== 'string' || !/^M\d+\.\d,\d+\.\d(?:L\d+\.\d,\d+\.\d)+$/.test(state.path)) return false;
-  const coordinates = [...state.path.matchAll(/[ML](\d+\.\d),(\d+\.\d)/g)];
-  return coordinates.length >= 2 && coordinates.length <= 371 &&
-    coordinates.every((p, i) => +p[1] >= PLOT.left && +p[1] <= PLOT.right &&
-      +p[2] >= PLOT.top && +p[2] <= PLOT.bottom && (i === 0 || +p[1] >= +coordinates[i - 1][1]));
+function validState(s, now, config) {
+  return !!s && s.v === 2 && (!config || s.key === config.key) && typeof s.key === 'string' && s.key.length < 150 &&
+    typeof s.symbol === 'string' && typeof s.name === 'string' && s.name.length <= 140 &&
+    /^[A-Z]{3}$/.test(s.currency) && /^[A-Z]{3}$/.test(s.native_currency) &&
+    typeof s.timezone === 'string' && validZone(s.timezone) === s.timezone &&
+    stamp(s.market_at) && stamp(s.fetched_at) && s.market_at <= now + 300 && s.fetched_at <= now + 300 &&
+    positive(s.price) && positive(s.baseline) && positive(s.high) && positive(s.low) && s.high >= s.low &&
+    (s.fx_at === null || (stamp(s.fx_at) && s.fx_at <= now + 300 && positive(s.fx_rate))) &&
+    Number.isSafeInteger(s.group) && s.group >= 1 && Number.isSafeInteger(s.source_count) &&
+    Array.isArray(s.bars) && s.bars.length >= 2 && s.bars.length <= 360 && s.source_count >= s.bars.length &&
+    s.bars.every((b, i) => Array.isArray(b) && b.length === 6 && barStamp(b[0]) && b[0] <= s.market_at &&
+      (!i || b[0] > s.bars[i - 1][0]) && positive(b[4]) &&
+      ((b[1] === null && b[2] === null && b[3] === null) ||
+        (positive(b[1]) && positive(b[2]) && positive(b[3]) && b[2] >= Math.max(b[1], b[4]) && b[3] <= Math.min(b[1], b[4]))) &&
+      (b[5] === null || (Number.isFinite(b[5]) && b[5] >= 0))) && bytes(s) <= STATE_LIMIT;
 }
 
-function display(state, stale, detail) {
-  if (!state) return { has_data: false, stale: true, detail };
-  const signed = value => `${value < 0 ? '\u2212' : '+'}${Math.abs(value).toFixed(2)}`;
-  const date = new Date(state.market_at * 1000);
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', month: 'short', day: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short'
-  });
-  const parts = Object.fromEntries(formatter.formatToParts(date).map(p => [p.type, p.value]));
-  return {
-    ...state, has_data: true, stale, detail,
-    price_label: state.price.toFixed(2),
-    change_label: `${signed(state.change)} (${signed(state.percent)}%)`,
-    market_label: formatter.format(date), market_iso: date.toISOString(),
-    market_label_compact: `${parts.day} ${parts.month} ${parts.year.slice(-2)} ${parts.hour}:${parts.minute} ET`
+function conversionPlan(from, to) {
+  if (to === 'NATIVE' || to === from) return [];
+  if (['BTC', 'ETH'].includes(to)) return [
+    ...(from === 'USD' ? [] : [{ symbol: from + 'USD=X', divide: false }]),
+    { symbol: to + '-USD', divide: true }
+  ];
+  return [{ symbol: from + to + '=X', divide: false }];
+}
+function convert(data, rates, config) {
+  if (!rates.length) return data;
+  const at = (series, t) => {
+    let left = 0, right = series.bars.length - 1, found = -1;
+    while (left <= right) { const mid = (left + right) >> 1; if (series.bars[mid][0] <= t) { found = mid; left = mid + 1; } else right = mid - 1; }
+    if (found < 0 || t - series.bars[found][0] > Math.max(MAX_MARKET_AGE, config.seconds * 2)) throw new Error('Historical exchange rate unavailable');
+    return series.bars[found][4];
   };
+  const factorAt = t => rates.reduce((v, r) => r.divide ? v / at(r.data, t) : v * at(r.data, t), 1);
+  const current = rates.reduce((v, r) => r.divide ? v / r.data.price : v * r.data.price, 1);
+  if (!positive(current) || rates.some(r => Math.abs(r.data.market_at - data.market_at) > MAX_MARKET_AGE)) throw new Error('Exchange rate is out of date');
+  const firstFactor = factorAt(data.bars[0][0]);
+  const bars = data.bars.map(b => {
+    const factor = factorAt(b[0]);
+    return b.map((n, i) => i >= 1 && i <= 4 && n !== null ? n * factor : n);
+  });
+  bars.at(-1)[4] = data.price * current;
+  if (bars.at(-1)[1] !== null) {
+    bars.at(-1)[2] = Math.max(bars.at(-1)[2], bars.at(-1)[4]);
+    bars.at(-1)[3] = Math.min(bars.at(-1)[3], bars.at(-1)[4]);
+  }
+  return { ...data, bars, price: data.price * current, currency: config.currency,
+    previous_close: data.previous_close === null ? null : data.previous_close * firstFactor,
+    fx_at: Math.min(...rates.map(r => r.data.market_at)), fx_rate: current };
+}
+
+function linePath(points, type) {
+  if (!points.length) return '';
+  const f = n => n.toFixed(1);
+  let path = `M${f(points[0].x)},${f(points[0].y)}`;
+  // A monotone cubic stays inside each pair's price range: smoothing must not
+  // manufacture highs/lows. Zero the tangent at every local extremum.
+  const slopes = points.slice(1).map((p, i) => (p.y - points[i].y) / (p.x - points[i].x));
+  const tangents = points.map((_, i) => !i ? slopes[0] : i === points.length - 1 ? slopes.at(-1) :
+    slopes[i - 1] * slopes[i] <= 0 ? 0 : 2 / (1 / slopes[i - 1] + 1 / slopes[i]));
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    if (type === '1') path += `H${f(b.x)}V${f(b.y)}`;
+    else if (type === '2') {
+      const dx = (b.x - a.x) / 3;
+      // Clamp the control points too, including the end tangents.
+      const clamp = v => Math.max(Math.min(a.y, b.y), Math.min(Math.max(a.y, b.y), v));
+      path += `C${f(a.x + dx)},${f(clamp(a.y + tangents[i - 1] * dx))},${f(b.x - dx)},${f(clamp(b.y - tangents[i] * dx))},${f(b.x)},${f(b.y)}`;
+    } else path += `L${f(b.x)},${f(b.y)}`;
+  }
+  return path;
+}
+
+function chart(state, config) {
+  const candles = config.chartType !== 'line';
+  const values = state.bars.flatMap(b => candles && b[1] !== null ? [b[2], b[3]] : [b[4]]);
+  if (config.reference) values.push(state.baseline);
+  const low = Math.min(...values), high = Math.max(...values);
+  const padding = Math.max((high - low) * 0.08, high * 0.005, 1e-9);
+  const min = Math.max(0, low - padding), max = high + padding;
+  const hasVolume = config.volume && state.bars.some(b => b[5] !== null && b[5] > 0);
+  const bottom = hasVolume ? 216 : PLOT.bottom;
+  const y = p => bottom - (p - min) / (max - min) * (bottom - PLOT.top);
+  // Session spacing removes overnight/weekend voids, as a market chart should.
+  const x = i => PLOT.left + i / (state.bars.length - 1) * (PLOT.right - PLOT.left);
+  const width = Math.max(0.8, Math.min(9, 500 / state.bars.length));
+  const points = state.bars.map((b, i) => ({ x: x(i), y: y(b[4]) }));
+  let up = '', down = '', missing = '';
+  const f = n => n.toFixed(1);
+  for (const [i, b] of state.bars.entries()) {
+    if (b[1] === null) { missing += `M${f(x(i) - width / 2)},${f(y(b[4]))}h${f(width)}`; continue; }
+    const cx = x(i), half = width / 2;
+    let p = `M${f(cx)},${f(y(b[2]))}V${f(y(b[3]))}`;
+    if (config.chartType === 'bars') p += `M${f(cx - half)},${f(y(b[1]))}H${f(cx)}M${f(cx)},${f(y(b[4]))}H${f(cx + half)}`;
+    else {
+      const top = Math.min(y(b[1]), y(b[4]));
+      const height = Math.max(0.8, Math.abs(y(b[1]) - y(b[4])));
+      p += `M${f(cx - half)},${f(top)}h${f(width)}v${f(height)}h-${f(width)}Z`;
+    }
+    if (b[4] >= b[1]) up += p; else down += p;
+  }
+  const maxVolume = Math.max(1, ...state.bars.map(b => b[5] || 0));
+  const volume = hasVolume ? state.bars.map((b, i) => b[5] === null ? '' : `M${f(x(i))},274V${f(274 - b[5] / maxVolume * 40)}`).join('') : '';
+  const digits = config.precision === 'auto' ? (state.currency === 'BTC' || state.currency === 'ETH' || state.price < 1 ? 6 : state.currency === 'JPY' ? 0 : 2) : +config.precision;
+  const number = n => new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+  const dates = [0, Math.round((state.bars.length - 1) / 2), state.bars.length - 1].map(i => ({
+    x: x(i), label: new Intl.DateTimeFormat(LOCALES[config.locale], {
+      timeZone: state.timezone, ...(config.range === '1d' ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } :
+        config.range === '1mo' || config.range === '3mo' ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' })
+    }).format(new Date(state.bars[i][0] * 1000))
+  }));
+  return { path: linePath(points, config.lineType), up, down, volume_path: volume, volume_width: width,
+    reference_y: y(state.baseline),
+    ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: number(max - r * (max - min)) })), dates,
+    missing_path: missing, has_ohlc: state.bars.some(b => b[1] !== null), has_volume: hasVolume, digits };
+}
+
+function display(state, stale, detail, config) {
+  const text = COPY[config.locale];
+  const base = { has_data: false, stale: true, detail, symbol: config.symbol, currency: config.currency,
+    range_label: config.label, chart_type: config.chartType, line_width: config.lineWidth,
+    grid: config.grid, reference: config.reference, header: config.header, font_size: config.fontSize,
+    labels: { unavailable: text[0], stale: text[1], retry: text[2], volume: text[3], low: text[4], high: text[5], market: text[6], fx: text[7], no_saved: text[12] } };
+  if (!state) return base;
+  const graphics = chart(state, config);
+  const formatter = new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: graphics.digits, maximumFractionDigits: graphics.digits });
+  const signed = (n, digits) => (n < 0 ? '−' : '+') + new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Math.abs(n));
+  const date = new Date(state.market_at * 1000);
+  const compact = new Intl.DateTimeFormat(LOCALES[config.locale], { timeZone: state.timezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const full = new Intl.DateTimeFormat(LOCALES[config.locale], { timeZone: state.timezone, year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short' });
+  const change = state.price - state.baseline;
+  return { ...base, ...graphics, has_data: true, stale, detail, name: state.name, currency: state.currency,
+    price: state.price, change, percent: change / state.baseline * 100,
+    price_label: formatter.format(state.price), change_label: `${signed(change, graphics.digits)} (${signed(change / state.baseline * 100, 2)}%)`,
+    high_label: formatter.format(state.high), low_label: formatter.format(state.low),
+    market_at: state.market_at, market_iso: date.toISOString(), market_label: full.format(date), market_label_compact: compact.format(date),
+    fx_label: state.fx_at ? `${state.native_currency}→${state.currency} · ${text[7]}` : '',
+    fx_iso: state.fx_at ? new Date(state.fx_at * 1000).toISOString() : '',
+    source_label: `Yahoo · ${config.interval}${state.group > 1 ? ' ×' + state.group : ''}`,
+    session_label: config.extended ? text[8] : text[9],
+    chart_note: config.chartType !== 'line' && !graphics.has_ohlc ? 'OHLC unavailable · line shown' : '' };
 }
 
 async function run(input) {
   const now = Math.floor(Date.now() / 1000);
-  const saved = input?.trmnl?.state;
-  const previous = validState(saved, now) ? saved : null;
+  let config;
+  try { config = settings(input); }
+  catch (error) { return { stonks: display(null, true, error.message, settings({})) }; }
+  const previous = validState(input?.trmnl?.state, now, config) ? input.trmnl.state : null;
   const controller = new AbortController();
   let timer;
   try {
-    // Deadline includes connection, response body, and JSON, not just headers.
     const deadline = new Promise((_, reject) => {
-      timer = setTimeout(() => {
-        controller.abort();
-        reject(new Error('Request timed out'));
-      }, REQUEST_TIMEOUT_MS);
+      timer = setTimeout(() => { controller.abort(); reject(new Error('Request timed out')); }, REQUEST_TIMEOUT_MS);
     });
-    const request = (async () => {
-      const response = await fetch(YAHOO_URL, { signal: controller.signal, headers: { Accept: 'application/json' } });
-      if (!response.ok) throw new Error(`Provider HTTP ${response.status}`);
-      return await response.json();
+    const request = async (symbol, c, fx = false) => {
+      const response = await fetch(yahooURL(symbol, c), { signal: controller.signal, headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error(`${fx ? 'FX' : 'Provider'} HTTP ${response.status}`);
+      return parseYahoo(await response.json(), now, c, symbol, fx);
+    };
+    const work = (async () => {
+      const data = await request(config.symbol, config);
+      const plan = conversionPlan(data.currency, config.currency);
+      // A five-day intraday FX window supplies the previous session's baseline.
+      const fxConfig = { ...config, range: config.range === '1d' ? '5d' : config.range, extended: false };
+      const rates = await Promise.all(plan.map(async p => ({ ...p, data: await request(p.symbol, fxConfig, true) })));
+      return makeState(convert(data, rates, config), config, now);
     })();
-    const payload = await Promise.race([request, deadline]);
-    const state = makeState(parseYahoo(payload, now), now);
-    if (!validState(state, now)) throw new Error('Invalid processed prices');
-    if (previous && (state.market_at < previous.market_at || state.start_at < previous.start_at - 7 * DAY)) {
-      throw new Error('Provider returned older data');
-    }
+    const state = await Promise.race([work, deadline]);
+    if (previous && state.market_at < previous.market_at) throw new Error('Provider returned older data');
     const stale = now - state.market_at > MAX_MARKET_AGE;
-    return {
-      stonks: display(state, stale, stale ? 'Provider prices are over 7 days old' : 'Yahoo Finance \u00b7 daily prices'),
-      trmnl_state: state
-    };
+    return { stonks: display(state, stale, stale ? 'Provider prices are over 7 days old' : '', config), trmnl_state: state };
   } catch (error) {
-    const message = error?.message || '';
-    const detail = controller.signal.aborted ? 'Request timed out' :
-      /^Provider HTTP \d{3}$/.test(message) ? message :
-      ['Provider returned older data', 'Incomplete year of prices'].includes(message) ? message :
-      'Market data could not be validated';
-    // Explicitly write back exactly the previous valid state, with no error flags
-    // or new fetch timestamps. A failed first run never writes an empty state.
-    return {
-      stonks: display(previous, true, detail),
-      ...(previous ? { trmnl_state: previous } : {})
-    };
-  } finally {
-    clearTimeout(timer);
-  }
+    const detail = controller.signal.aborted ? 'Request timed out' : String(error?.message || 'Market data unavailable').slice(0, 160);
+    return { stonks: display(previous, true, detail, config), ...(previous ? { trmnl_state: previous } : {}) };
+  } finally { clearTimeout(timer); controller.abort(); }
 }

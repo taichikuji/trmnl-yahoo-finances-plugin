@@ -1,36 +1,32 @@
-// Synthetic NTNX prices, using the shape of the recorded Yahoo response.
-// These are deliberately NOT real NTNX prices or a historical backtest.
+// Synthetic provider-shaped data, never a historical backtest or real quote.
 const recorded = require('./yahoo-chart-recorded.json');
 const NOW = Date.parse('2026-10-28T20:00:00Z');
-
-function sample() {
+function sample(options = {}) {
   const data = structuredClone(recorded);
   const result = data.chart.result[0];
-  const times = [];
-  const closes = [];
-  for (let day = 0; day <= 365; day++) {
-    const time = Date.parse('2025-10-28T13:30:00Z') / 1000 + day * 86400;
-    const weekday = new Date(time * 1000).getUTCDay();
-    if (weekday === 0 || weekday === 6) continue;
-    times.push(time);
-    const trend = 43 + day * 0.052;
-    const dip = 15 * Math.exp(-(((day - 238) / 23) ** 2));
-    closes.push(+(trend + 3.4 * Math.sin(day / 13) + 1.2 * Math.sin(day * 1.7) - dip).toFixed(2));
+  const { symbol = 'NTNX', currency = 'USD', interval = '1d', count = 262, seconds = 86400,
+    startPrice = 43, timezone = 'America/New_York' } = options;
+  const end = NOW / 1000 - 300;
+  const times = [], closes = [];
+  for (let i = 0; i < count; i++) {
+    times.push(end - (count - i - 1) * seconds);
+    const trend = startPrice * (1 + i / count * 0.25);
+    closes.push(+(trend + startPrice * (0.07 * Math.sin(i / 13) + 0.025 * Math.sin(i * 1.7))).toPrecision(8));
   }
   Object.assign(result.meta, {
-    symbol: 'NTNX', longName: 'Nutanix Inc.', shortName: 'Nutanix, Inc.',
-    currency: 'USD', exchangeName: 'NMS', fullExchangeName: 'NasdaqGS',
-    regularMarketTime: NOW / 1000 - 300,
-    regularMarketPrice: +(closes.at(-1) + 0.75).toFixed(2),
-    range: '1y', dataGranularity: '1d'
+    symbol, longName: symbol === 'NTNX' ? 'Nutanix Inc.' : symbol + ' sample', shortName: symbol,
+    currency, instrumentType: 'EQUITY', exchangeName: 'NMS', fullExchangeName: 'NasdaqGS',
+    exchangeTimezoneName: timezone, regularMarketTime: end,
+    regularMarketPrice: closes.at(-1), chartPreviousClose: closes[0] * 0.99,
+    range: '1y', dataGranularity: interval
   });
   result.timestamp = times;
   result.indicators = {
-    quote: [{ close: closes }],
-    // Intentionally different: tests must detect accidental adjusted/raw mixing.
+    quote: [{ close: closes, open: closes.map(p => p * 0.997), high: closes.map(p => p * 1.02),
+      low: closes.map(p => p * 0.98), volume: closes.map((_, i) => 1000000 + i * 1703) }],
+    // Different by design: tests catch accidental adjusted/raw mixing.
     adjclose: [{ adjclose: closes.map(p => p * 0.5) }]
   };
   return data;
 }
-
 module.exports = { sample, NOW };

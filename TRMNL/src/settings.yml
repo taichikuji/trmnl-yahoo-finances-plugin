@@ -1,6 +1,6 @@
 ---
 name: STONKS
-description: Nutanix, one year at a glance
+description: Native market charts, your way
 strategy: static
 static_data: '{}'
 serverless_language: node
@@ -8,3 +8,134 @@ refresh_interval: 60
 framework_version: 3.4.3
 no_screen_padding: 'no'
 dark_mode: 'no'
+custom_fields:
+  - keyname: bio
+    field_type: author_bio
+    name: About STONKS
+    category: finance
+    description: Native Yahoo Finance charts for every TRMNL layout. Stocks, ETFs, indices, forex and crypto. Hollow candles rise; filled candles fall.
+  - keyname: symbol
+    field_type: string
+    name: Symbol
+    default: NTNX
+    description: Yahoo Finance ticker or a supported TradingView exchange symbol.
+    help_text: 'Examples: NTNX, VWCE.DE, ^GSPC, BTC-USD, EURUSD=X. NASDAQ:NTNX and XETR%3AVWCE also work. For other exchanges, copy the exact ticker from <a href="https://finance.yahoo.com/" target="_blank">Yahoo Finance</a>.'
+    group: Market
+  - keyname: currency
+    field_type: string
+    name: Currency
+    default: USD
+    description: Display currency, or NATIVE to use the instrument's currency.
+    help_text: 'Examples: USD, EUR, GBP, JPY, BTC, ETH. Conversion requires a Yahoo exchange-rate pair. Historical prices use historical rates; converted OHLC is an estimate. Unsupported pairs show an error.'
+    group: Market
+  - keyname: dateRanges
+    field_type: select
+    name: Date Range
+    default: 12m|1D
+    options:
+      - '1 Day, 1 Minute': 1d|1
+      - '1 Month, 30 Minutes': 1m|30
+      - '3 Months, 1 Hour': 3m|60
+      - '1 Year, 1 Day': 12m|1D
+      - '5 Years, 1 Week': 60m|1W
+      - 'All Time, 1 Month': all|1M
+    help_text: Availability depends on Yahoo and the instrument. Long series are grouped into OHLC candles to fit saved state; ×N shows the grouping factor.
+    group: Market
+  - keyname: extendedHours
+    field_type: select
+    name: Extended Hours
+    default: hide
+    options:
+      - Regular session: hide
+      - Include pre/post market: show
+    description: Applies to intraday ranges where the exchange supplies these prices.
+    group: Market
+  - keyname: chartType
+    field_type: select
+    name: Chart Type
+    default: line
+    options:
+      - Line: line
+      - Bars: bars
+      - Candles: candles
+    group: Chart
+  - keyname: lineWidth
+    field_type: number
+    name: Line Width
+    default: 2
+    description: Line or OHLC stroke width, from 1 to 5 px.
+    group: Chart
+  - keyname: lineType
+    field_type: select
+    name: Line Type
+    default: '2'
+    options:
+      - Simple: '0'
+      - Step Line: '1'
+      - Curved (Smooth Line): '2'
+    description: Smooth lines stay within each segment's price range.
+    group: Chart
+  - keyname: showGridlines
+    field_type: select
+    name: Show Grid Lines
+    default: hide
+    options:
+      - Show: show
+      - Hide: hide
+    group: Chart
+  - keyname: showVolume
+    field_type: select
+    name: Show Volume
+    default: hide
+    options:
+      - Show: show
+      - Hide: hide
+    description: Separate volume strip, when Yahoo supplies trading volume.
+    group: Chart
+  - keyname: showReference
+    field_type: select
+    name: Show Return Baseline
+    default: hide
+    options:
+      - Show: show
+      - Hide: hide
+    description: Dashed line at the return baseline. 1D uses the previous close; other ranges use the first close.
+    group: Chart
+  - keyname: locale
+    field_type: select
+    name: Locale
+    default: en
+    options:
+      - English: en
+      - German: de_DE
+      - French: fr
+      - Spanish: es
+      - Italian: it
+      - Polish: pl
+    group: Typography
+  - keyname: headerFontSize
+    field_type: select
+    name: Header Font Size
+    default: medium
+    options:
+      - Small: small
+      - Normal: medium
+      - Large: large
+    group: Typography
+  - keyname: fontSize
+    field_type: number
+    name: Font Size
+    default: 10
+    description: Chart labels and supporting text, from 8 to 16 px. Scales with device density.
+    group: Typography
+  - keyname: precision
+    field_type: select
+    name: Price Precision
+    default: auto
+    options:
+      - Automatic: auto
+      - '0 decimals': '0'
+      - '2 decimals': '2'
+      - '4 decimals': '4'
+      - '6 decimals': '6'
+    group: Typography
