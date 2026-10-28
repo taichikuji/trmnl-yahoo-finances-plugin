@@ -2,22 +2,23 @@
 
 A private TRMNL plugin for **Nutanix (NASDAQ:NTNX)**: latest regular-market price in USD, a one-year price return, and a native monochrome SVG chart. Inspired by the supplied TradingView screen, without its widget or branding.
 
-No hosted backend, accounts, API keys, runtime dependencies, client-side JavaScript, or external chart assets. Source follows the `TRMNL/src/` convention used by [taichikuji's other plugins](https://github.com/taichikuji/trmnl-tamagotchi-plugin).
+The plugin runs on TRMNL's infrastructure with no provider account, market-data API key, runtime packages, client-side JavaScript, or external chart assets. Source follows the `TRMNL/src/` convention used by [taichikuji's other plugins](https://github.com/taichikuji/trmnl-tamagotchi-plugin).
 
 The display lives in `TRMNL/src/shared.liquid` and uses TRMNL Framework 3.4.3's Layout, Flex, Title, Value, Label, Description, spacing utilities, and standard Title Bar. The same markup wraps naturally in full, half horizontal, half vertical, and quadrant views. The four view files contain only registration comments; TRMNL may skip a completely blank view even when Shared contains markup.
 
 The line is a scalable inline SVG. Its price and date labels use ordinary framework text outside the SVG so their fonts stay readable in small slots. The only inline CSS positions price labels at their calculated chart coordinates; there is no custom layout or typography stylesheet.
 
-## Install
+## TRMNL access
 
-1. Build `dist/STONKS.zip` with `npm run build` (Python 3 only; no npm install needed for packaging).
-2. In TRMNL, open **Plugins → Private Plugins → Import new** and upload **STONKS.zip**. Do not upload a ZIP of this repository.
-3. Confirm **Static** strategy, Static Data **`{}`**, **Node** Serverless, and a **60-minute** refresh interval. The import includes these settings, the markup, and `transform.js`.
-4. Choose full screen or any of the three mashup sizes, add it to your playlist, and **Force Refresh**. Enable Debug Logs when checking your first live run.
+Use the **`trmnl` MCP server** to inspect and update the existing STONKS installation. Store `TRMNL_MCP_API_KEY` in the ignored project `.env`; `.env.example` contains only the variable name. Codex's native HTTP registration is stored separately in the private `~/.codex/config.toml`. The key was resolved from `.env` into that private registration, so changing `.env` alone does not rotate the configured credential. Keep the authenticated configuration out of Git and logs.
+
+Reload the Codex client after registering the server so it can discover its tools. Configuration was verified through `codex mcp get` without printing the credential. A direct Python initialization probe received Cloudflare HTTP 403, error 1010 (`browser_signature_banned`); successful connection through Codex's native MCP client is pending a reload. No hosted plugin changes were made during setup.
+
+The plugin uses **Static** strategy, Static Data **`{}`**, **Node** Serverless, a **60-minute** refresh interval, Framework **3.4.3**, and normal screen padding. Choose full screen or any of the three mashup sizes, add it to your playlist, and **Force Refresh**. Enable Debug Logs when checking a live change.
 
 A Developer add-on or BYOD license and current TRMNL Serverless/Saved State support are required. Local previews cover **TRMNL OG** (original 1-bit and current 2-bit profiles), **TRMNL OG (B/W/R/Y)**, and **TRMNL X**, with all four views in landscape and portrait. Device dimensions, density, fonts, and palette classes come from the pinned framework's official profiles. X uses a 1040 × 780 CSS canvas at a 1.8 ratio, producing a 1872 × 1404 image; OG uses 800 × 480. The plugin keeps its monochrome chart on the color panel. It is a private import, not a published recipe.
 
-To update an existing installation while retaining its saved fallback, replace Shared, all four view tabs, and Serverless in the existing markup editor and apply the settings from `settings.yml` (including normal screen padding). Do not clear Saved State. Import new creates a separate installation with empty state.
+Update Shared, all four view tabs, Serverless, and settings on the existing installation while retaining Saved State. Source remains in Git, with local commits for each iteration. Automatic Git push and deployment on push are not configured. Default checks and CI do not create ZIP archives; the historical `npm run build` packaging command remains available only for an explicitly requested manual import.
 
 If the first fetch fails, `DATA UNAVAILABLE` is expected. Once a fetch succeeds, later failures keep the saved chart with a black **STALE DATA** badge and its original market timestamp. Force Refresh preserves Saved State; **Clear Saved State** removes your fallback.
 
@@ -33,14 +34,14 @@ If the first fetch fails, `DATA UNAVAILABLE` is expected. Once a fetch succeeds,
 
 ## Develop and verify
 
-Node 20+ and Python 3:
+Node 20+:
 
 ```sh
 npm ci --ignore-scripts
 npm run check
 ```
 
-The tests cover valid responses, missing prices, malformed/empty payloads, errors and timeouts (including stalled bodies), first-run failure, exact fallback preservation, stale timestamps, weekends/holidays, flat chart coordinates, state size, consistent return calculations, and Shared rendering exactly once in every registered view. Packaging verifies all seven root-level files, source bytes, file size limits, and ZIP CRCs. GitHub Actions runs the checks and retains the import ZIP as an artifact when this repository is hosted there.
+The tests cover valid responses, missing prices, malformed/empty payloads, errors and timeouts (including stalled bodies), first-run failure, exact fallback preservation, stale timestamps, weekends/holidays, flat chart coordinates, state size, consistent return calculations, and Shared rendering exactly once in every registered view. GitHub Actions runs the same checks without packaging or deploying the plugin.
 
 To create **local sample previews**, install Chrome, then:
 

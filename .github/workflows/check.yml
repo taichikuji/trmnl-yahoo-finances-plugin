@@ -1,4 +1,4 @@
-name: Check and package
+name: Check
 on:
   push:
     branches: [main]
@@ -16,7 +16,3 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run check
-      - uses: actions/upload-artifact@v7
-        with:
-          name: STONKS
-          path: dist/STONKS.zip

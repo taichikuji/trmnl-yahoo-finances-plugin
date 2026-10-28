@@ -7,7 +7,7 @@
     "test": "node --test TRMNL/check.cjs",
     "build": "python3 scripts/package-import.py",
     "preview": "node scripts/preview.cjs",
-    "check": "npm test && npm run build"
+    "check": "npm test"
   },
   "engines": {
     "node": ">=20"
