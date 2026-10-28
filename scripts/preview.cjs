@@ -27,9 +27,27 @@ async function main() {
   const offline = plugin(async () => ({ ok: false, status: 429 }));
   const stale = await offline.run({ trmnl: { state: fresh.trmnl_state } });
   const unavailable = await offline.run({});
-  fresh.stonks.detail = 'SAMPLE DATA';
+  fresh.stonks.source_label = 'SAMPLE · ' + fresh.stonks.source_label;
   stale.stonks.detail = 'SAMPLE · HTTP 429';
   const states = { fresh, stale, unavailable };
+  async function scenario(fields, fixture = sample(), saved) {
+    const result = await plugin(async () => ({ ok: true, json: async () => fixture })).run({
+      trmnl: { plugin_settings: { custom_fields_values: fields }, ...(saved ? { state: saved } : {}) }
+    });
+    if (!result.stonks.has_data) throw new Error('Invalid preview scenario: ' + result.stonks.detail);
+    result.stonks.source_label = 'SAMPLE · ' + result.stonks.source_label;
+    return result;
+  }
+  states.candles = await scenario({ chartType: 'candles', showVolume: 'show', showGridlines: 'show' });
+  states.bars = await scenario({ chartType: 'bars', showVolume: 'show', showReference: 'show' });
+  states.step = await scenario({ lineType: '1', headerFontSize: 'small', locale: 'pl' });
+  states.large = await scenario({ headerFontSize: 'large', fontSize: 16, showVolume: 'show', chartType: 'candles', locale: 'de_DE' });
+  const etf = sample({ symbol: 'VWCE.DE', currency: 'EUR' });
+  etf.chart.result[0].meta.longName = 'Vanguard FTSE All-World UCITS ETF USD Accumulating';
+  states.etf = await scenario({ symbol: 'XETR:VWCE', currency: 'NATIVE', locale: 'fr', fontSize: 12 }, etf);
+  states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
+  states.intraday = await scenario({ dateRanges: '1d|1', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
+
   const shared = fs.readFileSync(path.join(root, 'TRMNL/src/shared.liquid'), 'utf8');
   const settings = YAML.parse(fs.readFileSync(path.join(root, 'TRMNL/src/settings.yml'), 'utf8'));
   const frameworkURL = 'https://trmnl.com/css/' + settings.framework_version + '/plugins.css';
@@ -103,7 +121,7 @@ async function main() {
               await document.fonts.ready;
               const main = document.querySelector('.view');
               const layout = main.querySelector('.layout');
-              const chart = main.querySelector('[data-stonks-line]');
+              const chart = main.querySelector('[data-stonks-line], [data-stonks-ohlc] path');
               const svg = chart?.closest('svg').getBoundingClientRect();
               const bounds = main.getBoundingClientRect();
               const outside = r => r.width && r.height &&
@@ -118,8 +136,10 @@ async function main() {
                 if (!node.textContent.trim() || node.parentElement.closest('svg')) continue;
                 const range = document.createRange();
                 range.selectNodeContents(node);
+                if (node.parentElement.closest('[data-clamp]')) continue;
                 if ([...range.getClientRects()].some(outside)) textOverflow.push(node.textContent.trim());
               }
+              const clipped = [...main.querySelectorAll('[data-stonks] [data-clamp]')].filter(el => el.scrollWidth > el.clientWidth + 1);
               const time = main.querySelector('time');
               const timeRange = document.createRange();
               if (time) timeRange.selectNodeContents(time);
@@ -129,7 +149,7 @@ async function main() {
               return { width: bounds.width, height: bounds.height,
                 svgWidth: svg?.width, svgHeight: svg?.height,
                 nativeStructure: layout.nextElementSibling?.classList.contains('title_bar'),
-                timeFits, overflow, textOverflow, fonts,
+                timeFits, overflow, textOverflow, fonts, clipped: clipped.map(el => el.textContent.trim()),
                 pathLength: chart?.getTotalLength() ?? null };
             });
             if (failedResources.length) throw new Error(failedResources.join('\n'));
@@ -144,7 +164,7 @@ async function main() {
             if (!measurements.nativeStructure || !measurements.fonts.length) errors.push('native structure/fonts');
             if (measurements.overflow.length || measurements.textOverflow.length) errors.push('slot overflow');
             if (!measurements.timeFits) errors.push('market timestamp truncated');
-            if (state !== 'unavailable' && (!(measurements.pathLength > 600) ||
+            if (state !== 'unavailable' && (!(measurements.pathLength > 100) ||
                 measurements.svgWidth < 80 * profile.scale || measurements.svgHeight < 40 * profile.scale)) {
               errors.push('chart too small');
             }
@@ -162,7 +182,7 @@ async function main() {
               ' · ' + layout + ' · ' + state + '</figcaption></figure>');
           }
         }
-        console.log(device + '/' + orientation + ': 4 views × 3 states checked on ' + width + '×' + height);
+        console.log(device + '/' + orientation + ': 4 views × ' + Object.keys(states).length + ' scenarios checked on ' + width + '×' + height);
       }
     }
     fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify(report, null, 2) + '\n');
@@ -171,8 +191,8 @@ async function main() {
       '<style>body{font:14px system-ui;margin:24px;background:#eee}main{display:grid;grid-template-columns:' +
       'repeat(auto-fit,minmax(300px,1fr));gap:20px}figure{margin:0}img{display:block;max-width:100%;' +
       'max-height:400px;background:white}figcaption{padding:8px 0}</style>' +
-      '<h1>STONKS · 96 local previews</h1><p>Synthetic sample prices. Four native device profiles, ' +
-      'both orientations, four views, and three data states. Click a preview to open its markup.</p><main>' +
+      '<h1>STONKS · ' + report.length + ' local previews</h1><p>Synthetic sample prices. Four native device profiles, ' +
+      'both orientations, four views, and ten data/customization scenarios. Click a preview to open its markup.</p><main>' +
       figures.join('\n') + '</main></html>');
     if (problems.length) throw new Error(problems.length + ' preview failures:\n' + JSON.stringify(problems.slice(0, 8), null, 2));
     console.log('All ' + report.length + ' cases passed. Gallery: ' + path.join(outputDir, 'index.html'));

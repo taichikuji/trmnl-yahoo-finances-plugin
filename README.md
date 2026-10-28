@@ -1,84 +1,93 @@
 # STONKS
 
-A private TRMNL plugin for **Nutanix (NASDAQ:NTNX)**: latest regular-market price in USD, a one-year price return, and a native monochrome SVG chart. Inspired by the supplied TradingView screen, without its widget or branding.
+Native Yahoo Finance charts for TRMNL. STONKS offers the controls from the [TradingView recipe](https://trmnl.com/recipes/tradingview-157210), rendered with TRMNL Framework and inline SVG in `shared.liquid`. No iframe, remote widget, browser JavaScript, runtime packages, or market-data API key. The default remains **NTNX · USD · one year**.
 
-The plugin runs on TRMNL's infrastructure with no provider account, market-data API key, runtime packages, client-side JavaScript, or external chart assets. Source follows the `TRMNL/src/` convention used by [taichikuji's other plugins](https://github.com/taichikuji/trmnl-tamagotchi-plugin).
+## Customize
 
-The display lives in `TRMNL/src/shared.liquid` and uses TRMNL Framework 3.4.3's Layout, Flex, Title, Value, Label, Description, spacing utilities, and standard Title Bar. The same markup wraps naturally in full, half horizontal, half vertical, and quadrant views. The four view files contain only registration comments; TRMNL may skip a completely blank view even when Shared contains markup.
+Open [STONKS settings](https://trmnl.com/plugin_settings/522884/edit), change the form, save, and refresh. Each installation has its own selection.
 
-The line is a scalable inline SVG. Its price and date labels use ordinary framework text outside the SVG so their fonts stay readable in small slots. The only inline CSS positions price labels at their calculated chart coordinates; there is no custom layout or typography stylesheet.
+| Control | Options |
+| --- | --- |
+| Symbol | Yahoo ticker; common TradingView exchange symbols also accepted |
+| Currency | Native, available fiat FX pairs, BTC or ETH |
+| Chart Type | Line, OHLC bars, candles |
+| Locale | English, German, French, Spanish, Italian, Polish |
+| Date Range | 1D/1 minute, 1M/30 minutes, 3M/1 hour, 1Y/daily, 5Y/weekly, all time/monthly |
+| Line Width | 1–5 px, also applied to OHLC strokes |
+| Line Type | Simple, step, monotone smooth |
+| Grid Lines | Show/hide |
+| Volume | Show/hide a separate volume strip, when available |
+| Header Font Size | Small, normal, large |
+| Font Size | 8–16 px for labels and supporting text |
+| Extended Hours | Regular session or available intraday pre/post-market bars |
+| Return Baseline | Optional dashed line |
+| Price Precision | Automatic, 0, 2, 4 or 6 decimals |
+
+Symbol examples: `NTNX`, `VWCE.DE`, `VWRP.L`, `^GSPC`, `BTC-USD`, `EURUSD=X`. `NASDAQ%3ANTNX`, `XETR:VWCE`, `SP:SPX`, and common exchange-qualified crypto/FX symbols are translated. Unknown TradingView exchange prefixes require the exact Yahoo ticker; Yahoo and TradingView do not have identical coverage. A valid ticker can still lack a particular range, interval, volume, or FX pair.
+
+Rising candles are hollow; falling candles are filled. OHLC bars have a left opening tick and right closing tick. Missing OHLC data stays missing: close-only bars use small marks, or the whole chart falls back to a line when no OHLC exists. Smooth curves keep control points within each adjacent price range. The x-axis spaces available bars evenly to remove overnight/weekend gaps.
+
+## Data and saved state
+
+TRMNL Node 20 Serverless requests Yahoo's chart endpoint for the selected ticker/range/interval. Asset fetching, any FX fetching, and JSON bodies share a **3.8-second deadline**, within TRMNL's five-second runtime. Requests are not retried. HTTP failures, invalid data, timeouts, and quote regressions use the prior matching snapshot, marked stale, with its original timestamp. A first failed fetch shows an unavailable screen and does not write empty state.
+
+The price and return use unadjusted `quote.close` and the current regular-market quote. The latest quote updates its bar or is appended when necessary. Intraday extended-hours data can use the last supplied bar and that bar's timestamp instead of the older regular-session quote. Returns use the previous close for 1D, and the first available close for longer ranges. These are price returns, excluding dividend reinvestment. Yahoo controls split treatment and data availability, including the available start date for recently listed instruments.
+
+Currency selection **converts** the prices. Fiat conversion requests Yahoo's native/target FX pair; BTC and ETH conversion use their USD prices, with a native/USD leg where needed. Historical closes use the most recent exchange-rate bar at or before each asset bar. The current quote uses the current FX quote. Rates with missing alignment or excessive age are rejected. Pence and South African cents are normalized to pounds/rand first. Converted OHLC values are estimates using one FX rate per asset bar, not true intrabar converted extrema; the screen marks them **FX estimate** and the source tooltip includes the FX timestamp. Volume remains in instrument units. Unsupported pairs show an error rather than a relabelled native price.
+
+State v2 stores validated OHLCV data and metadata under TRMNL's **8,192-byte** limit. Long series are grouped in chronological buckets: first open, maximum high, minimum low, last close, summed volume. The source label shows the requested interval and grouping factor, such as `1d ×3`; it does not claim each displayed candle is one day. Grouping can change chart detail. Exact latest price, return baseline, and source extrema are retained independently. No sample prices are saved to production.
+
+The fallback key includes symbol, requested currency, range, and session choice. Changing any of these prevents a previous selection's chart from appearing as the new one. Presentation changes can redraw the same saved data during an outage. State from the previous fixed-symbol v1 renderer remains on TRMNL until the first successful v2 fetch; it is not treated as OHLCV and is not rendered by v2. Do not clear Saved State routinely.
+
+Market timestamps use the instrument's exchange timezone, with full timezone/year information in the footer tooltip and a UTC `<time datetime>` value. Fetch time is recorded separately and never presented as quote time. Failures mark data stale immediately. A successful response with a quote older than seven days is also stale; this tolerates ordinary holidays/weekends but is not an exchange calendar. This is a periodically refreshed display, and provider quotes can be delayed.
 
 ## TRMNL access
 
-Use the **`trmnl` MCP server** to inspect and update the existing STONKS installation. Store `TRMNL_MCP_API_KEY` in the ignored project `.env`; `.env.example` contains only the variable name. Codex's native HTTP registration is stored separately in the private `~/.codex/config.toml`. The key was resolved from `.env` into that private registration, so changing `.env` alone does not rotate the configured credential. Keep the authenticated configuration out of Git and logs.
+Use the registered **`trmnl` MCP server** to manage the existing STONKS installation, ID `522884`. The native MCP connection has been verified after restarting the client. The ignored `.env` contains `TRMNL_MCP_API_KEY`; `.env.example` has only its name. Codex registration is kept in private user configuration. Changing `.env` alone does not rotate the already registered credential. Never commit or log credentials or authenticated MCP URLs.
 
-Reload the Codex client after registering the server so it can discover its tools. Configuration was verified through `codex mcp get` without printing the credential. A direct Python initialization probe received Cloudflare HTTP 403, error 1010 (`browser_signature_banned`); successful connection through Codex's native MCP client is pending a reload. No hosted plugin changes were made during setup.
+The plugin uses Static strategy, `{}` static data, Node Serverless, a 60-minute refresh, Framework 3.4.3, and normal screen padding. Its four view files are nonempty registration comments because TRMNL may skip blank views. The shared display uses native Layout, Flex, Title, Value, Label, Description and Title Bar components. Small scoped CSS supplies numeric font sizes, and inline styles place axis labels; layout remains in the framework.
 
-The plugin uses **Static** strategy, Static Data **`{}`**, **Node** Serverless, a **60-minute** refresh interval, Framework **3.4.3**, and normal screen padding. Choose full screen or any of the three mashup sizes, add it to your playlist, and **Force Refresh**. Enable Debug Logs when checking a live change.
-
-A Developer add-on or BYOD license and current TRMNL Serverless/Saved State support are required. Local previews cover **TRMNL OG** (original 1-bit and current 2-bit profiles), **TRMNL OG (B/W/R/Y)**, and **TRMNL X**, with all four views in landscape and portrait. Device dimensions, density, fonts, and palette classes come from the pinned framework's official profiles. X uses a 1040 × 780 CSS canvas at a 1.8 ratio, producing a 1872 × 1404 image; OG uses 800 × 480. The plugin keeps its monochrome chart on the color panel. It is a private import, not a published recipe.
-
-Update Shared, all four view tabs, Serverless, and settings on the existing installation while retaining Saved State. Source remains in Git, with local commits for each iteration. Automatic Git push and deployment on push are not configured. Default checks and CI do not create ZIP archives; the historical `npm run build` packaging command remains available only for an explicitly requested manual import.
-
-If the first fetch fails, `DATA UNAVAILABLE` is expected. Once a fetch succeeds, later failures keep the saved chart with a black **STALE DATA** badge and its original market timestamp. Force Refresh preserves Saved State; **Clear Saved State** removes your fallback.
-
-## Data and reliability
-
-- One request per refresh to `https://query1.finance.yahoo.com/v8/finance/chart/NTNX?range=1y&interval=1d`. The 2.8-second deadline covers the request and JSON body; there are no immediate retries or access workarounds.
-- The chart and return use Yahoo's `quote.close` history plus `regularMarketPrice`. The latest quote replaces its session's daily bar, or is appended if that bar is absent. `adjclose` is never mixed in. This is a **price return**, excluding dividend reinvestment. Yahoo determines historical split treatment.
-- Return = latest price minus the first valid daily price in the requested year; percentage = that difference divided by the first valid price. Missing opening bars move the baseline to the first remaining bar. Responses need at least 120 valid bars spanning 350–370 days, so an empty or substantially truncated history cannot replace the chart.
-- Null/invalid closing prices are skipped, never converted to zero. Wrong instruments/currencies, invalid timestamps, HTTP errors, timeouts, invalid JSON, and older-than-saved quotes preserve the previous valid state exactly. A failed first run writes no state.
-- `market_at` is Yahoo's `regularMarketTime`, displayed in **New York exchange time**. The footer uses a compact date including the year and `ET`, for example `28 Oct 26 15:15 ET`; its accessible label/tooltip includes the full timestamp and EST/EDT, and its `<time>` element includes the UTC ISO timestamp. `fetched_at` records when a response was validated; it is stored separately and never shown as a quote timestamp. Regular-market data may be delayed; this is not a live trading display.
-- Every failed fetch marks the fallback stale immediately. A successful response is also stale if its market timestamp is over **seven calendar days** old. This conservative rule tolerates ordinary weekends and multi-day exchange holidays without a holiday calendar. It can take up to seven days to flag a provider that keeps returning unchanged data successfully.
-- Saved State stores only a version, SVG path, scale/date labels, and price/timestamp metadata. Writes are checked against TRMNL's **8,192-byte** limit. Each install starts empty; sample data is never bundled into the import.
+Use MCP to transfer the seven source files and preview/refresh the plugin. Keep local commits for each iteration. No automatic Git push or deploy-on-push is configured. Checks and CI do not create ZIP files. The historical manual `npm run build` command is retained only for an explicitly requested import archive.
 
 ## Develop and verify
-
-Node 20+:
 
 ```sh
 npm ci --ignore-scripts
 npm run check
-```
-
-The tests cover valid responses, missing prices, malformed/empty payloads, errors and timeouts (including stalled bodies), first-run failure, exact fallback preservation, stale timestamps, weekends/holidays, flat chart coordinates, state size, consistent return calculations, and Shared rendering exactly once in every registered view. GitHub Actions runs the same checks without packaging or deploying the plugin.
-
-To create **local sample previews**, install Chrome, then:
-
-```sh
-npm run preview
-# Or select an existing executable:
 CHROME_PATH=/path/to/chrome npm run preview
 ```
 
-Open `dist/preview/index.html` for the **96-case gallery**: four device profiles × two orientations × four views × three states (fresh, stale, unavailable). Each case has HTML and a PNG; mashup PNGs show the individual slot, and full-view PNGs show the device canvas. `report.json` records measurements and errors. The short `{fresh,stale,unavailable}.{html,png}` names still point to the original OG full-screen cases.
+Node 20+ is required. Tests cover every range, symbol normalization, return calculations, OHLCV grouping, missing values, FX/crypto conversion, pence, stale data, state isolation and corruption, bounded requests, smooth paths, all six locales, and all view registrations. Runtime code has no package dependencies.
 
-LiquidJS processes Shared before each view, and Playwright captures the native device and mashup wrappers with JavaScript disabled. Checks include slot bounds, text overflow, minimum chart size, native Layout/Title Bar structure, actual font loading, and timestamp truncation. The first run downloads the pinned official stylesheet and required fonts into `.cache/framework/3.4.3/`; subsequent runs reuse the cache. The browser receives only these cached framework assets, and the preview fails if any required resource cannot load. Optionally set `TRMNL_CSS_PATH` to an existing local copy of the pinned stylesheet. Saved HTML references the official stylesheet for viewing online.
+Open `dist/preview/index.html` for **320 local sample previews**: four profiles × two orientations × four views × ten scenarios. The scenarios include fresh/stale/unavailable states, candles with grid/volume, OHLC bars, step lines, large fonts, a long ETF name, crypto precision, and intraday candles. Each has HTML/PNG output; `report.json` records slot bounds, text overflow, chart size, fonts, native structure, and timestamp fit. The short `fresh`, `stale`, and `unavailable` filenames point to OG landscape full-screen cases.
 
-These are browser previews with synthetic prices labelled **SAMPLE DATA**. They do not reproduce TRMNL's hosted renderer, firmware, or device dithering. LiquidJS and Playwright are development-only dependencies and never ship inside the plugin ZIP. Physical-device verification is still needed, especially for the color panel.
+Profiles include original 1-bit OG, current 2-bit OG, OG B/W/R/Y, and X. X renders at 1040×780 CSS pixels with a 1.8 scale, producing 1872×1404 output. All four layouts run in portrait and landscape. The pinned framework and actual fonts are cached under `.cache/framework/3.4.3`; previews fail on missing resources. JavaScript is disabled in the preview browser. The B/W/R/Y panel uses the same monochrome chart conventions. Physical-device and dithering verification remain separate from browser or server previews.
 
-For the official local tool, install [trmnlp](https://github.com/usetrmnl/trmnlp) separately and run `cd TRMNL && trmnlp serve`. Review its transform execution settings before using live network calls.
+Synthetic fixtures are clearly labelled in local previews and never sent to TRMNL. The recorded Yahoo AAPL response fixture originally came from [yahoo-finance2](https://github.com/gadicc/yahoo-finance2/blob/main/tests/fixtures/http/chart-AAPL.json); it is not a real NTNX history. Developer dependencies LiquidJS and Playwright stay local.
 
-## Verification status and provider limits
+For the official local tool, install [trmnlp](https://github.com/usetrmnl/trmnlp) separately and run `cd TRMNL && trmnlp serve`. Review transform settings before making live requests.
 
-During local development on 28 October 2026, a direct request to the specified NTNX endpoint returned **HTTP 429**, with a plain-text `Edge: Too Many Requests` body. No alternate endpoints, cookie/crumb workarounds, browser scraping, or proxy rotation were attempted.
+## Hosted verification
 
-Later that day, the user imported `STONKS.zip` into TRMNL and supplied a successful rendered screenshot: **72.38 USD**, **+3.31 (+4.79%)** over the requested year, with the market timestamp **Oct 28, 2026, 15:15 EDT**. This is user-provided evidence of a successful import, live data fetch, and TRMNL render. Quote accuracy was not independently checked; physical-device appearance and Saved State fallback during a real provider outage remain unverified. The automated tests exercise fallback locally.
+On 28 October 2026, source was transferred to the existing STONKS installation through MCP, without an archive or state reset. All six markup/Serverless files were read back and matched local source; the hosted settings include the validated custom form and normal screen padding.
 
-The later Shared-based version is verified locally across the 96 device/view/state cases described above. The earlier user screenshot covers the original full-screen version; it does not verify the new mashup layouts on physical devices.
+- Live NTNX/USD data succeeded for all six ranges. The restored default quote was **72.67 USD**, timestamped **16:00 EDT**.
+- The one-month EUR candle configuration returned **65.11 EUR**, historical USD→EUR conversion, grid enabled, and available OHLC/volume.
+- A native-currency ETF selection (`VWCE.DE`) returned **171.94 EUR**. A one-month Bitcoin chart (`BTC-USD`) returned **81,163.80 USD** during verification. NTNX converted to BTC returned **0.000895 BTC**. These are verification snapshots, not current quote guarantees.
+- TRMNL completed all eight OG Plus/X server previews across full, half horizontal, half vertical, and quadrant sizes. Representative server images were visually inspected; 320 local previews cover portrait and B/W/R/Y as well.
+- The original NTNX/USD/year, smooth line, English, normal header, 10 px labels, hidden grid/volume settings were restored and refreshed successfully. No synthetic fixture was sent to the hosted plugin.
 
-Before implementing the parser, the successful response structure was inspected in [yahoo-finance2's recorded AAPL chart response](https://github.com/gadicc/yahoo-finance2/blob/main/tests/fixtures/http/chart-AAPL.json). Its response body is retained in `TRMNL/fixtures/yahoo-chart-recorded.json`; request headers/cookies are omitted. The separate synthetic NTNX fixture uses that structure to exercise a complete year. Neither fixture is a real NTNX quote history.
+MCP form updates require string values, including numeric controls. Source updates use `importPluginSettingFiles` with the seven filename/content entries. The separate `writeMarkup` linter currently rejects the valid empty-array return in the FX planning helper; file import successfully executes the same Serverless code. Refresh and inspect merge variables after transferring source rather than treating file acceptance alone as a successful deployment.
 
-Yahoo provides no supported public market-data API for this integration, and access can fail or change without notice. **Private or experimental use does not itself grant data rights.** [Yahoo's Terms of Service, section 1, Member Conduct](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) restrict automated access/collection without express prior permission and also restrict reuse. Obtain the required permission for the intended use, or replace the adapter with a licensed provider. There is no licensing clearance in this repository. Public distribution or commercial use requires a separate review of data access and display rights.
+## Provider limitations
+
+Yahoo's chart endpoint is undocumented and can fail or change. During initial local development it returned HTTP 429; the user subsequently supplied a successful original STONKS render from TRMNL. No cookie/crumb, scraping, proxy rotation, or access workaround is included. Yahoo and TradingView can differ in instrument coverage, historical availability, FX pairs, pricing and exchange delays.
+
+Existing provider terms guidance remains applicable: [Yahoo Terms of Service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html). This repository does not establish licensing clearance. Replace the isolated Yahoo adapter with a licensed provider when required for the intended use.
 
 ## References
 
-- [TRMNL Serverless](https://help.trmnl.com/en/articles/14130649-serverless)
-- [TRMNL Saved State](https://help.trmnl.com/en/articles/16777795-saved-state)
-- [Private-plugin ZIP format and import](https://help.trmnl.com/en/articles/10542599-importing-and-exporting-private-plugins)
-- [Inline images/SVG](https://help.trmnl.com/en/articles/12391781-creating-inline-images-for-plugins)
-- [Reusing Markup with Shared](https://help.trmnl.com/en/articles/13216853-reusing-markup-with-shared)
-- [Device profiles](https://trmnl.com/framework/docs/3.4/devices/), [views](https://trmnl.com/framework/docs/3.4/view), and [mashups](https://trmnl.com/framework/docs/3.4/mashup)
-- [Responsive utilities](https://trmnl.com/framework/docs/3.4/responsive), [font families](https://trmnl.com/framework/docs/3.4/font_family), and [color palettes](https://trmnl.com/framework/docs/3.4/color_palettes)
-
-The provided `private_plugin_522716.zip` was inspected: a flat six-file export, Static strategy, Framework 2.3.7, and TradingView's external embedding script inside an iframe in `shared.liquid`. No source or branding from that widget is shipped in STONKS.
+- [TradingView recipe and its controls](https://trmnl.com/recipes/tradingview-157210)
+- [TRMNL Serverless](https://help.trmnl.com/en/articles/14130649-serverless), [Saved State](https://help.trmnl.com/en/articles/16777795-saved-state), [custom form fields](https://help.trmnl.com/en/articles/10513740-custom-plugin-form-builder)
+- [Shared markup](https://help.trmnl.com/en/articles/13216853-reusing-markup-with-shared), [inline SVG](https://help.trmnl.com/en/articles/12391781-creating-inline-images-for-plugins)
+- [Devices](https://trmnl.com/framework/docs/3.4/devices/), [views](https://trmnl.com/framework/docs/3.4/view), [mashups](https://trmnl.com/framework/docs/3.4/mashup), [responsive utilities](https://trmnl.com/framework/docs/3.4/responsive)

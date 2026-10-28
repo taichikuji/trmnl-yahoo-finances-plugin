@@ -2,7 +2,7 @@
   "name": "trmnl-yahoo-finances-plugin",
   "version": "0.1.0",
   "private": true,
-  "description": "STONKS: a private, native NTNX chart for TRMNL",
+  "description": "STONKS: native Yahoo Finance market charts for TRMNL",
   "scripts": {
     "test": "node --test TRMNL/check.cjs",
     "build": "python3 scripts/package-import.py",
