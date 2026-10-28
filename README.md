@@ -1,0 +1,1 @@
+# trmnl-yahoo-finances-plugin
