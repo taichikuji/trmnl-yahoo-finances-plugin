@@ -6,5 +6,5 @@ static_data: '{}'
 serverless_language: node
 refresh_interval: 60
 framework_version: 3.4.3
-no_screen_padding: 'yes'
+no_screen_padding: 'no'
 dark_mode: 'no'

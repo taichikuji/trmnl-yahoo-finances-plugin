@@ -1,0 +1,59 @@
+<div class="layout layout--col layout--top gap--xsmall p--2" data-stonks>
+  <div class="flex flex--row flex--wrap flex--between gap--xsmall w--full no-shrink">
+    <span class="title title--small lg:title--base">Nutanix Inc.</span>
+    <span class="label label--small">NASDAQ:NTNX</span>
+  </div>
+  {% if stonks.has_data == true %}
+    <div class="flex flex--row flex--wrap flex--left gap--small w--full no-shrink">
+      <div class="flex flex--row gap--xsmall">
+        <span class="value value--small lg:value--base value--tnums">{{ stonks.price_label | escape }}</span>
+        <span class="label label--small">USD</span>
+      </div>
+      <div class="flex flex--row gap--xsmall">
+        <span class="label label--small lg:label--base">{{ stonks.change_label | escape }}</span>
+        <span class="label label--small">1Y</span>
+      </div>
+    </div>
+    <div class="flex flex--row flex--wrap flex--between gap--xsmall w--full no-shrink">
+      <span class="description w--min-0">{{ stonks.detail | escape }}</span>
+      {% if stonks.stale == true %}<span class="label label--small label--filled">STALE DATA</span>{% endif %}
+    </div>
+    <div class="stretch flex flex--row gap--small w--full" data-stonks-chart>
+      <div class="stretch flex flex--col gap--xsmall h--full w--min-0">
+        <div class="stretch relative w--full">
+          <svg class="block" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none" role="img" aria-label="Nutanix stock price over one year in US dollars">
+            <title>Nutanix, one year of daily prices. Latest price {{ stonks.price_label | escape }} USD.</title>
+            <path data-stonks-line d="{{ stonks.path | escape }}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+          </svg>
+        </div>
+        <div class="flex flex--row flex--between w--full no-shrink">
+          {% for date in stonks.dates %}
+            {% assign label_index = forloop.index0 | modulo: 2 %}
+            {% if label_index == 0 %}<span class="description">{{ date.label | escape }}</span>{% endif %}
+          {% endfor %}
+        </div>
+      </div>
+      <div class="flex flex--col gap--xsmall h--full w--12 no-shrink">
+        <div class="stretch relative w--full">
+          {% for tick in stonks.ticks %}
+            {% assign label_index = forloop.index0 | modulo: 2 %}
+            {% if label_index == 0 %}
+              <span class="description absolute right--0" style="top: {{ tick.y | times: 100.0 | divided_by: 286.0 }}%; transform: translateY(-50%);">{{ tick.label | escape }}</span>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <span class="description no-shrink">USD</span>
+      </div>
+    </div>
+  {% else %}
+    <div class="stretch flex flex--col flex--center gap--small text--center w--full">
+      <span class="title title--small lg:title--base">DATA UNAVAILABLE</span>
+      <span class="description w--full">No validated prices saved yet.<br />The next refresh will try again.</span>
+      <span class="description w--full">{{ stonks.detail | default: 'Market data could not be loaded' | escape }}</span>
+    </div>
+  {% endif %}
+</div>
+<div class="title_bar">
+  <span class="title">STONKS</span>
+  <span class="instance">{% if stonks.has_data == true %}<time class="description" datetime="{{ stonks.market_iso | escape }}" title="Market data: {{ stonks.market_label | escape }}" aria-label="Market data: {{ stonks.market_label | escape }}">{{ stonks.market_label_compact | escape }}</time>{% else %}NTNX · 1Y · USD{% endif %}</span>
+</div>

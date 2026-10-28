@@ -123,14 +123,18 @@ function validState(state, now) {
 function display(state, stale, detail) {
   if (!state) return { has_data: false, stale: true, detail };
   const signed = value => `${value < 0 ? '\u2212' : '+'}${Math.abs(value).toFixed(2)}`;
+  const date = new Date(state.market_at * 1000);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', month: 'short', day: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short'
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(date).map(p => [p.type, p.value]));
   return {
     ...state, has_data: true, stale, detail,
     price_label: state.price.toFixed(2),
     change_label: `${signed(state.change)} (${signed(state.percent)}%)`,
-    market_label: new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York', month: 'short', day: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short'
-    }).format(new Date(state.market_at * 1000))
+    market_label: formatter.format(date), market_iso: date.toISOString(),
+    market_label_compact: `${parts.day} ${parts.month} ${parts.year.slice(-2)} ${parts.hour}:${parts.minute} ET`
   };
 }
 

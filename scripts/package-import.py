@@ -4,7 +4,8 @@ from zipfile import ZipFile, ZIP_DEFLATED, ZipInfo
 
 root = Path(__file__).resolve().parents[1]
 src = root / 'TRMNL/src'
-names = ('settings.yml', 'full.liquid', 'transform.js')
+names = ('settings.yml', 'shared.liquid', 'full.liquid', 'half_horizontal.liquid',
+         'half_vertical.liquid', 'quadrant.liquid', 'transform.js')
 if {p.name for p in src.iterdir() if p.is_file()} != set(names):
     raise SystemExit('Unexpected or missing plugin source file')
 output = root / 'dist/STONKS.zip'

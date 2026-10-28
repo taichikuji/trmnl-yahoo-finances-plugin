@@ -11,7 +11,10 @@ class Clock extends Date { static now() { return NOW; } }
 const ok = data => async () => ({ ok: true, json: async () => structuredClone(data) });
 const load = (fetch = ok(sample()), extra = {}) => loadPlugin({ fetch, Date: Clock, ...extra });
 const plain = object => JSON.parse(JSON.stringify(object));
-const template = fs.readFileSync(path.join(__dirname, 'src/full.liquid'), 'utf8');
+const layouts = ['full', 'half_horizontal', 'half_vertical', 'quadrant'];
+const shared = fs.readFileSync(path.join(__dirname, 'src/shared.liquid'), 'utf8');
+const view = name => fs.readFileSync(path.join(__dirname, `src/${name}.liquid`), 'utf8');
+const template = shared + '\n' + view('full');
 const liquid = new Liquid();
 
 test('valid Yahoo-shaped year yields a complete chart, latest quote and price return', async () => {
@@ -33,6 +36,8 @@ test('valid Yahoo-shaped year yields a complete chart, latest quote and price re
   assert.equal(output.trmnl_state.path.match(/[ML]/g).length, result.timestamp.length);
   assert.equal(output.trmnl_state.ticks.length, 5);
   assert.match(output.stonks.market_label, /EDT/);
+  assert.equal(output.stonks.market_label_compact, '28 Oct 26 15:55 ET');
+  assert.equal(output.stonks.market_iso, '2026-10-28T19:55:00.000Z');
 });
 
 test('uses the expected Yahoo URL and performs one bounded request without retries', async () => {
@@ -223,6 +228,28 @@ test('fresh/stale Liquid renders a completed inline chart and actual market time
   }
 });
 
+test('Shared renders every registered view once for fresh, stale, and first-run failures', async () => {
+  const fresh = await load().run({});
+  const offline = load(async () => ({ ok: false, status: 429 }));
+  const stale = await offline.run({ trmnl: { state: fresh.trmnl_state } });
+  const empty = await offline.run({});
+  for (const name of layouts) {
+    // TRMNL skips truly empty views even when Shared contains all the markup.
+    assert.ok(view(name).trim().length > 0);
+    for (const model of [fresh, stale, empty]) {
+      const html = await liquid.parseAndRender(shared + '\n' + view(name), model);
+      assert.equal((html.match(/data-stonks>/g) || []).length, 1);
+      assert.equal((html.match(/class="title_bar"/g) || []).length, 1);
+      assert.equal(html.includes('data-stonks-line'), model.stonks.has_data);
+      assert.equal(html.includes('STALE DATA'), model.stonks.has_data && model.stonks.stale);
+      if (model.stonks.has_data) {
+        assert.ok(html.includes(model.stonks.market_iso));
+        assert.ok(html.includes(model.stonks.market_label_compact));
+      } else assert.ok(html.includes('DATA UNAVAILABLE'));
+    }
+  }
+});
+
 test('settings select native static/Node Serverless and have no unnecessary options', () => {
   const settings = YAML.parse(fs.readFileSync(path.join(__dirname, 'src/settings.yml'), 'utf8'));
   assert.equal(settings.name, 'STONKS');
@@ -230,6 +257,6 @@ test('settings select native static/Node Serverless and have no unnecessary opti
   assert.equal(settings.static_data, '{}');
   assert.equal(settings.serverless_language, 'node');
   assert.equal(settings.refresh_interval, 60);
-  assert.equal(settings.no_screen_padding, 'yes');
+  assert.equal(settings.no_screen_padding, 'no');
   assert.equal(settings.custom_fields, undefined);
 });
