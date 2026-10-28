@@ -1,6 +1,7 @@
 ---
 name: STONKS
 description: Native market charts, your way
+icon: media/icon.svg
 strategy: static
 static_data: '{}'
 serverless_language: node

@@ -19,3 +19,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Stock icon attribution
+----------------------
+TRMNL/media/icon.svg and TRMNL/media/icon-256.svg adapt Ant Design's
+StockOutlined icon, supplied via SVG Repo, with the project's orange fill.
+Source: https://github.com/ant-design/ant-design-icons/blob/master/packages/icons-svg/svg/outlined/stock.svg
+Copyright (c) 2018-present Ant UED, https://xtech.antfin.com/
+The icon is distributed under the MIT license above.
