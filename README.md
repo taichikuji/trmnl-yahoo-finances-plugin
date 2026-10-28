@@ -4,6 +4,8 @@ A private TRMNL plugin for **Nutanix (NASDAQ:NTNX)**: latest regular-market pric
 
 No hosted backend, accounts, API keys, runtime dependencies, client-side JavaScript, or external chart assets. Source follows the `TRMNL/src/` convention used by [taichikuji's other plugins](https://github.com/taichikuji/trmnl-tamagotchi-plugin).
 
+The display uses TRMNL Framework 3.4.3's Layout, Flex, Title, Value, Label, Description, spacing utilities, and standard Title Bar. There is no custom CSS in the plugin; the chart is an inline SVG with framework typography.
+
 ## Install
 
 1. Build `dist/STONKS.zip` with `npm run build` (Python 3 only; no npm install needed for packaging).
@@ -44,7 +46,9 @@ npm run preview
 CHROME_PATH=/path/to/chrome npm run preview
 ```
 
-Outputs are `dist/preview/{fresh,stale,unavailable}.{html,png}`. LiquidJS renders the actual template and Playwright captures it at 800 × 480 with JavaScript disabled and external requests blocked. Both are development-only dependencies; neither ships inside the plugin. The prices are synthetic and labelled **SAMPLE DATA**. These previews use browser/system fonts, not TRMNL's hosted renderer or device dithering. For an additional framework compatibility check, set `TRMNL_CSS_PATH` to a local copy of the pinned [3.4.3 stylesheet](https://trmnl.com/css/3.4.3/plugins.css); the preview uses TRMNL's `screen--no-bleed` wrapper to match the import's no-padding setting. That local stylesheet check was also performed successfully.
+Outputs are `dist/preview/{fresh,stale,unavailable}.{html,png}`. LiquidJS renders the actual template and Playwright captures it at 800 × 480 with JavaScript disabled. The first run downloads the pinned official TRMNL stylesheet and required fonts into `.cache/framework/3.4.3/`; subsequent runs reuse the cache. The browser receives only these cached framework assets, and the preview fails if any required resource cannot load. Both packages are development-only dependencies; neither ships inside the plugin. The prices are synthetic and labelled **SAMPLE DATA**.
+
+Previews use the actual framework fonts and its OG, 1-bit, no-padding screen wrapper. They check the native Layout/Title Bar structure and screen bounds. They do not reproduce TRMNL's hosted renderer or device dithering. Optionally set `TRMNL_CSS_PATH` to an existing local copy of the pinned stylesheet; required fonts still load through the cache. Saved HTML files reference the official stylesheet so they can also be opened directly while online.
 
 For the official local tool, install [trmnlp](https://github.com/usetrmnl/trmnlp) separately and run `cd TRMNL && trmnlp serve`. Review its transform execution settings before using live network calls.
 

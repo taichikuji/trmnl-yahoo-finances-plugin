@@ -1,63 +1,41 @@
-<style>
-  .stonks { box-sizing: border-box; width: 100%; height: 100%; padding: 26px 22px 14px; display: flex; flex-direction: column; gap: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
-  .stonks * { box-sizing: border-box; }
-  .stonks-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-  .stonks-company { font-size: 21px; font-weight: 700; line-height: 1.2; letter-spacing: .1px; }
-  .stonks-symbol { font-size: 13px; font-weight: 700; white-space: nowrap; }
-  .stonks-quote { display: flex; align-items: baseline; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
-  .stonks-price { font-size: 36px; font-weight: 700; line-height: 1.15; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
-  .stonks-unit { font-size: 12px; font-weight: 700; }
-  .stonks-change { font-size: 18px; font-variant-numeric: tabular-nums; }
-  .stonks-period { font-size: 13px; }
-  .stonks-info { display: flex; align-items: center; justify-content: space-between; min-height: 30px; gap: 12px; font-size: 12px; }
-  .stonks-stale { background: #000; color: #fff; padding: 4px 8px; font-size: 12px; line-height: 1; font-weight: 700; white-space: nowrap; letter-spacing: .5px; }
-  .stonks-chart { display: block; flex: 1; width: 100%; min-height: 0; overflow: visible; }
-  .stonks-chart text { fill: #000; font-family: Arial, Helvetica, sans-serif; font-size: 11px; font-variant-numeric: tabular-nums; }
-  .stonks-footer { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-top: 8px; border-top: 1px solid #000; font-size: 11px; line-height: 1.3; white-space: nowrap; }
-  .stonks-brand { font-weight: 700; letter-spacing: 1px; font-size: 13px; }
-  .stonks-unavailable { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; }
-  .stonks-unavailable strong { font-size: 30px; letter-spacing: 1px; }
-  .stonks-unavailable p { margin: 0; max-width: 550px; font-size: 16px; line-height: 1.5; }
-</style>
-<div class="stonks">
-  <div class="stonks-header">
-    <span class="stonks-company">Nutanix Inc.</span>
-    <span class="stonks-symbol">NASDAQ:NTNX</span>
+<div class="layout layout--col layout--top gap--small p--5" data-stonks>
+  <div class="flex flex--row flex--between w--full no-shrink">
+    <span class="title">Nutanix Inc.</span>
+    <span class="label label--small">NASDAQ:NTNX</span>
   </div>
   {% if stonks.has_data == true %}
-    <div class="stonks-quote">
-      <span class="stonks-price">{{ stonks.price_label | escape }}</span>
-      <span class="stonks-unit">USD</span>
-      <span class="stonks-change">{{ stonks.change_label | escape }}</span>
-      <span class="stonks-period">Past year</span>
+    <div class="flex flex--row flex--left gap--small w--full no-shrink">
+      <span class="value value--tnums">{{ stonks.price_label | escape }}</span>
+      <span class="label label--small">USD</span>
+      <span class="value value--xxsmall value--tnums">{{ stonks.change_label | escape }}</span>
+      <span class="label label--small">Past year</span>
     </div>
-    <div class="stonks-info">
-      <span>{{ stonks.detail | escape }}</span>
-      {% if stonks.stale == true %}<span class="stonks-stale">STALE DATA</span>{% endif %}
+    <div class="flex flex--row flex--between w--full no-shrink">
+      <span class="description">{{ stonks.detail | escape }}</span>
+      {% if stonks.stale == true %}<span class="label label--small label--filled">STALE DATA</span>{% endif %}
     </div>
-    <svg class="stonks-chart" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 756 306" preserveAspectRatio="none" role="img" aria-label="Nutanix stock price over one year in US dollars">
-      <title>Nutanix, one year of daily prices. Latest price {{ stonks.price_label | escape }} USD.</title>
-      {% for tick in stonks.ticks %}
-        <line x1="707" x2="711" y1="{{ tick.y }}" y2="{{ tick.y }}" stroke="#000" stroke-width=".6" />
-        <text x="718" y="{{ tick.y }}" dominant-baseline="middle">{{ tick.label | escape }}</text>
-      {% endfor %}
-      <path class="stonks-line" d="{{ stonks.path | escape }}" fill="none" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
-      {% for date in stonks.dates %}
-        <text x="{{ date.x }}" y="300" text-anchor="{% if forloop.first %}start{% elsif forloop.last %}end{% else %}middle{% endif %}">{{ date.label | escape }}</text>
-      {% endfor %}
-    </svg>
-    <div class="stonks-footer">
-      <span class="stonks-brand">STONKS</span>
-      <span>Market data: {{ stonks.market_label | escape }}</span>
+    <div class="stretch w--full h--min-0">
+      <svg class="block" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 756 306" preserveAspectRatio="none" role="img" aria-label="Nutanix stock price over one year in US dollars">
+        <title>Nutanix, one year of daily prices. Latest price {{ stonks.price_label | escape }} USD.</title>
+        {% for tick in stonks.ticks %}
+          <line x1="707" x2="711" y1="{{ tick.y }}" y2="{{ tick.y }}" stroke="currentColor" stroke-width=".6" />
+          <text class="text--small" x="718" y="{{ tick.y }}" fill="currentColor" dominant-baseline="middle">{{ tick.label | escape }}</text>
+        {% endfor %}
+        <path data-stonks-line d="{{ stonks.path | escape }}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+        {% for date in stonks.dates %}
+          <text class="text--small" x="{{ date.x }}" y="300" fill="currentColor" text-anchor="{% if forloop.first %}start{% elsif forloop.last %}end{% else %}middle{% endif %}">{{ date.label | escape }}</text>
+        {% endfor %}
+      </svg>
     </div>
   {% else %}
-    <div class="stonks-unavailable">
-      <strong>DATA UNAVAILABLE</strong>
-      <p>No validated prices have been saved yet.<br />The next scheduled refresh will try again.</p>
-      <p>{{ stonks.detail | default: 'Market data could not be loaded' | escape }}</p>
-    </div>
-    <div class="stonks-footer">
-      <span class="stonks-brand">STONKS</span><span>NTNX · 1 year · USD</span>
+    <div class="stretch flex flex--col flex--center gap--large text--center">
+      <span class="title title--large">DATA UNAVAILABLE</span>
+      <span class="description">No validated prices have been saved yet.<br />The next scheduled refresh will try again.</span>
+      <span class="description">{{ stonks.detail | default: 'Market data could not be loaded' | escape }}</span>
     </div>
   {% endif %}
+</div>
+<div class="title_bar">
+  <span class="title">STONKS</span>
+  <span class="instance">{% if stonks.has_data == true %}Market data: {{ stonks.market_label | escape }}{% else %}NTNX · 1 year · USD{% endif %}</span>
 </div>

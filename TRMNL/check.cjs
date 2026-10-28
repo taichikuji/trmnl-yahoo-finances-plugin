@@ -145,7 +145,7 @@ test('failure on first run or with corrupt state gives DATA UNAVAILABLE without 
     const output = await load(async () => { throw new Error('Offline'); }).run({ trmnl: { state } });
     const html = await liquid.parseAndRender(template, output);
     assert.match(html, /DATA UNAVAILABLE/);
-    assert.doesNotMatch(html, /class="stonks-line"/);
+    assert.doesNotMatch(html, /data-stonks-line/);
     assert.equal(Object.hasOwn(output, 'trmnl_state'), false);
   }
 });
@@ -215,7 +215,7 @@ test('fresh/stale Liquid renders a completed inline chart and actual market time
   const stale = await load(async () => ({ ok: false, status: 429 })).run({ trmnl: { state: fresh.trmnl_state } });
   for (const output of [fresh, stale]) {
     const html = await liquid.parseAndRender(template, output);
-    assert.match(html, /class="stonks-line" d="M/);
+    assert.match(html, /data-stonks-line d="M/);
     assert.match(html, /Market data:/);
     assert.ok(html.includes(output.stonks.market_label));
     assert.doesNotMatch(html, /<script|<iframe|<img|https?:\/\/[^" ]*(?:\.js|\.css)|NaN|Infinity|{{|{%/);
