@@ -47,6 +47,18 @@ async function main() {
   states.etf = await scenario({ symbol: 'XETR:VWCE', currency: 'NATIVE', locale: 'fr', fontSize: 12 }, etf);
   states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
   states.intraday = await scenario({ dateRanges: '1d|1', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
+  states.stale_large = await plugin(async () => ({ ok: false, status: 429 })).run({ trmnl: {
+    state: states.large.trmnl_state,
+    plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } }
+  } });
+  states.stale_large.stonks.detail = 'SAMPLE · HTTP 429';
+  const fxMarket = sample({ interval: '1m', seconds: 60, count: 390 });
+  const fxRates = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '1m', seconds: 60, count: 1440, startPrice: 0.8 });
+  states.converted_day = await plugin(async url => ({ ok: true, json: async () => url.includes('USDEUR') ? fxRates : fxMarket })).run({
+    trmnl: { plugin_settings: { custom_fields_values: { currency: 'EUR', dateRanges: '1d|1', locale: 'es' } } }
+  });
+  if (!states.converted_day.stonks.has_data) throw new Error(states.converted_day.stonks.detail);
+  states.converted_day.stonks.source_label = 'SAMPLE · ' + states.converted_day.stonks.source_label;
 
   const shared = fs.readFileSync(path.join(root, 'TRMNL/src/shared.liquid'), 'utf8');
   const settings = YAML.parse(fs.readFileSync(path.join(root, 'TRMNL/src/settings.yml'), 'utf8'));
@@ -74,7 +86,7 @@ async function main() {
     '<title>STONKS · sample preview</title><link rel="stylesheet" href="' + frameworkURL + '">' +
     '<style>html,body{margin:0;width:100vw;height:100vh;overflow:hidden}</style><body class="trmnl">';
   const browser = await chromium.launch({
-    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: 'chrome' }),
+    ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: process.env.TRMNL_BROWSER || 'chrome' }),
     headless: true, args: ['--no-sandbox']
   });
   const report = [];
@@ -139,6 +151,17 @@ async function main() {
                 if (node.parentElement.closest('[data-clamp]')) continue;
                 if ([...range.getClientRects()].some(outside)) textOverflow.push(node.textContent.trim());
               }
+              const textOverlaps = [];
+              const overlaps = (a, b) => a.width && b.width && a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
+              const dates = [...main.querySelectorAll('[data-stonks-date]')].map(el => el.getBoundingClientRect()).filter(r => r.width);
+              if (dates.some((r, i) => dates.slice(i + 1).some(next => overlaps(r, next)))) textOverlaps.push('date labels');
+              const price = main.querySelector('[data-stonks-price]');
+              const currency = main.querySelector('[data-stonks-currency]');
+              if (price && currency) {
+                const a = document.createRange(), b = document.createRange();
+                a.selectNodeContents(price); b.selectNodeContents(currency);
+                if (overlaps(a.getBoundingClientRect(), b.getBoundingClientRect())) textOverlaps.push('price and currency');
+              }
               const clipped = [...main.querySelectorAll('[data-stonks] [data-clamp]')].filter(el => el.scrollWidth > el.clientWidth + 1);
               const time = main.querySelector('time');
               const timeRange = document.createRange();
@@ -149,7 +172,7 @@ async function main() {
               return { width: bounds.width, height: bounds.height,
                 svgWidth: svg?.width, svgHeight: svg?.height,
                 nativeStructure: layout.nextElementSibling?.classList.contains('title_bar'),
-                timeFits, overflow, textOverflow, fonts, clipped: clipped.map(el => el.textContent.trim()),
+                timeFits, overflow, textOverflow, textOverlaps, fonts, clipped: clipped.map(el => el.textContent.trim()),
                 pathLength: chart?.getTotalLength() ?? null };
             });
             if (failedResources.length) throw new Error(failedResources.join('\n'));
@@ -163,6 +186,7 @@ async function main() {
             }
             if (!measurements.nativeStructure || !measurements.fonts.length) errors.push('native structure/fonts');
             if (measurements.overflow.length || measurements.textOverflow.length) errors.push('slot overflow');
+            if (measurements.textOverlaps.length) errors.push('overlapping text');
             if (!measurements.timeFits) errors.push('market timestamp truncated');
             if (state !== 'unavailable' && (!(measurements.pathLength > 100) ||
                 measurements.svgWidth < 80 * profile.scale || measurements.svgHeight < 40 * profile.scale)) {
@@ -192,7 +216,7 @@ async function main() {
       'repeat(auto-fit,minmax(300px,1fr));gap:20px}figure{margin:0}img{display:block;max-width:100%;' +
       'max-height:400px;background:white}figcaption{padding:8px 0}</style>' +
       '<h1>STONKS · ' + report.length + ' local previews</h1><p>Synthetic sample prices. Four native device profiles, ' +
-      'both orientations, four views, and ten data/customization scenarios. Click a preview to open its markup.</p><main>' +
+      'both orientations, four views, and twelve data/customization scenarios. Click a preview to open its markup.</p><main>' +
       figures.join('\n') + '</main></html>');
     if (problems.length) throw new Error(problems.length + ' preview failures:\n' + JSON.stringify(problems.slice(0, 8), null, 2));
     console.log('All ' + report.length + ' cases passed. Gallery: ' + path.join(outputDir, 'index.html'));

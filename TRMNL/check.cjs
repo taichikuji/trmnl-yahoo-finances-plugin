@@ -227,3 +227,113 @@ test('form offers all recipe controls, with values matching runtime and static N
   for (const key of ['symbol', 'currency', 'chartType', 'locale', 'dateRanges', 'lineWidth', 'lineType', 'showGridlines', 'showVolume', 'headerFontSize', 'fontSize']) assert.ok(fields[key]);
   assert.equal(fields.dateRanges.options.length, 6); assert.equal(fields.locale.options.length, 6);
 });
+
+test('converted 1D returns start at the first aligned price and label that baseline', async () => {
+  const market = sample({ interval: '1m', seconds: 60, count: 390 });
+  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '1m', seconds: 60, count: 1440, startPrice: 0.8 });
+  const out = await load(async url => ({ ok: true, json: async () => url.includes('USDEUR') ? fx : market }))
+    .run(input({ currency: 'EUR', dateRanges: '1d|1', showReference: 'show' }));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  const first = market.chart.result[0].timestamp[0];
+  const rateIndex = fx.chart.result[0].timestamp.findLastIndex(t => t <= first);
+  const baseline = market.chart.result[0].indicators.quote[0].close[0] * fx.chart.result[0].indicators.quote[0].close[rateIndex];
+  assert.equal(out.trmnl_state.baseline, baseline);
+  assert.equal(out.trmnl_state.return_basis, 'first_close');
+  assert.equal(out.stonks.baseline_label, 'from first bar');
+  assert.equal(out.stonks.change, out.stonks.price - baseline);
+  const html = await liquid.parseAndRender(shared, out);
+  assert.match(html, /from first bar/);
+  // A v2 snapshot using the former, unaligned converted previous-close baseline
+  // must not silently survive as a valid 1D fallback after this correction.
+  const old = { ...plain(out.trmnl_state), return_basis: 'previous_close' };
+  assert.equal(load().validState(old, NOW / 1000, config({ currency: 'EUR', dateRanges: '1d|1' })), false);
+});
+
+test('an older FX quote cannot replace a matching saved converted chart', async () => {
+  const market = sample();
+  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
+  const fetch = async url => ({ ok: true, json: async () => url.includes('USDEUR') ? fx : market });
+  const saved = plain((await load(fetch).run(input({ currency: 'EUR' }))).trmnl_state);
+  fx.chart.result[0].meta.regularMarketTime -= 60;
+  fx.chart.result[0].timestamp = fx.chart.result[0].timestamp.map(t => t - 60);
+  const out = await load(fetch).run(input({ currency: 'EUR' }, saved));
+  assert.equal(out.stonks.stale, true);
+  assert.equal(out.stonks.detail, 'Provider returned older exchange rate');
+  assert.deepEqual(plain(out.trmnl_state), saved);
+});
+
+test('old FX is marked stale even when the asset quote is within the age limit', async () => {
+  const market = sample();
+  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
+  for (const [data, days] of [[market, 6], [fx, 8]]) {
+    const r = data.chart.result[0]; r.meta.regularMarketTime -= days * 86400;
+    r.timestamp = r.timestamp.map(t => t - days * 86400);
+  }
+  const out = await load(async url => ({ ok: true, json: async () => url.includes('USDEUR') ? fx : market })).run(input({ currency: 'EUR' }));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.stonks.stale, true);
+  assert.equal(out.stonks.detail, 'Exchange rate is over 7 days old');
+});
+
+test('cached metadata must agree with the selection, FX state and grouped bar count', async () => {
+  const p = load(); const saved = plain((await p.run({})).trmnl_state);
+  for (const corrupted of [{ ...saved, symbol: 'AAPL' }, { ...saved, currency: 'EUR' },
+    { ...saved, fx_rate: 1.2 }, { ...saved, source_count: saved.bars.length * saved.group + 1 },
+    { ...saved, return_basis: 'unknown' }]) {
+    assert.equal(p.validState(corrupted, NOW / 1000, config({})), false);
+  }
+  // Existing native v2 snapshots remain usable during the first deployed outage.
+  delete saved.return_basis;
+  const offline = await load(async () => ({ ok: false, status: 429 })).run(input({}, saved));
+  assert.equal(offline.stonks.has_data, true);
+  assert.deepEqual(plain(offline.trmnl_state), saved);
+});
+
+test('oversized declared or streamed bodies preserve fallback within the response budget', async () => {
+  const saved = plain((await load().run({})).trmnl_state);
+  let cancelled = false;
+  const stream = new ReadableStream({
+    pull(controller) { controller.enqueue(new Uint8Array(1024 * 1024).fill(32)); },
+    cancel() { cancelled = true; }
+  });
+  for (const response of [new Response('{}', { headers: { 'content-length': String(2 * 1024 * 1024 + 1) } }), new Response(stream)]) {
+    const out = await load(async () => response).run(input({}, saved));
+    assert.equal(out.stonks.detail, 'Provider response exceeds 2 MiB');
+    assert.equal(out.stonks.stale, true);
+    assert.deepEqual(plain(out.trmnl_state), saved);
+  }
+  assert.equal(cancelled, true);
+});
+
+test('streamed JSON preserves multibyte names split between response chunks', async () => {
+  const data = sample(); data.chart.result[0].meta.longName = 'Nutanix · 日本株';
+  const encoded = new TextEncoder().encode(JSON.stringify(data));
+  const split = encoded.findIndex(byte => byte === 0xe6) + 1;
+  const stream = new ReadableStream({ start(controller) {
+    controller.enqueue(encoded.slice(0, split)); controller.enqueue(encoded.slice(split)); controller.close();
+  } });
+  const out = await load(async () => new Response(stream)).run({});
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.stonks.name, data.chart.result[0].meta.longName);
+});
+
+test('the shared deadline also covers an FX body that stops responding', async () => {
+  let calls = 0;
+  const market = sample();
+  const out = await load(async () => {
+    calls++;
+    if (calls === 1) return new Response(JSON.stringify(market));
+    return new Response(new ReadableStream({ start() {} }));
+  }, { setTimeout: fn => setTimeout(fn, 30) }).run(input({ currency: 'EUR' }));
+  assert.equal(calls, 2); assert.equal(out.stonks.has_data, false);
+  assert.equal(out.stonks.detail, 'Request timed out');
+});
+
+test('tiny provider rounding differences do not discard otherwise valid OHLC data', async () => {
+  const data = sample(); const q = data.chart.result[0].indicators.quote[0];
+  q.high[20] = q.close[20] - 1e-8;
+  const out = await load(ok(data)).run(input({ chartType: 'candles' }));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.stonks.has_ohlc, true);
+  assert.equal(load().validState(out.trmnl_state, NOW / 1000, config({ chartType: 'candles' })), true);
+});

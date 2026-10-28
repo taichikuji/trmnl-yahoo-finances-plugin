@@ -8,6 +8,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -16,3 +17,9 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run check
+      - name: Install preview browser
+        run: npx playwright-core install --with-deps chromium
+      - name: Verify device and layout previews
+        run: npm run preview
+        env:
+          TRMNL_BROWSER: chromium

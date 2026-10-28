@@ -3,6 +3,7 @@
 const REQUEST_TIMEOUT_MS = 3800;
 const DAY = 86400;
 const STATE_LIMIT = 8192;
+const RESPONSE_LIMIT = 2 * 1024 * 1024;
 const MAX_MARKET_AGE = 7 * DAY;
 const PLOT = { left: 4, right: 696, top: 12, bottom: 274 };
 const RANGES = {
@@ -15,12 +16,12 @@ const RANGES = {
 };
 const LOCALES = { en: 'en-US', de_DE: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pl: 'pl-PL' };
 const COPY = {
-  en: ['DATA UNAVAILABLE', 'STALE DATA', 'Next refresh will try again.', 'Volume', 'Low', 'High', 'Market data', 'FX estimate', 'Extended', 'Regular', 'Saved chart', 'Invalid settings', 'No saved prices for this selection'],
-  de_DE: ['KEINE DATEN', 'ALTE DATEN', 'Erneuter Versuch beim nächsten Update.', 'Volumen', 'Tief', 'Hoch', 'Marktdaten', 'FX-Schätzung', 'Erweitert', 'Regulär', 'Gespeichert', 'Ungültige Einstellungen', 'Keine gespeicherten Kurse für diese Auswahl'],
-  fr: ['DONNÉES INDISPONIBLES', 'DONNÉES ANCIENNES', 'Nouvel essai à la prochaine mise à jour.', 'Volume', 'Bas', 'Haut', 'Données du marché', 'Estimation FX', 'Étendue', 'Normale', 'Enregistré', 'Réglages invalides', 'Aucun cours enregistré pour cette sélection'],
-  es: ['DATOS NO DISPONIBLES', 'DATOS ANTIGUOS', 'Se intentará en la próxima actualización.', 'Volumen', 'Mín.', 'Máx.', 'Datos de mercado', 'Estimación FX', 'Extendida', 'Regular', 'Guardado', 'Ajustes no válidos', 'Sin precios guardados para esta selección'],
-  it: ['DATI NON DISPONIBILI', 'DATI NON AGGIORNATI', 'Nuovo tentativo al prossimo aggiornamento.', 'Volume', 'Min.', 'Max.', 'Dati di mercato', 'Stima FX', 'Estesa', 'Regolare', 'Salvato', 'Impostazioni non valide', 'Nessun prezzo salvato per questa selezione'],
-  pl: ['BRAK DANYCH', 'NIEAKTUALNE DANE', 'Kolejna próba przy następnym odświeżeniu.', 'Wolumen', 'Min.', 'Maks.', 'Dane rynkowe', 'Szacunek FX', 'Rozszerzona', 'Zwykła', 'Zapisany', 'Nieprawidłowe ustawienia', 'Brak zapisanych cen dla tego wyboru']
+  en: ['DATA UNAVAILABLE', 'STALE DATA', 'Next refresh will try again.', 'Volume', 'Low', 'High', 'Market data', 'FX estimate', 'Extended', 'Regular', 'Saved chart', 'Invalid settings', 'No saved prices for this selection', 'from first bar'],
+  de_DE: ['KEINE DATEN', 'ALTE DATEN', 'Erneuter Versuch beim nächsten Update.', 'Volumen', 'Tief', 'Hoch', 'Marktdaten', 'FX-Schätzung', 'Erweitert', 'Regulär', 'Gespeichert', 'Ungültige Einstellungen', 'Keine gespeicherten Kurse für diese Auswahl', 'ab erstem Kurs'],
+  fr: ['DONNÉES INDISPONIBLES', 'DONNÉES ANCIENNES', 'Nouvel essai à la prochaine mise à jour.', 'Volume', 'Bas', 'Haut', 'Données du marché', 'Estimation FX', 'Étendue', 'Normale', 'Enregistré', 'Réglages invalides', 'Aucun cours enregistré pour cette sélection', 'depuis le premier cours'],
+  es: ['DATOS NO DISPONIBLES', 'DATOS ANTIGUOS', 'Se intentará en la próxima actualización.', 'Volumen', 'Mín.', 'Máx.', 'Datos de mercado', 'Estimación FX', 'Extendida', 'Regular', 'Guardado', 'Ajustes no válidos', 'Sin precios guardados para esta selección', 'desde el primer precio'],
+  it: ['DATI NON DISPONIBILI', 'DATI NON AGGIORNATI', 'Nuovo tentativo al prossimo aggiornamento.', 'Volume', 'Min.', 'Max.', 'Dati di mercato', 'Stima FX', 'Estesa', 'Regolare', 'Salvato', 'Impostazioni non valide', 'Nessun prezzo salvato per questa selezione', 'dal primo prezzo'],
+  pl: ['BRAK DANYCH', 'NIEAKTUALNE DANE', 'Kolejna próba przy następnym odświeżeniu.', 'Wolumen', 'Min.', 'Maks.', 'Dane rynkowe', 'Szacunek FX', 'Rozszerzona', 'Zwykła', 'Zapisany', 'Nieprawidłowe ustawienia', 'Brak zapisanych cen dla tego wyboru', 'od pierwszej ceny']
 };
 const positive = n => Number.isFinite(n) && n > 0;
 const stamp = n => Number.isSafeInteger(n) && n > 0;
@@ -111,7 +112,7 @@ function parseYahoo(payload, now, config, expectedSymbol = config.symbol, fx = f
     const h = positive(q.high?.[i]) ? q.high[i] * unit : null;
     const l = positive(q.low?.[i]) ? q.low[i] * unit : null;
     const ohlc = positive(o) && positive(h) && positive(l) && h >= Math.max(o, c) - 1e-7 && l <= Math.min(o, c) + 1e-7;
-    bars.push([t, ohlc ? o : null, ohlc ? h : null, ohlc ? l : null, c,
+    bars.push([t, ohlc ? o : null, ohlc ? Math.max(h, o, c) : null, ohlc ? Math.min(l, o, c) : null, c,
       Number.isFinite(q.volume?.[i]) && q.volume[i] >= 0 ? q.volume[i] : null]);
   }
   if (bars.length < 2) throw new Error('Not enough prices for this range');
@@ -169,7 +170,8 @@ function makeState(data, config, now) {
     for (let i = 0; i < data.bars.length; i += group) bars.push(combine(data.bars.slice(i, i + group)).map(n => n === null ? null : round(n)));
     state = { v: 2, key: config.key, symbol: data.symbol, name: data.name, currency: data.currency,
       native_currency: data.native_currency, timezone: data.timezone, market_at: data.market_at, fetched_at: now,
-      price: data.price, baseline, high, low, fx_at: data.fx_at || null, fx_rate: data.fx_rate || null,
+      price: data.price, baseline, high, low,
+      return_basis: config.range === '1d' && positive(data.previous_close) ? 'previous_close' : 'first_close', fx_at: data.fx_at || null, fx_rate: data.fx_rate || null,
       group, source_count: data.bars.length, bars };
     group++;
   } while ((state.bars.length > 360 || bytes(state) > STATE_LIMIT) && group < data.bars.length);
@@ -179,14 +181,19 @@ function makeState(data, config, now) {
 
 function validState(s, now, config) {
   return !!s && s.v === 2 && (!config || s.key === config.key) && typeof s.key === 'string' && s.key.length < 150 &&
-    typeof s.symbol === 'string' && typeof s.name === 'string' && s.name.length <= 140 &&
+    typeof s.symbol === 'string' && (!config || (s.symbol === config.symbol &&
+      s.currency === (config.currency === 'NATIVE' ? s.native_currency : config.currency) &&
+      (config.range !== '1d' || s.fx_at === null || s.return_basis === 'first_close'))) && typeof s.name === 'string' && s.name.length <= 140 &&
     /^[A-Z]{3}$/.test(s.currency) && /^[A-Z]{3}$/.test(s.native_currency) &&
     typeof s.timezone === 'string' && validZone(s.timezone) === s.timezone &&
     stamp(s.market_at) && stamp(s.fetched_at) && s.market_at <= now + 300 && s.fetched_at <= now + 300 &&
     positive(s.price) && positive(s.baseline) && positive(s.high) && positive(s.low) && s.high >= s.low &&
-    (s.fx_at === null || (stamp(s.fx_at) && s.fx_at <= now + 300 && positive(s.fx_rate))) &&
+    (s.fx_at === null ? s.fx_rate === null && s.currency === s.native_currency :
+      stamp(s.fx_at) && s.fx_at <= now + 300 && positive(s.fx_rate) && s.currency !== s.native_currency) &&
+    (s.return_basis === undefined || ['previous_close', 'first_close'].includes(s.return_basis)) &&
     Number.isSafeInteger(s.group) && s.group >= 1 && Number.isSafeInteger(s.source_count) &&
-    Array.isArray(s.bars) && s.bars.length >= 2 && s.bars.length <= 360 && s.source_count >= s.bars.length &&
+    Array.isArray(s.bars) && s.bars.length >= 2 && s.bars.length <= 360 && s.source_count >= s.bars.length && s.source_count <= 30001 &&
+    Math.ceil(s.source_count / s.group) === s.bars.length &&
     s.bars.every((b, i) => Array.isArray(b) && b.length === 6 && barStamp(b[0]) && b[0] <= s.market_at &&
       (!i || b[0] > s.bars[i - 1][0]) && positive(b[4]) &&
       ((b[1] === null && b[2] === null && b[3] === null) ||
@@ -213,7 +220,6 @@ function convert(data, rates, config) {
   const factorAt = t => rates.reduce((v, r) => r.divide ? v / at(r.data, t) : v * at(r.data, t), 1);
   const current = rates.reduce((v, r) => r.divide ? v / r.data.price : v * r.data.price, 1);
   if (!positive(current) || rates.some(r => Math.abs(r.data.market_at - data.market_at) > MAX_MARKET_AGE)) throw new Error('Exchange rate is out of date');
-  const firstFactor = factorAt(data.bars[0][0]);
   const bars = data.bars.map(b => {
     const factor = factorAt(b[0]);
     return b.map((n, i) => i >= 1 && i <= 4 && n !== null ? n * factor : n);
@@ -224,7 +230,9 @@ function convert(data, rates, config) {
     bars.at(-1)[3] = Math.min(bars.at(-1)[3], bars.at(-1)[4]);
   }
   return { ...data, bars, price: data.price * current, currency: config.currency,
-    previous_close: data.previous_close === null ? null : data.previous_close * firstFactor,
+    // The quote has no reliable previous-close timestamp. A converted 1D
+    // return therefore starts at its first aligned bar, labelled in the view.
+    previous_close: null,
     fx_at: Math.min(...rates.map(r => r.data.market_at)), fx_rate: current };
 }
 
@@ -289,7 +297,7 @@ function chart(state, config) {
     }).format(new Date(state.bars[i][0] * 1000))
   }));
   return { path: linePath(points, config.lineType), up, down, volume_path: volume, volume_width: width,
-    reference_y: y(state.baseline),
+    reference_y: y(state.baseline), last_y: points.at(-1).y,
     ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: number(max - r * (max - min)) })), dates,
     missing_path: missing, has_ohlc: state.bars.some(b => b[1] !== null), has_volume: hasVolume, digits };
 }
@@ -310,14 +318,45 @@ function display(state, stale, detail, config) {
   const change = state.price - state.baseline;
   return { ...base, ...graphics, has_data: true, stale, detail, name: state.name, currency: state.currency,
     price: state.price, change, percent: change / state.baseline * 100,
-    price_label: formatter.format(state.price), change_label: `${signed(change, graphics.digits)} (${signed(change / state.baseline * 100, 2)}%)`,
+    price_label: formatter.format(state.price),
+    percent_label: signed(change / state.baseline * 100, 2) + '%',
+    absolute_change_label: signed(change, graphics.digits),
+    change_label: `${signed(change, graphics.digits)} (${signed(change / state.baseline * 100, 2)}%)`,
     high_label: formatter.format(state.high), low_label: formatter.format(state.low),
     market_at: state.market_at, market_iso: date.toISOString(), market_label: full.format(date), market_label_compact: compact.format(date),
+    baseline_label: config.range === '1d' && state.return_basis === 'first_close' ? text[13] : '',
     fx_label: state.fx_at ? `${state.native_currency}→${state.currency} · ${text[7]}` : '',
     fx_iso: state.fx_at ? new Date(state.fx_at * 1000).toISOString() : '',
     source_label: `Yahoo · ${config.interval}${state.group > 1 ? ' ×' + state.group : ''}`,
     session_label: config.extended ? text[8] : text[9],
     chart_note: config.chartType !== 'line' && !graphics.has_ohlc ? 'OHLC unavailable · line shown' : '' };
+}
+
+// Limit each body before JSON parsing so a provider error page or unexpectedly
+// large history cannot consume the VM's memory/runtime budget.
+async function readResponse(response) {
+  if (Number(response.headers?.get?.('content-length')) > RESPONSE_LIMIT) throw new Error('Provider response exceeds 2 MiB');
+  if (!response.body?.getReader) {
+    const payload = await response.json();
+    if (bytes(payload) > RESPONSE_LIMIT) throw new Error('Provider response exceeds 2 MiB');
+    return payload;
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let size = 0, body = '';
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > RESPONSE_LIMIT) {
+        await reader.cancel();
+        throw new Error('Provider response exceeds 2 MiB');
+      }
+      body += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(body + decoder.decode());
+  } finally { reader.releaseLock(); }
 }
 
 async function run(input) {
@@ -335,20 +374,22 @@ async function run(input) {
     const request = async (symbol, c, fx = false) => {
       const response = await fetch(yahooURL(symbol, c), { signal: controller.signal, headers: { Accept: 'application/json' } });
       if (!response.ok) throw new Error(`${fx ? 'FX' : 'Provider'} HTTP ${response.status}`);
-      return parseYahoo(await response.json(), now, c, symbol, fx);
+      return parseYahoo(await readResponse(response), now, c, symbol, fx);
     };
     const work = (async () => {
       const data = await request(config.symbol, config);
       const plan = conversionPlan(data.currency, config.currency);
-      // A five-day intraday FX window supplies the previous session's baseline.
+      // A five-day FX window also covers gaps before the first intraday bar.
       const fxConfig = { ...config, range: config.range === '1d' ? '5d' : config.range, extended: false };
       const rates = await Promise.all(plan.map(async p => ({ ...p, data: await request(p.symbol, fxConfig, true) })));
       return makeState(convert(data, rates, config), config, now);
     })();
     const state = await Promise.race([work, deadline]);
     if (previous && state.market_at < previous.market_at) throw new Error('Provider returned older data');
-    const stale = now - state.market_at > MAX_MARKET_AGE;
-    return { stonks: display(state, stale, stale ? 'Provider prices are over 7 days old' : '', config), trmnl_state: state };
+    if (previous?.fx_at && state.fx_at && state.fx_at < previous.fx_at) throw new Error('Provider returned older exchange rate');
+    const detail = now - state.market_at > MAX_MARKET_AGE ? 'Provider prices are over 7 days old' :
+      state.fx_at && now - state.fx_at > MAX_MARKET_AGE ? 'Exchange rate is over 7 days old' : '';
+    return { stonks: display(state, !!detail, detail, config), trmnl_state: state };
   } catch (error) {
     const detail = controller.signal.aborted ? 'Request timed out' : String(error?.message || 'Market data unavailable').slice(0, 160);
     return { stonks: display(previous, true, detail, config), ...(previous ? { trmnl_state: previous } : {}) };

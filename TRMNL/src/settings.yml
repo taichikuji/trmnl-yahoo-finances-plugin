@@ -99,7 +99,7 @@ custom_fields:
     options:
       - Show: show
       - Hide: hide
-    description: Dashed line at the return baseline. 1D uses the previous close; other ranges use the first close.
+    description: Dashed line at the return baseline. Native-currency 1D uses the previous close when available. Converted 1D uses the first aligned bar; other ranges use the first close.
     group: Chart
   - keyname: locale
     field_type: select

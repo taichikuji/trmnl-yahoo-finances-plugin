@@ -1,6 +1,6 @@
 # STONKS
 
-Native Yahoo Finance charts for TRMNL. STONKS offers the controls from the [TradingView recipe](https://trmnl.com/recipes/tradingview-157210), rendered with TRMNL Framework and inline SVG in `shared.liquid`. No iframe, remote widget, browser JavaScript, runtime packages, or market-data API key. The default remains **NTNX · USD · one year**.
+Native Yahoo Finance charts for TRMNL. STONKS offers the controls from the [TradingView recipe](https://trmnl.com/recipes/tradingview-157210), rendered with TRMNL Framework and inline SVG in `shared.liquid`. The display keeps the price prominent, places source details above the chart, and shows the ticker as plain text. No iframe, remote widget, browser JavaScript, runtime packages, or market-data API key. The default remains **NTNX · USD · one year**.
 
 ## Customize
 
@@ -29,15 +29,15 @@ Rising candles are hollow; falling candles are filled. OHLC bars have a left ope
 
 ## Data and saved state
 
-TRMNL Node 20 Serverless requests Yahoo's chart endpoint for the selected ticker/range/interval. Asset fetching, any FX fetching, and JSON bodies share a **3.8-second deadline**, within TRMNL's five-second runtime. Requests are not retried. HTTP failures, invalid data, timeouts, and quote regressions use the prior matching snapshot, marked stale, with its original timestamp. A first failed fetch shows an unavailable screen and does not write empty state.
+TRMNL Node 20 Serverless requests Yahoo's chart endpoint for the selected ticker/range/interval. Asset fetching, any FX fetching, and JSON bodies share a **3.8-second deadline**, within TRMNL's five-second runtime. Each response is capped at **2 MiB** while streaming, before JSON parsing. Requests are not retried. HTTP failures, invalid data, timeouts, and quote regressions use the prior matching snapshot, marked stale, with its original timestamp. A first failed fetch shows an unavailable screen and does not write empty state.
 
-The price and return use unadjusted `quote.close` and the current regular-market quote. The latest quote updates its bar or is appended when necessary. Intraday extended-hours data can use the last supplied bar and that bar's timestamp instead of the older regular-session quote. Returns use the previous close for 1D, and the first available close for longer ranges. These are price returns, excluding dividend reinvestment. Yahoo controls split treatment and data availability, including the available start date for recently listed instruments.
+The price and return use unadjusted `quote.close` and the current regular-market quote. The latest quote updates its bar or is appended when necessary. Intraday extended-hours data can use the last supplied bar and that bar's timestamp instead of the older regular-session quote. Native-currency 1D returns use the previous close when available; other returns use the first available close. These are price returns, excluding dividend reinvestment. Yahoo controls split treatment and data availability, including the available start date for recently listed instruments.
 
-Currency selection **converts** the prices. Fiat conversion requests Yahoo's native/target FX pair; BTC and ETH conversion use their USD prices, with a native/USD leg where needed. Historical closes use the most recent exchange-rate bar at or before each asset bar. The current quote uses the current FX quote. Rates with missing alignment or excessive age are rejected. Pence and South African cents are normalized to pounds/rand first. Converted OHLC values are estimates using one FX rate per asset bar, not true intrabar converted extrema; the screen marks them **FX estimate** and the source tooltip includes the FX timestamp. Volume remains in instrument units. Unsupported pairs show an error rather than a relabelled native price.
+Currency selection **converts** the prices. Fiat conversion requests Yahoo's native/target FX pair; BTC and ETH conversion use their USD prices, with a native/USD leg where needed. Historical closes use the most recent exchange-rate bar at or before each asset bar. The current quote uses the current FX quote. Rates with missing alignment or excessive age are rejected. Pence and South African cents are normalized to pounds/rand first. Converted OHLC values are estimates using one FX rate per asset bar, not true intrabar converted extrema; the screen marks them **FX estimate** and the source tooltip includes the FX timestamp. **Converted 1D returns start at the first aligned converted close**, with a translated “from first bar” label. Yahoo does not provide a reliable previous-close timestamp here, so its price is never multiplied by an exchange rate from a different point in time. Volume remains in instrument units. Unsupported pairs show an error rather than a relabelled native price.
 
 State v2 stores validated OHLCV data and metadata under TRMNL's **8,192-byte** limit. Long series are grouped in chronological buckets: first open, maximum high, minimum low, last close, summed volume. The source label shows the requested interval and grouping factor, such as `1d ×3`; it does not claim each displayed candle is one day. Grouping can change chart detail. Exact latest price, return baseline, and source extrema are retained independently. No sample prices are saved to production.
 
-The fallback key includes symbol, requested currency, range, and session choice. Changing any of these prevents a previous selection's chart from appearing as the new one. Presentation changes can redraw the same saved data during an outage. State from the previous fixed-symbol v1 renderer remains on TRMNL until the first successful v2 fetch; it is not treated as OHLCV and is not rendered by v2. Do not clear Saved State routinely.
+The fallback key includes symbol, requested currency, range, and session choice. Changing any of these prevents a previous selection's chart from appearing as the new one. Presentation changes can redraw the same saved data during an outage. Snapshot symbol/currency, grouped bar count, and FX metadata are validated together. Older FX quotes cannot replace newer saved rates, and either an old asset quote or an old FX quote marks data stale. Earlier converted 1D snapshots using the unverified previous-close FX baseline are rejected; existing native-currency v2 snapshots remain usable. State from the previous fixed-symbol v1 renderer remains on TRMNL until the first successful v2 fetch; it is not treated as OHLCV and is not rendered by v2. Do not clear Saved State routinely.
 
 Market timestamps use the instrument's exchange timezone, with full timezone/year information in the footer tooltip and a UTC `<time datetime>` value. Fetch time is recorded separately and never presented as quote time. Failures mark data stale immediately. A successful response with a quote older than seven days is also stale; this tolerates ordinary holidays/weekends but is not an exchange calendar. This is a periodically refreshed display, and provider quotes can be delayed.
 
@@ -45,7 +45,7 @@ Market timestamps use the instrument's exchange timezone, with full timezone/yea
 
 Use the registered **`trmnl` MCP server** to manage the existing STONKS installation, ID `522884`. The native MCP connection has been verified after restarting the client. The ignored `.env` contains `TRMNL_MCP_API_KEY`; `.env.example` has only its name. Codex registration is kept in private user configuration. Changing `.env` alone does not rotate the already registered credential. Never commit or log credentials or authenticated MCP URLs.
 
-The plugin uses Static strategy, `{}` static data, Node Serverless, a 60-minute refresh, Framework 3.4.3, and normal screen padding. Its four view files are nonempty registration comments because TRMNL may skip blank views. The shared display uses native Layout, Flex, Title, Value, Label, Description and Title Bar components. Small scoped CSS supplies numeric font sizes, and inline styles place axis labels; layout remains in the framework.
+The plugin uses Static strategy, `{}` static data, Node Serverless, a 60-minute refresh, Framework 3.4.3, and normal screen padding. Its four view files are nonempty registration comments because TRMNL may skip blank views. The shared display uses native Layout, Flex, Title, Value, Label, Description and Title Bar components. Small scoped CSS supplies numeric font sizes, and inline styles place axis labels and the last-price dot. A container query hides the middle date label in narrow slots to prevent large-font date collisions; the framework handles the layout and typography.
 
 Use MCP to transfer the seven source files and preview/refresh the plugin. Keep local commits for each iteration. No automatic Git push or deploy-on-push is configured. Checks and CI do not create ZIP files. The historical manual `npm run build` command is retained only for an explicitly requested import archive.
 
@@ -57,9 +57,18 @@ npm run check
 CHROME_PATH=/path/to/chrome npm run preview
 ```
 
-Node 20+ is required. Tests cover every range, symbol normalization, return calculations, OHLCV grouping, missing values, FX/crypto conversion, pence, stale data, state isolation and corruption, bounded requests, smooth paths, all six locales, and all view registrations. Runtime code has no package dependencies.
+Chrome is the default local browser. To use the same pinned browser as CI:
 
-Open `dist/preview/index.html` for **320 local sample previews**: four profiles × two orientations × four views × ten scenarios. The scenarios include fresh/stale/unavailable states, candles with grid/volume, OHLC bars, step lines, large fonts, a long ETF name, crypto precision, and intraday candles. Each has HTML/PNG output; `report.json` records slot bounds, text overflow, chart size, fonts, native structure, and timestamp fit. The short `fresh`, `stale`, and `unavailable` filenames point to OG landscape full-screen cases.
+```sh
+npx playwright-core install --with-deps chromium
+TRMNL_BROWSER=chromium npm run preview
+```
+
+CI runs data checks and the full visual matrix under Node 20, with a 15-minute job limit. It uses synthetic data and needs no TRMNL credential. It does not deploy anything. The pinned browser path and Node 20 checks were also exercised locally; GitHub-hosted CI awaits a repository push.
+
+Node 20+ is required. **43 checks** cover every range, symbol normalization, return calculations, OHLCV grouping, missing values, FX/crypto conversion, pence, stale data, state isolation and corruption, FX regressions and return baselines, streamed response limits, bounded requests, smooth paths, all six locales, and all view registrations. Runtime code has no package dependencies.
+
+Open `dist/preview/index.html` for **384 local sample previews**: four profiles × two orientations × four views × twelve scenarios. The scenarios include fresh/stale/unavailable states, candles with grid/volume, OHLC bars, step lines, large fonts, a long ETF name, crypto precision, intraday candles, large-font stale data, and converted 1D data. Each has HTML/PNG output; `report.json` records slot bounds, text overflow, overlapping date/price labels, chart size, fonts, native structure, and timestamp fit. The short `fresh`, `stale`, and `unavailable` filenames point to OG landscape full-screen cases.
 
 Profiles include original 1-bit OG, current 2-bit OG, OG B/W/R/Y, and X. X renders at 1040×780 CSS pixels with a 1.8 scale, producing 1872×1404 output. All four layouts run in portrait and landscape. The pinned framework and actual fonts are cached under `.cache/framework/3.4.3`; previews fail on missing resources. JavaScript is disabled in the preview browser. The B/W/R/Y panel uses the same monochrome chart conventions. Physical-device and dithering verification remain separate from browser or server previews.
 
@@ -74,10 +83,20 @@ On 28 October 2026, source was transferred to the existing STONKS installation t
 - Live NTNX/USD data succeeded for all six ranges. The restored default quote was **72.67 USD**, timestamped **16:00 EDT**.
 - The one-month EUR candle configuration returned **65.11 EUR**, historical USD→EUR conversion, grid enabled, and available OHLC/volume.
 - A native-currency ETF selection (`VWCE.DE`) returned **171.94 EUR**. A one-month Bitcoin chart (`BTC-USD`) returned **81,163.80 USD** during verification. NTNX converted to BTC returned **0.000895 BTC**. These are verification snapshots, not current quote guarantees.
-- TRMNL completed all eight OG Plus/X server previews across full, half horizontal, half vertical, and quadrant sizes. Representative server images were visually inspected; 320 local previews cover portrait and B/W/R/Y as well.
+- TRMNL completed all eight OG Plus/X server previews across full, half horizontal, half vertical, and quadrant sizes. Representative server images were visually inspected; 384 local previews cover portrait and B/W/R/Y as well.
 - The original NTNX/USD/year, smooth line, English, normal header, 10 px labels, hidden grid/volume settings were restored and refreshed successfully. No synthetic fixture was sent to the hosted plugin.
 
 MCP form updates require string values, including numeric controls. Source updates use `importPluginSettingFiles` with the seven filename/content entries. The separate `writeMarkup` linter currently rejects the valid empty-array return in the FX planning helper; file import successfully executes the same Serverless code. Refresh and inspect merge variables after transferring source rather than treating file acceptance alone as a successful deployment.
+
+## Updating the private installation
+
+1. Run the Node 20 checks and full preview matrix. Review representative full and quadrant images, including stale and converted data.
+2. Read the hosted files and current settings through MCP. Keep an ignored local backup and preserve the user's symbol, range, currency and display choices.
+3. Verify the custom form YAML through MCP. Import the seven source files, refresh, and wait for fresh merge variables before starting screenshots; a preview queued earlier can capture the previous data schema.
+4. Read back the six markup/Serverless files and compare their contents. Check the normalized settings, saved-state byte count, quote timestamp, and fresh/stale status. Preview OG Plus and X on the server.
+5. Commit the source and verification notes. Never clear Saved State routinely, upload sample merge variables, or include credentials in a commit. Automatic push/deploy remains unconfigured.
+
+The current hybrid design and hardening pass were checked on Node 20.20.2 with 43 data/render checks and 384 previews using the pinned Chromium browser. The existing hosted native-currency snapshot was also exercised offline against the new transform and preserved exactly. The final source was deployed through MCP and read back successfully. All eight OG Plus/X server previews completed with fresh live data. The active NTNX/USD three-month selection, visible grid, and other custom values were preserved; no Saved State reset was needed. The known upstream limitation remains Yahoo availability and coverage; local fallback handles outages after a successful fetch.
 
 ## Provider limitations
 

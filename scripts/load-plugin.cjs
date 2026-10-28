@@ -6,7 +6,7 @@ const path = require('node:path');
 
 function loadPlugin(overrides = {}) {
   const sandbox = {
-    fetch, AbortController, TextEncoder, setTimeout, clearTimeout, ...overrides
+    fetch, AbortController, TextEncoder, TextDecoder, setTimeout, clearTimeout, ...overrides
   };
   const source = fs.readFileSync(path.join(__dirname, '../TRMNL/src/transform.js'), 'utf8');
   vm.runInNewContext(source + '\nthis.plugin = { run, chart, parseYahoo, validState, bytes, settings, symbolFor, aggregateByTime, combine, convert, makeState, linePath };', sandbox);
