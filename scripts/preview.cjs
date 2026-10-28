@@ -1,7 +1,7 @@
 // Local-only preview matrix. The imported plugin uses no browser or chart library.
 const fs = require('node:fs');
 const path = require('node:path');
-const { Liquid } = require('liquidjs');
+const { createLiquid } = require('./liquid.cjs');
 const { chromium } = require('playwright-core');
 const YAML = require('yaml');
 const { loadPlugin } = require('./load-plugin.cjs');
@@ -16,6 +16,22 @@ const devices = {
   x: { name: 'TRMNL X', css: 'v2', size: 'lg', mode: '4bit', width: 1040, height: 780, scale: 1.8 }
 };
 const layouts = { full: null, half_horizontal: '1Tx1B', half_vertical: '1Lx1R', quadrant: '2x2' };
+// Match the user's review priority; X portrait is intentionally last.
+const surfaces = [
+  ['og', 'landscape'], ['ogv2', 'landscape'], ['x', 'landscape'], ['bwry', 'landscape'],
+  ['og', 'portrait'], ['ogv2', 'portrait'], ['bwry', 'portrait'], ['x', 'portrait']
+];
+function pricesFixture(closes) {
+  const data = sample({ count: closes.length });
+  const r = data.chart.result[0];
+  const open = closes.map((p, i) => i % 13 === 0 ? p : closes[Math.max(0, i - 1)]);
+  r.indicators.quote[0] = { close: closes, open,
+    high: closes.map((p, i) => Math.max(p, open[i]) * 1.01),
+    low: closes.map((p, i) => Math.min(p, open[i]) * 0.99),
+    volume: closes.map((_, i) => 1000000 + i * 1703) };
+  r.meta.regularMarketPrice = closes.at(-1);
+  return data;
+}
 
 async function main() {
   const root = path.join(__dirname, '..');
@@ -38,8 +54,16 @@ async function main() {
     result.stonks.source_label = 'SAMPLE · ' + result.stonks.source_label;
     return result;
   }
-  states.candles = await scenario({ chartType: 'candles', showVolume: 'show', showGridlines: 'show' });
-  states.bars = await scenario({ chartType: 'bars', showVolume: 'show', showReference: 'show' });
+  const sourceCloses = sample().chart.result[0].indicators.quote[0].close;
+  const mixed = pricesFixture(sourceCloses);
+  states.candles = await scenario({ chartType: 'candles', showVolume: 'show', showGridlines: 'show' }, mixed);
+  states.bars = await scenario({ chartType: 'bars', showVolume: 'show', showReference: 'show' }, mixed);
+  const losses = pricesFixture(sourceCloses.map(p => 100 - p));
+  states.loss = await scenario({}, losses);
+  const crossingCloses = Array.from({ length: 90 }, (_, i) => +(100 + 8 * Math.sin(i / 7) + i * 0.025).toFixed(2));
+  states.baseline = await scenario({ showReference: 'show' }, pricesFixture(crossingCloses));
+  states.baseline_loss = await scenario({ showReference: 'show' }, pricesFixture(crossingCloses.map((p, i) => p - i * 0.08)));
+  states.flat = await scenario({ showReference: 'show', chartType: 'candles' }, pricesFixture(Array(30).fill(100)));
   states.step = await scenario({ lineType: '1', headerFontSize: 'small', locale: 'pl' });
   states.large = await scenario({ headerFontSize: 'large', fontSize: 16, showVolume: 'show', chartType: 'candles', locale: 'de_DE' });
   const etf = sample({ symbol: 'VWCE.DE', currency: 'EUR' });
@@ -81,7 +105,7 @@ async function main() {
     return fs.readFileSync(file);
   }
   await asset(frameworkURL);
-  const liquid = new Liquid();
+  const liquid = createLiquid();
   const head = '<!doctype html><html lang="en"><meta charset="utf-8">' +
     '<title>STONKS · sample preview</title><link rel="stylesheet" href="' + frameworkURL + '">' +
     '<style>html,body{margin:0;width:100vw;height:100vh;overflow:hidden}</style><body class="trmnl">';
@@ -108,8 +132,8 @@ async function main() {
     });
     // Keep the stylesheet loaded while testing each actual native wrapper.
     await page.setContent(head + '</body></html>');
-    for (const [device, profile] of Object.entries(devices)) {
-      for (const orientation of ['landscape', 'portrait']) {
+    for (const [device, orientation] of surfaces) {
+      const profile = devices[device];
         const portrait = orientation === 'portrait';
         const width = Math.round((portrait ? profile.height : profile.width) * profile.scale);
         const height = Math.round((portrait ? profile.width : profile.height) * profile.scale);
@@ -133,8 +157,8 @@ async function main() {
               await document.fonts.ready;
               const main = document.querySelector('.view');
               const layout = main.querySelector('.layout');
-              const chart = main.querySelector('[data-stonks-line], [data-stonks-ohlc] path');
-              const svg = chart?.closest('svg').getBoundingClientRect();
+              const chart = [...main.querySelectorAll('[data-stonks-line], [data-stonks-ohlc] path')].find(el => el.getAttribute('d'));
+              const svg = main.querySelector('[data-stonks-plot]')?.getBoundingClientRect();
               const bounds = main.getBoundingClientRect();
               const outside = r => r.width && r.height &&
                 (r.left < bounds.left - 2 || r.top < bounds.top - 2 ||
@@ -163,6 +187,24 @@ async function main() {
                 if (overlaps(a.getBoundingClientRect(), b.getBoundingClientRect())) textOverlaps.push('price and currency');
               }
               const clipped = [...main.querySelectorAll('[data-stonks] [data-clamp]')].filter(el => el.scrollWidth > el.clientWidth + 1);
+              const paint = selector => {
+                const el = main.querySelector(selector);
+                if (!el) return null;
+                const style = getComputedStyle(el);
+                return { color: style.color, background: style.backgroundColor, stroke: style.stroke, fill: style.fill };
+              };
+              const returnBadge = main.querySelector('[data-stonks-return]');
+              const signals = { direction: returnBadge?.dataset.stonksReturn,
+                badge: paint('[data-stonks-return]'), price: paint('[data-stonks-price]'),
+                up: paint('[data-stonks-candle="up"]'), down: paint('[data-stonks-candle="down"]'),
+                flat: paint('[data-stonks-candle="flat"]'), above: paint('[data-stonks-above]'), below: paint('[data-stonks-below]') };
+              const marker = main.querySelector('[data-stonks-point]');
+              let markerError = null;
+              if (marker && chart?.hasAttribute('data-stonks-line')) {
+                const last = chart.getPointAtLength(chart.getTotalLength()).matrixTransform(chart.getScreenCTM());
+                const dot = marker.getBoundingClientRect();
+                markerError = Math.hypot(last.x - dot.left - dot.width / 2, last.y - dot.top - dot.height / 2);
+              }
               const time = main.querySelector('time');
               const timeRange = document.createRange();
               if (time) timeRange.selectNodeContents(time);
@@ -172,7 +214,7 @@ async function main() {
               return { width: bounds.width, height: bounds.height,
                 svgWidth: svg?.width, svgHeight: svg?.height,
                 nativeStructure: layout.nextElementSibling?.classList.contains('title_bar'),
-                timeFits, overflow, textOverflow, textOverlaps, fonts, clipped: clipped.map(el => el.textContent.trim()),
+                timeFits, overflow, textOverflow, textOverlaps, fonts, signals, markerError, clipped: clipped.map(el => el.textContent.trim()),
                 pathLength: chart?.getTotalLength() ?? null };
             });
             if (failedResources.length) throw new Error(failedResources.join('\n'));
@@ -188,9 +230,22 @@ async function main() {
             if (measurements.overflow.length || measurements.textOverflow.length) errors.push('slot overflow');
             if (measurements.textOverlaps.length) errors.push('overlapping text');
             if (!measurements.timeFits) errors.push('market timestamp truncated');
+            if (measurements.markerError !== null && measurements.markerError > 1) errors.push('price marker misaligned');
             if (state !== 'unavailable' && (!(measurements.pathLength > 100) ||
                 measurements.svgWidth < 80 * profile.scale || measurements.svgHeight < 40 * profile.scale)) {
               errors.push('chart too small');
+            }
+            if (state !== 'unavailable') {
+              const signals = measurements.signals;
+              const gray = value => { const c = value?.match(/^rgb\((\d+), (\d+), (\d+)\)$/); return c && c[1] === c[2] && c[2] === c[3]; };
+              if (!gray(signals.price?.color)) errors.push('price contrast');
+              if (device === 'bwry') {
+                if (signals.direction === 'up' && (signals.badge.background !== 'rgb(255, 255, 0)' || signals.badge.color !== 'rgb(0, 0, 0)')) errors.push('gain contrast on B/W/R/Y');
+                if (signals.direction === 'down' && signals.badge.color !== 'rgb(255, 0, 0)') errors.push('loss ink on B/W/R/Y');
+                if (signals.up && signals.up.fill !== (model.stonks.chart_type === 'candles' ? 'rgb(255, 255, 0)' : 'none')) errors.push('rising candle ink');
+                if (signals.down && signals.down.stroke !== 'rgb(255, 0, 0)') errors.push('falling candle ink');
+                if (signals.below && signals.below.stroke !== 'rgb(255, 0, 0)') errors.push('below-baseline ink');
+              } else if ([signals.badge?.color, signals.up?.stroke, signals.down?.stroke, signals.above?.stroke, signals.below?.stroke].filter(Boolean).some(value => !gray(value))) errors.push('non-grayscale signal');
             }
             report.push({ id, device, orientation, layout, state, canvas: { width, height }, ...measurements, errors });
             if (errors.length) problems.push({ id, ...measurements, errors });
@@ -201,13 +256,30 @@ async function main() {
               fs.copyFileSync(file, path.join(outputDir, state + '.png'));
               fs.copyFileSync(path.join(outputDir, id + '.html'), path.join(outputDir, state + '.html'));
             }
+            // Virtual full-color reference validates true green/red independently
+            // of the target panels' grayscale and B/W/R/Y limits.
+            if (device === 'bwry' && !portrait && layout === 'full' && ['candles', 'baseline', 'loss'].includes(state)) {
+              const reference = await page.evaluate(() => {
+                const screen = document.querySelector('.screen');
+                screen.classList.replace('screen--color-4bwry', 'screen--color-full');
+                const style = selector => { const el = document.querySelector(selector); return el ? getComputedStyle(el) : null; };
+                return { up: style('[data-stonks-candle="up"]')?.stroke,
+                  down: style('[data-stonks-candle="down"]')?.stroke,
+                  above: style('[data-stonks-above]')?.stroke,
+                  below: style('[data-stonks-below]')?.stroke,
+                  badge: style('[data-stonks-return]')?.color };
+              });
+              const good = state === 'candles' ? reference.up === 'rgb(0, 136, 0)' && reference.down === 'rgb(170, 0, 0)' :
+                state === 'baseline' ? reference.above === 'rgb(0, 136, 0)' && reference.below === 'rgb(170, 0, 0)' : reference.badge === 'rgb(170, 0, 0)';
+              if (!good) throw new Error('Full-color ink mismatch: ' + JSON.stringify(reference));
+              await page.screenshot({ path: path.join(outputDir, 'full-color-reference-' + state + '.png') });
+            }
             figures.push('<figure><a href="' + id + '.html"><img loading="lazy" src="' + id +
               '.png" alt="' + id + '"></a><figcaption>' + profile.name + ' · ' + orientation +
               ' · ' + layout + ' · ' + state + '</figcaption></figure>');
           }
         }
         console.log(device + '/' + orientation + ': 4 views × ' + Object.keys(states).length + ' scenarios checked on ' + width + '×' + height);
-      }
     }
     fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify(report, null, 2) + '\n');
     fs.writeFileSync(path.join(outputDir, 'index.html'),
@@ -216,7 +288,7 @@ async function main() {
       'repeat(auto-fit,minmax(300px,1fr));gap:20px}figure{margin:0}img{display:block;max-width:100%;' +
       'max-height:400px;background:white}figcaption{padding:8px 0}</style>' +
       '<h1>STONKS · ' + report.length + ' local previews</h1><p>Synthetic sample prices. Four native device profiles, ' +
-      'both orientations, four views, and twelve data/customization scenarios. Click a preview to open its markup.</p><main>' +
+      'both orientations, four views, and sixteen data/customization scenarios. Click a preview to open its markup.</p><main>' +
       figures.join('\n') + '</main></html>');
     if (problems.length) throw new Error(problems.length + ' preview failures:\n' + JSON.stringify(problems.slice(0, 8), null, 2));
     console.log('All ' + report.length + ' cases passed. Gallery: ' + path.join(outputDir, 'index.html'));

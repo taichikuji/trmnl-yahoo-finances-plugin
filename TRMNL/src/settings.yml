@@ -13,7 +13,7 @@ custom_fields:
     field_type: author_bio
     name: About STONKS
     category: finance
-    description: Native Yahoo Finance charts for every TRMNL layout. Stocks, ETFs, indices, forex and crypto. Hollow candles rise; filled candles fall.
+    description: Native Yahoo Finance charts for every TRMNL layout. Stocks, ETFs, indices, forex and crypto. Direction arrows stay clear on monochrome screens; color panels add automatic highlights.
   - keyname: symbol
     field_type: string
     name: Symbol
@@ -99,7 +99,7 @@ custom_fields:
     options:
       - Show: show
       - Hide: hide
-    description: Dashed line at the return baseline. Native-currency 1D uses the previous close when available. Converted 1D uses the first aligned bar; other ranges use the first close.
+    description: Dashed line at the return baseline. Native-currency 1D uses the previous close when available. Converted 1D uses the first aligned bar; other ranges use the first close. Color panels distinguish the curve above and below this line.
     group: Chart
   - keyname: locale
     field_type: select

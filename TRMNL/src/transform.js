@@ -16,12 +16,12 @@ const RANGES = {
 };
 const LOCALES = { en: 'en-US', de_DE: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pl: 'pl-PL' };
 const COPY = {
-  en: ['DATA UNAVAILABLE', 'STALE DATA', 'Next refresh will try again.', 'Volume', 'Low', 'High', 'Market data', 'FX estimate', 'Extended', 'Regular', 'Saved chart', 'Invalid settings', 'No saved prices for this selection', 'from first bar'],
-  de_DE: ['KEINE DATEN', 'ALTE DATEN', 'Erneuter Versuch beim nächsten Update.', 'Volumen', 'Tief', 'Hoch', 'Marktdaten', 'FX-Schätzung', 'Erweitert', 'Regulär', 'Gespeichert', 'Ungültige Einstellungen', 'Keine gespeicherten Kurse für diese Auswahl', 'ab erstem Kurs'],
-  fr: ['DONNÉES INDISPONIBLES', 'DONNÉES ANCIENNES', 'Nouvel essai à la prochaine mise à jour.', 'Volume', 'Bas', 'Haut', 'Données du marché', 'Estimation FX', 'Étendue', 'Normale', 'Enregistré', 'Réglages invalides', 'Aucun cours enregistré pour cette sélection', 'depuis le premier cours'],
-  es: ['DATOS NO DISPONIBLES', 'DATOS ANTIGUOS', 'Se intentará en la próxima actualización.', 'Volumen', 'Mín.', 'Máx.', 'Datos de mercado', 'Estimación FX', 'Extendida', 'Regular', 'Guardado', 'Ajustes no válidos', 'Sin precios guardados para esta selección', 'desde el primer precio'],
-  it: ['DATI NON DISPONIBILI', 'DATI NON AGGIORNATI', 'Nuovo tentativo al prossimo aggiornamento.', 'Volume', 'Min.', 'Max.', 'Dati di mercato', 'Stima FX', 'Estesa', 'Regolare', 'Salvato', 'Impostazioni non valide', 'Nessun prezzo salvato per questa selezione', 'dal primo prezzo'],
-  pl: ['BRAK DANYCH', 'NIEAKTUALNE DANE', 'Kolejna próba przy następnym odświeżeniu.', 'Wolumen', 'Min.', 'Maks.', 'Dane rynkowe', 'Szacunek FX', 'Rozszerzona', 'Zwykła', 'Zapisany', 'Nieprawidłowe ustawienia', 'Brak zapisanych cen dla tego wyboru', 'od pierwszej ceny']
+  en: ['DATA UNAVAILABLE', 'STALE DATA', 'Next refresh will try again.', 'Volume', 'Low', 'High', 'Market data', 'FX estimate', 'Extended', 'Regular', 'Saved chart', 'Invalid settings', 'No saved prices for this selection', 'from first bar', 'Up', 'Down', 'Unchanged'],
+  de_DE: ['KEINE DATEN', 'ALTE DATEN', 'Erneuter Versuch beim nächsten Update.', 'Volumen', 'Tief', 'Hoch', 'Marktdaten', 'FX-Schätzung', 'Erweitert', 'Regulär', 'Gespeichert', 'Ungültige Einstellungen', 'Keine gespeicherten Kurse für diese Auswahl', 'ab erstem Kurs', 'Gestiegen', 'Gefallen', 'Unverändert'],
+  fr: ['DONNÉES INDISPONIBLES', 'DONNÉES ANCIENNES', 'Nouvel essai à la prochaine mise à jour.', 'Volume', 'Bas', 'Haut', 'Données du marché', 'Estimation FX', 'Étendue', 'Normale', 'Enregistré', 'Réglages invalides', 'Aucun cours enregistré pour cette sélection', 'depuis le premier cours', 'En hausse', 'En baisse', 'Inchangé'],
+  es: ['DATOS NO DISPONIBLES', 'DATOS ANTIGUOS', 'Se intentará en la próxima actualización.', 'Volumen', 'Mín.', 'Máx.', 'Datos de mercado', 'Estimación FX', 'Extendida', 'Regular', 'Guardado', 'Ajustes no válidos', 'Sin precios guardados para esta selección', 'desde el primer precio', 'Sube', 'Baja', 'Sin cambios'],
+  it: ['DATI NON DISPONIBILI', 'DATI NON AGGIORNATI', 'Nuovo tentativo al prossimo aggiornamento.', 'Volume', 'Min.', 'Max.', 'Dati di mercato', 'Stima FX', 'Estesa', 'Regolare', 'Salvato', 'Impostazioni non valide', 'Nessun prezzo salvato per questa selezione', 'dal primo prezzo', 'In rialzo', 'In ribasso', 'Invariato'],
+  pl: ['BRAK DANYCH', 'NIEAKTUALNE DANE', 'Kolejna próba przy następnym odświeżeniu.', 'Wolumen', 'Min.', 'Maks.', 'Dane rynkowe', 'Szacunek FX', 'Rozszerzona', 'Zwykła', 'Zapisany', 'Nieprawidłowe ustawienia', 'Brak zapisanych cen dla tego wyboru', 'od pierwszej ceny', 'Wzrost', 'Spadek', 'Bez zmian']
 };
 const positive = n => Number.isFinite(n) && n > 0;
 const stamp = n => Number.isSafeInteger(n) && n > 0;
@@ -272,7 +272,7 @@ function chart(state, config) {
   const x = i => PLOT.left + i / (state.bars.length - 1) * (PLOT.right - PLOT.left);
   const width = Math.max(0.8, Math.min(9, 500 / state.bars.length));
   const points = state.bars.map((b, i) => ({ x: x(i), y: y(b[4]) }));
-  let up = '', down = '', missing = '';
+  let up = '', down = '', flat = '', missing = '';
   const f = n => n.toFixed(1);
   for (const [i, b] of state.bars.entries()) {
     if (b[1] === null) { missing += `M${f(x(i) - width / 2)},${f(y(b[4]))}h${f(width)}`; continue; }
@@ -284,7 +284,7 @@ function chart(state, config) {
       const height = Math.max(0.8, Math.abs(y(b[1]) - y(b[4])));
       p += `M${f(cx - half)},${f(top)}h${f(width)}v${f(height)}h-${f(width)}Z`;
     }
-    if (b[4] >= b[1]) up += p; else down += p;
+    if (b[4] > b[1]) up += p; else if (b[4] < b[1]) down += p; else flat += p;
   }
   const maxVolume = Math.max(1, ...state.bars.map(b => b[5] || 0));
   const volume = hasVolume ? state.bars.map((b, i) => b[5] === null ? '' : `M${f(x(i))},274V${f(274 - b[5] / maxVolume * 40)}`).join('') : '';
@@ -296,7 +296,7 @@ function chart(state, config) {
         config.range === '1mo' || config.range === '3mo' ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' })
     }).format(new Date(state.bars[i][0] * 1000))
   }));
-  return { path: linePath(points, config.lineType), up, down, volume_path: volume, volume_width: width,
+  return { path: linePath(points, config.lineType), up, down, flat, volume_path: volume, volume_width: width,
     reference_y: y(state.baseline), last_y: points.at(-1).y,
     ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: number(max - r * (max - min)) })), dates,
     missing_path: missing, has_ohlc: state.bars.some(b => b[1] !== null), has_volume: hasVolume, digits };
@@ -311,17 +311,31 @@ function display(state, stale, detail, config) {
   if (!state) return base;
   const graphics = chart(state, config);
   const formatter = new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: graphics.digits, maximumFractionDigits: graphics.digits });
-  const signed = (n, digits) => (n < 0 ? '−' : '+') + new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Math.abs(n));
+  const signed = (n, digits) => {
+    const parts = new Intl.NumberFormat(LOCALES[config.locale], {
+      minimumFractionDigits: digits, maximumFractionDigits: digits
+    }).formatToParts(Math.abs(n));
+    const zero = !parts.some(p => ['integer', 'fraction'].includes(p.type) && /[1-9]/.test(p.value));
+    return (zero ? '' : n < 0 ? '−' : '+') + parts.map(p => p.value).join('');
+  };
   const date = new Date(state.market_at * 1000);
   const compact = new Intl.DateTimeFormat(LOCALES[config.locale], { timeZone: state.timezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   const full = new Intl.DateTimeFormat(LOCALES[config.locale], { timeZone: state.timezone, year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short' });
   const change = state.price - state.baseline;
+  const percent = change / state.baseline * 100;
+  // Signals follow the return baseline, not the last candle's open. Changes
+  // that round to zero in both displayed units have a neutral indicator.
+  const change_label = signed(change, graphics.digits);
+  const percent_label = signed(percent, 2);
+  const hasSign = value => value.startsWith('+') || value.startsWith('−');
+  const direction = !hasSign(change_label) && !hasSign(percent_label) ? 'flat' : change < 0 ? 'down' : 'up';
   return { ...base, ...graphics, has_data: true, stale, detail, name: state.name, currency: state.currency,
-    price: state.price, change, percent: change / state.baseline * 100,
+    price: state.price, change, percent, direction,
+    direction_label: text[direction === 'up' ? 14 : direction === 'down' ? 15 : 16],
     price_label: formatter.format(state.price),
-    percent_label: signed(change / state.baseline * 100, 2) + '%',
-    absolute_change_label: signed(change, graphics.digits),
-    change_label: `${signed(change, graphics.digits)} (${signed(change / state.baseline * 100, 2)}%)`,
+    percent_label: percent_label + '%',
+    absolute_change_label: change_label,
+    change_label: `${change_label} (${percent_label}%)`,
     high_label: formatter.format(state.high), low_label: formatter.format(state.low),
     market_at: state.market_at, market_iso: date.toISOString(), market_label: full.format(date), market_label_compact: compact.format(date),
     baseline_label: config.range === '1d' && state.return_basis === 'first_close' ? text[13] : '',

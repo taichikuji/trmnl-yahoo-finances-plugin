@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { Liquid } = require('liquidjs');
+const { createLiquid } = require('../scripts/liquid.cjs');
 const YAML = require('yaml');
 const { loadPlugin } = require('../scripts/load-plugin.cjs');
 const { sample, NOW } = require('./fixtures/sample.cjs');
@@ -12,7 +12,7 @@ const load = (fetch = ok(sample()), extra = {}) => loadPlugin({ fetch, Date: Clo
 const plain = object => JSON.parse(JSON.stringify(object));
 const input = (fields = {}, state) => ({ trmnl: { plugin_settings: { custom_fields_values: fields }, ...(state ? { state } : {}) } });
 const shared = fs.readFileSync(path.join(__dirname, 'src/shared.liquid'), 'utf8');
-const liquid = new Liquid();
+const liquid = createLiquid();
 const layoutNames = ['full', 'half_horizontal', 'half_vertical', 'quadrant'];
 const config = fields => load().settings(input(fields));
 
@@ -336,4 +336,73 @@ test('tiny provider rounding differences do not discard otherwise valid OHLC dat
   assert.equal(out.stonks.has_data, true, out.stonks.detail);
   assert.equal(out.stonks.has_ohlc, true);
   assert.equal(load().validState(out.trmnl_state, NOW / 1000, config({ chartType: 'candles' })), true);
+});
+
+function signalFixture({ price = 106, lastOpen = 108, flat = false } = {}) {
+  const data = sample({ count: 4 });
+  const r = data.chart.result[0];
+  const close = flat ? [100, 100, 100, price] : [100, 110, 108, price];
+  const open = flat ? [100, 100, 100, 100] : [100, 100, 112, lastOpen];
+  r.meta.regularMarketPrice = price;
+  r.indicators.quote[0] = { close, open, high: close.map((c, i) => Math.max(c, open[i]) + 1),
+    low: close.map((c, i) => Math.min(c, open[i]) - 1), volume: [1000, 2000, 1800, 1500] };
+  return data;
+}
+
+test('the return indicator follows the selected baseline even when the latest candle falls', async () => {
+  const out = await load(ok(signalFixture())).run(input({ chartType: 'candles' }));
+  assert.equal(out.stonks.direction, 'up'); assert.equal(out.stonks.direction_label, 'Up');
+  assert.equal(out.stonks.percent_label, '+6.00%');
+  const last = out.trmnl_state.bars.at(-1);
+  assert.ok(last[4] < last[1]); assert.ok(out.stonks.down.length > 0);
+  assert.ok(out.stonks.up.length > 0); assert.ok(out.stonks.flat.length > 0);
+  const html = await liquid.parseAndRender(shared, out);
+  assert.match(html, /data-stonks-return="up"/);
+  assert.match(html, /data-stonks-candle="down"/);
+});
+
+test('falling and unchanged returns have distinct accessible indicators', async () => {
+  const down = await load(ok(signalFixture({ price: 90 }))).run(input({ locale: 'es' }));
+  assert.equal(down.stonks.direction, 'down'); assert.equal(down.stonks.direction_label, 'Baja');
+  assert.equal(down.stonks.percent_label, '−10,00%');
+  const flat = await load(ok(signalFixture({ price: 100, flat: true }))).run(input({ chartType: 'candles' }));
+  assert.equal(flat.stonks.direction, 'flat'); assert.equal(flat.stonks.direction_label, 'Unchanged');
+  assert.equal(flat.stonks.percent_label, '0.00%');
+  assert.equal(flat.stonks.up, ''); assert.equal(flat.stonks.down, ''); assert.ok(flat.stonks.flat);
+  const html = await liquid.parseAndRender(shared, flat);
+  assert.match(html, /aria-label="Unchanged 0.00%/);
+});
+
+test('changes that round to zero do not show negative zero or a misleading direction', async () => {
+  for (const price of [100 + 1e-7, 100 - 1e-7]) {
+    const out = await load(ok(signalFixture({ price, flat: true }))).run({});
+    assert.equal(out.stonks.direction, 'flat');
+    assert.equal(out.stonks.percent_label, '0.00%');
+    assert.equal(out.stonks.absolute_change_label, '0.00');
+  }
+});
+
+test('baseline clipping preserves the complete curve with unique SVG fragment ids', async () => {
+  for (const lineType of ['0', '1', '2']) {
+    const out = await load(ok(signalFixture())).run(input({ showReference: 'show', lineType }));
+    const html = await liquid.parseAndRender(shared, out);
+    const above = html.match(/data-stonks-above d="([^"]+)"/);
+    const below = html.match(/data-stonks-below d="([^"]+)"/);
+    assert.equal(above?.[1], out.stonks.path); assert.equal(below?.[1], out.stonks.path);
+    const second = await liquid.parseAndRender(shared, out);
+    const ids = [...(html + second).matchAll(/<clipPath id="([^"]+)"/g)].map(m => m[1]);
+    assert.equal(ids.length, 4); assert.equal(new Set(ids).size, 4);
+    for (const id of ids.slice(0, 2)) assert.ok(html.includes('url(#' + id + ')'));
+    assert.ok(out.stonks.reference_y > 0 && out.stonks.reference_y < 286);
+  }
+});
+
+test('direction formatting retains Intl rounding at fractional currency boundaries', async () => {
+  const data = signalFixture({ price: 2.005, lastOpen: 3 });
+  const q = data.chart.result[0].indicators.quote[0];
+  q.close[0] = 1; q.open[0] = 1; q.low[0] = 0.9; q.high[0] = 1.1;
+  const out = await load(ok(data)).run({});
+  const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(out.stonks.change);
+  assert.equal(out.stonks.absolute_change_label, '+' + formatted);
+  assert.equal(out.stonks.direction, 'up');
 });

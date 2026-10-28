@@ -1,6 +1,41 @@
 {% comment %}Framework handles layout; scoped CSS supplies numeric font sizes and chart coordinates.{% endcomment %}
 <style>
   [data-stonks] .description, [data-stonks] .label--small { font-size: calc(var(--stonks-font) * var(--text-ui-scale, 1)); }
+  [data-stonks] {
+    --stonks-paper: var(--framework-semantic-canvas-bg-color, #fff);
+    --stonks-ink: var(--framework-semantic-text-primary-text-solid, #000);
+    --stonks-rise: var(--stonks-ink);
+    --stonks-fall: var(--stonks-ink);
+    --stonks-rise-fill: var(--stonks-paper);
+    --stonks-fall-fill: var(--stonks-ink);
+    --stonks-gain-accent: var(--stonks-paper);
+  }
+  /* SVG needs solid paint; text utilities can use clipped dither backgrounds.
+     Use the pinned framework's palette tokens and keep grayscale strokes dark. */
+  .screen--color-4bwry [data-stonks] {
+    --stonks-fall: var(--bg-red-color);
+    --stonks-rise-fill: var(--bg-green-color);
+    --stonks-fall-fill: var(--bg-red-color);
+    --stonks-gain-accent: var(--bg-green-color);
+  }
+  :is(.screen--color-6a, .screen--color-7a) [data-stonks] {
+    --stonks-rise: var(--bg-green-color);
+    --stonks-fall: var(--bg-red-color);
+    --stonks-rise-fill: var(--bg-green-color);
+    --stonks-fall-fill: var(--bg-red-color);
+  }
+  .screen--color-full [data-stonks] {
+    --stonks-rise: var(--green-25);
+    --stonks-fall: var(--red-30);
+    --stonks-rise-fill: var(--green-25);
+    --stonks-fall-fill: var(--red-30);
+  }
+  [data-stonks] [data-stonks-return="up"] { color: var(--stonks-rise); background-color: var(--stonks-gain-accent); border-color: var(--stonks-rise); }
+  [data-stonks] [data-stonks-return="down"] { color: var(--stonks-fall); border-color: var(--stonks-fall); }
+  [data-stonks] [data-stonks-change="up"] { color: var(--stonks-rise); }
+  [data-stonks] [data-stonks-change="down"] { color: var(--stonks-fall); }
+  [data-stonks] [data-stonks-point="up"] { background-color: var(--stonks-rise); }
+  [data-stonks] [data-stonks-point="down"] { background-color: var(--stonks-fall); }
   /* Framework breakpoints follow devices; this query follows the actual slot. */
   @container (max-width: 360px) { [data-stonks-mid-date] { display: none; } }
 </style>
@@ -13,15 +48,20 @@
     {% assign price_characters = stonks.price_label | size %}
     <div class="flex flex--row flex--wrap flex--between flex--bottom gap--xsmall w--full no-shrink">
       <div class="flex flex--row flex--wrap flex--bottom gap--xsmall w--min-0">
-        <span class="value {% if price_characters > 15 %}value--xsmall lg:value--small{% elsif price_characters > 10 %}value--small lg:value--base{% elsif stonks.header == 'large' %}value--base lg:value--large{% elsif stonks.header == 'small' %}value--small{% else %}value--base{% endif %} value--tnums no-shrink" data-stonks-price>{{ stonks.price_label | escape }}</span>
+        <span class="value {% if price_characters > 15 %}value--xsmall lg:value--small{% elsif price_characters > 10 %}value--small lg:value--base{% elsif stonks.header == 'large' %}value--base lg:value--large lg:landscape:value--xlarge{% elsif stonks.header == 'small' %}value--small{% else %}value--base lg:landscape:value--large{% endif %} value--tnums no-shrink" data-stonks-price>{{ stonks.price_label | escape }}</span>
         <span class="label label--small pb--1" data-stonks-currency>{{ stonks.currency | escape }}</span>
       </div>
       <div class="flex flex--col flex--right gap--xsmall no-shrink">
         <div class="flex flex--row gap--xsmall">
-          <span class="label label--outline">{{ stonks.percent_label | escape }}</span>
+          <span class="label label--outline flex flex--row gap--xsmall" data-stonks-return="{{ stonks.direction | escape }}" aria-label="{{ stonks.direction_label | escape }} {{ stonks.percent_label | escape }} · {{ stonks.range_label | escape }}">
+            <svg class="w--3 h--3 no-shrink" viewBox="0 0 12 12" aria-hidden="true">
+              {% if stonks.direction == 'up' %}<path d="M6 1L11 6H8V11H4V6H1Z" fill="currentColor" />{% elsif stonks.direction == 'down' %}<path d="M4 1H8V6H11L6 11L1 6H4Z" fill="currentColor" />{% else %}<path d="M1 5H11V7H1Z" fill="currentColor" />{% endif %}
+            </svg>
+            <span>{{ stonks.percent_label | escape }}</span>
+          </span>
           <span class="label label--small">{{ stonks.range_label | escape }}</span>
         </div>
-        <span class="description">{{ stonks.absolute_change_label | escape }} {{ stonks.currency | escape }}</span>
+        <span class="description" data-stonks-change="{{ stonks.direction | escape }}">{{ stonks.absolute_change_label | escape }} {{ stonks.currency | escape }}</span>
       </div>
     </div>
     <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
@@ -31,7 +71,7 @@
     <div class="stretch flex flex--row gap--xsmall w--full" data-stonks-chart>
       <div class="stretch flex flex--col gap--xsmall h--full w--min-0">
         <div class="stretch relative w--full">
-          <svg class="block" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none" role="img" aria-label="{{ stonks.name | escape }} · {{ stonks.range_label | escape }} · {{ stonks.currency | escape }}">
+          <svg class="block" data-stonks-plot xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none" role="img" aria-label="{{ stonks.name | escape }} · {{ stonks.range_label | escape }} · {{ stonks.currency | escape }}">
             <title>{{ stonks.symbol | escape }} · {{ stonks.price_label | escape }} {{ stonks.currency | escape }} · {{ stonks.market_label | escape }}</title>
             {% if stonks.grid == true %}
               {% for tick in stonks.ticks %}<path d="M4,{{ tick.y }}H696" fill="none" stroke="currentColor" stroke-dasharray="1 6" stroke-width="0.5" vector-effect="non-scaling-stroke" />{% endfor %}
@@ -39,18 +79,30 @@
             {% endif %}
             {% if stonks.reference == true %}<path d="M4,{{ stonks.reference_y }}H696" fill="none" stroke="currentColor" stroke-dasharray="6 4" stroke-width="1" vector-effect="non-scaling-stroke" />{% endif %}
             {% if stonks.chart_type == 'line' or stonks.has_ohlc != true %}
-              <path data-stonks-line d="{{ stonks.path | escape }}" fill="none" stroke="currentColor" stroke-width="{{ stonks.line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+              {% if stonks.reference == true %}
+                {% assign clip_id = 'stonks-' | append_random %}
+                {% assign below_height = 286 | minus: stonks.reference_y %}
+                <defs>
+                  <clipPath id="{{ clip_id }}-above"><rect x="0" y="0" width="700" height="{{ stonks.reference_y }}" /></clipPath>
+                  <clipPath id="{{ clip_id }}-below"><rect x="0" y="{{ stonks.reference_y }}" width="700" height="{{ below_height }}" /></clipPath>
+                </defs>
+                <path data-stonks-line data-stonks-above d="{{ stonks.path | escape }}" clip-path="url(#{{ clip_id }}-above)" fill="none" stroke="var(--stonks-rise)" stroke-width="{{ stonks.line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+                <path data-stonks-below d="{{ stonks.path | escape }}" clip-path="url(#{{ clip_id }}-below)" fill="none" stroke="var(--stonks-fall)" stroke-width="{{ stonks.line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+              {% else %}
+                <path data-stonks-line d="{{ stonks.path | escape }}" fill="none" stroke="currentColor" stroke-width="{{ stonks.line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+              {% endif %}
             {% else %}
               <g data-stonks-ohlc stroke="currentColor" stroke-width="{{ stonks.line_width }}" stroke-linejoin="miter">
-                <path d="{{ stonks.up | escape }}" fill="white" vector-effect="non-scaling-stroke" />
-                <path d="{{ stonks.down | escape }}" fill="{% if stonks.chart_type == 'candles' %}currentColor{% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
+                <path data-stonks-candle="up" d="{{ stonks.up | escape }}" stroke="var(--stonks-rise)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-rise-fill){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
+                <path data-stonks-candle="down" d="{{ stonks.down | escape }}" stroke="var(--stonks-fall)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-fall-fill){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
+                <path data-stonks-candle="flat" d="{{ stonks.flat | escape }}" fill="var(--stonks-paper)" vector-effect="non-scaling-stroke" />
                 <path d="{{ stonks.missing_path | escape }}" fill="none" vector-effect="non-scaling-stroke" />
               </g>
             {% endif %}
             {% if stonks.has_volume == true %}<path data-stonks-volume d="{{ stonks.volume_path | escape }}" fill="none" stroke="currentColor" stroke-width="{{ stonks.volume_width }}" />{% endif %}
           </svg>
           {% if stonks.chart_type == 'line' or stonks.has_ohlc != true %}
-            <span class="absolute bg--black rounded--full w--2 h--2" aria-hidden="true" style="left: 99.428571%; top: {{ stonks.last_y | times: 100.0 | divided_by: 286.0 }}%; transform: translate(-50%, -50%);"></span>
+            <span class="absolute bg--black rounded--full w--2 h--2" data-stonks-point="{{ stonks.direction | escape }}" aria-hidden="true" style="left: 99.428571%; top: {{ stonks.last_y | times: 100.0 | divided_by: 286.0 }}%; transform: translate(-50%, -50%);"></span>
           {% endif %}
         </div>
         <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
