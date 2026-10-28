@@ -13,6 +13,8 @@ const plain = object => JSON.parse(JSON.stringify(object));
 const input = (fields = {}, state) => ({ trmnl: { plugin_settings: { custom_fields_values: fields }, ...(state ? { state } : {}) } });
 const shared = fs.readFileSync(path.join(__dirname, 'src/shared.liquid'), 'utf8');
 const liquid = createLiquid();
+const render = (out, fields = {}, name = 'full') => liquid.parseAndRender(
+  shared + '\n' + fs.readFileSync(path.join(__dirname, 'src', name + '.liquid'), 'utf8'), { ...out, ...input(fields) });
 const layoutNames = ['full', 'half_horizontal', 'half_vertical', 'quadrant'];
 const config = fields => load().settings(input(fields));
 
@@ -45,13 +47,14 @@ test('symbols accept Yahoo and known TradingView exchanges without guessing unkn
   for (const bad of ['NOPE:ABC', 'https://example.com', 'A<B', '%broken', 'A:B:C']) assert.throws(() => load().symbolFor(bad));
 });
 
-test('malformed settings fail before fetching; numeric controls clamp to documented bounds', async () => {
+test('malformed market settings fail before fetching; Liquid clamps numeric display controls', async () => {
   let calls = 0;
   const out = await load(async () => { calls++; }).run(input({ symbol: '<script>' }));
   assert.equal(calls, 0); assert.equal(out.stonks.has_data, false);
-  assert.equal(config({ fontSize: 999 }).fontSize, 16);
-  assert.equal(config({ lineWidth: -1 }).lineWidth, 1);
-  assert.equal(config({ fontSize: '' }).fontSize, 10);
+  const fresh = await load().run({});
+  assert.match(await render(fresh, { fontSize: 999, lineWidth: -1 }), /--stonks-font: 16px/);
+  assert.match(await render(fresh, { fontSize: 999, lineWidth: -1 }), /stroke-width="1"/);
+  assert.match(await render(fresh, { fontSize: '' }), /--stonks-font: 10px/);
 });
 
 test('daily return uses first unadjusted close; 1D uses previous close', async () => {
@@ -79,8 +82,8 @@ test('null closes are skipped and absent OHLC/volume are never synthesized', asy
   assert.equal(out.stonks.has_data, true);
   assert.equal(out.stonks.has_ohlc, false); assert.equal(out.stonks.has_volume, false);
   assert.ok(out.trmnl_state.bars.every(b => b[1] === null && b[5] === null));
-  assert.match(out.stonks.chart_note, /OHLC unavailable/);
-  const html = await liquid.parseAndRender(shared, out);
+  const html = await render(out);
+  assert.match(html, /OHLC unavailable/);
   assert.match(html, /data-stonks-line/); assert.doesNotMatch(html, /data-stonks-ohlc/);
 });
 
@@ -117,7 +120,7 @@ test('presentation changes redraw cached data even when the provider is unavaila
   const saved = plain((await load().run({})).trmnl_state);
   const out = await load(async () => ({ ok: false, status: 429 })).run(input({ chartType: 'candles', locale: 'es', showVolume: 'show' }, saved));
   assert.equal(out.stonks.has_data, true); assert.equal(out.stonks.has_volume, true);
-  assert.equal(out.stonks.chart_type, 'candles'); assert.equal(out.stonks.labels.stale, 'DATOS ANTIGUOS');
+  assert.equal(out.stonks.chart_type, 'candles'); assert.match(await render(out, { locale: 'es' }), /DATOS ANTIGUOS/);
 });
 
 test('one deadline bounds response bodies and chained FX requests without retries', async () => {
@@ -138,7 +141,7 @@ test('real historical FX rates convert the curve, latest price and baseline', as
   assert.equal(out.stonks.currency, 'EUR');
   assert.equal(out.stonks.price, market.chart.result[0].meta.regularMarketPrice * r.meta.regularMarketPrice);
   assert.equal(out.trmnl_state.baseline, market.chart.result[0].indicators.quote[0].close[0] * r.indicators.quote[0].close[0]);
-  assert.match(out.stonks.fx_label, /USD→EUR/);
+  assert.match(await render(out), /USD→EUR/);
   assert.ok(out.stonks.fx_iso);
 });
 
@@ -210,7 +213,7 @@ test('all locales format prices and dates, and every registered view renders onc
       const out = await load().run(input({ locale, chartType, showVolume: 'show', showGridlines: 'show', showReference: 'show' }));
       for (const name of layoutNames) {
         const view = fs.readFileSync(path.join(__dirname, 'src', name + '.liquid'), 'utf8'); assert.ok(view.trim());
-        const html = await liquid.parseAndRender(shared + '\n' + view, out);
+        const html = await render(out, { locale, chartType }, name);
         assert.equal((html.match(/data-stonks style=/g) || []).length, 1);
         assert.match(html, /class="title_bar"/); assert.match(html, /data-stonks-volume/);
         assert.equal(html.includes('data-stonks-ohlc'), chartType !== 'line');
@@ -239,9 +242,8 @@ test('converted 1D returns start at the first aligned price and label that basel
   const baseline = market.chart.result[0].indicators.quote[0].close[0] * fx.chart.result[0].indicators.quote[0].close[rateIndex];
   assert.equal(out.trmnl_state.baseline, baseline);
   assert.equal(out.trmnl_state.return_basis, 'first_close');
-  assert.equal(out.stonks.baseline_label, 'from first bar');
   assert.equal(out.stonks.change, out.stonks.price - baseline);
-  const html = await liquid.parseAndRender(shared, out);
+  const html = await render(out);
   assert.match(html, /from first bar/);
   // A v2 snapshot using the former, unaligned converted previous-close baseline
   // must not silently survive as a valid 1D fallback after this correction.
@@ -351,32 +353,32 @@ function signalFixture({ price = 106, lastOpen = 108, flat = false } = {}) {
 
 test('the return indicator follows the selected baseline even when the latest candle falls', async () => {
   const out = await load(ok(signalFixture())).run(input({ chartType: 'candles' }));
-  assert.equal(out.stonks.direction, 'up'); assert.equal(out.stonks.direction_label, 'Up');
+  assert.match(await render(out), /aria-label="Up /);
   assert.equal(out.stonks.percent_label, '+6.00%');
   const last = out.trmnl_state.bars.at(-1);
   assert.ok(last[4] < last[1]); assert.ok(out.stonks.down.length > 0);
   assert.ok(out.stonks.up.length > 0); assert.ok(out.stonks.flat.length > 0);
-  const html = await liquid.parseAndRender(shared, out);
+  const html = await render(out);
   assert.match(html, /data-stonks-return="up"/);
   assert.match(html, /data-stonks-candle="down"/);
 });
 
 test('falling and unchanged returns have distinct accessible indicators', async () => {
   const down = await load(ok(signalFixture({ price: 90 }))).run(input({ locale: 'es' }));
-  assert.equal(down.stonks.direction, 'down'); assert.equal(down.stonks.direction_label, 'Baja');
+  assert.match(await render(down, { locale: 'es' }), /data-stonks-return="down" aria-label="Baja /);
   assert.equal(down.stonks.percent_label, '−10,00%');
   const flat = await load(ok(signalFixture({ price: 100, flat: true }))).run(input({ chartType: 'candles' }));
-  assert.equal(flat.stonks.direction, 'flat'); assert.equal(flat.stonks.direction_label, 'Unchanged');
+  assert.match(await render(flat), /data-stonks-return="flat"/);
   assert.equal(flat.stonks.percent_label, '0.00%');
   assert.equal(flat.stonks.up, ''); assert.equal(flat.stonks.down, ''); assert.ok(flat.stonks.flat);
-  const html = await liquid.parseAndRender(shared, flat);
+  const html = await render(flat);
   assert.match(html, /aria-label="Unchanged 0.00%/);
 });
 
 test('changes that round to zero do not show negative zero or a misleading direction', async () => {
   for (const price of [100 + 1e-7, 100 - 1e-7]) {
     const out = await load(ok(signalFixture({ price, flat: true }))).run({});
-    assert.equal(out.stonks.direction, 'flat');
+    assert.match(await render(out), /data-stonks-return="flat"/);
     assert.equal(out.stonks.percent_label, '0.00%');
     assert.equal(out.stonks.absolute_change_label, '0.00');
   }
@@ -385,11 +387,11 @@ test('changes that round to zero do not show negative zero or a misleading direc
 test('baseline clipping preserves the complete curve with unique SVG fragment ids', async () => {
   for (const lineType of ['0', '1', '2']) {
     const out = await load(ok(signalFixture())).run(input({ showReference: 'show', lineType }));
-    const html = await liquid.parseAndRender(shared, out);
+    const html = await render(out);
     const above = html.match(/data-stonks-above d="([^"]+)"/);
     const below = html.match(/data-stonks-below d="([^"]+)"/);
     assert.equal(above?.[1], out.stonks.path); assert.equal(below?.[1], out.stonks.path);
-    const second = await liquid.parseAndRender(shared, out);
+    const second = await render(out);
     const ids = [...(html + second).matchAll(/<clipPath id="([^"]+)"/g)].map(m => m[1]);
     assert.equal(ids.length, 4); assert.equal(new Set(ids).size, 4);
     for (const id of ids.slice(0, 2)) assert.ok(html.includes('url(#' + id + ')'));
@@ -404,5 +406,29 @@ test('direction formatting retains Intl rounding at fractional currency boundari
   const out = await load(ok(data)).run({});
   const formatted = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(out.stonks.change);
   assert.equal(out.stonks.absolute_change_label, '+' + formatted);
-  assert.equal(out.stonks.direction, 'up');
+  assert.match(await render(out), /data-stonks-return="up"/);
+});
+
+test('Shared defines reusable components and only the selected view emits content', async () => {
+  const out = await load().run({});
+  const definitions = await liquid.parseAndRender(shared, out);
+  assert.doesNotMatch(definitions, /class="layout|class="title_bar"|data-stonks-price/);
+  for (const name of layoutNames) {
+    const html = await render(out, { headerFontSize: 'large', fontSize: 12, lineWidth: 4 }, name);
+    assert.equal((html.match(/data-stonks-price/g) || []).length, 1);
+    assert.match(html, /--stonks-font: 12px/);
+    assert.match(html, /stroke-width="4"/);
+  }
+  // Match native render isolation: undeclared variables must not leak into a partial.
+  assert.equal(await liquid.parseAndRender("{% assign secret = 'outer' %}{% template isolated %}{{ secret }}{{ value }}{% endtemplate %}{% render 'isolated', value: 'passed' %}"), 'passed');
+});
+
+test('the transform generates only the selected chart geometry without changing saved data', async () => {
+  const line = await load().run({});
+  const candles = await load().run(input({ chartType: 'candles' }));
+  assert.deepEqual(plain(line.trmnl_state), plain(candles.trmnl_state));
+  assert.ok(line.stonks.path.length > 0);
+  assert.equal(line.stonks.up + line.stonks.down + line.stonks.flat + line.stonks.missing_path, '');
+  assert.equal(candles.stonks.path, '');
+  assert.ok(candles.stonks.up.length + candles.stonks.down.length + candles.stonks.flat.length > 0);
 });

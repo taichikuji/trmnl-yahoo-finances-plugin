@@ -1,5 +1,5 @@
 // TRMNL Node 20 Serverless. Provider requests and rendering share a 3.8s deadline.
-// All network access stays here; the Shared view contains no remote widget or JS.
+// Liquid owns layout and captions; only data, chart math and Intl formatting live here.
 const REQUEST_TIMEOUT_MS = 3800;
 const DAY = 86400;
 const STATE_LIMIT = 8192;
@@ -7,29 +7,20 @@ const RESPONSE_LIMIT = 2 * 1024 * 1024;
 const MAX_MARKET_AGE = 7 * DAY;
 const PLOT = { left: 4, right: 696, top: 12, bottom: 274 };
 const RANGES = {
-  '1d|1': { range: '1d', interval: '1m', seconds: 60, label: '1D' },
-  '1m|30': { range: '1mo', interval: '30m', seconds: 1800, label: '1M' },
-  '3m|60': { range: '3mo', interval: '60m', seconds: 3600, label: '3M' },
-  '12m|1D': { range: '1y', interval: '1d', seconds: DAY, label: '1Y' },
-  '60m|1W': { range: '5y', interval: '1wk', seconds: 7 * DAY, label: '5Y' },
-  'all|1M': { range: 'max', interval: '1mo', seconds: 31 * DAY, label: 'ALL' }
+  '1d|1': { range: '1d', interval: '1m', seconds: 60 },
+  '1m|30': { range: '1mo', interval: '30m', seconds: 1800 },
+  '3m|60': { range: '3mo', interval: '60m', seconds: 3600 },
+  '12m|1D': { range: '1y', interval: '1d', seconds: DAY },
+  '60m|1W': { range: '5y', interval: '1wk', seconds: 7 * DAY },
+  'all|1M': { range: 'max', interval: '1mo', seconds: 31 * DAY }
 };
 const LOCALES = { en: 'en-US', de_DE: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pl: 'pl-PL' };
-const COPY = {
-  en: ['DATA UNAVAILABLE', 'STALE DATA', 'Next refresh will try again.', 'Volume', 'Low', 'High', 'Market data', 'FX estimate', 'Extended', 'Regular', 'Saved chart', 'Invalid settings', 'No saved prices for this selection', 'from first bar', 'Up', 'Down', 'Unchanged'],
-  de_DE: ['KEINE DATEN', 'ALTE DATEN', 'Erneuter Versuch beim nächsten Update.', 'Volumen', 'Tief', 'Hoch', 'Marktdaten', 'FX-Schätzung', 'Erweitert', 'Regulär', 'Gespeichert', 'Ungültige Einstellungen', 'Keine gespeicherten Kurse für diese Auswahl', 'ab erstem Kurs', 'Gestiegen', 'Gefallen', 'Unverändert'],
-  fr: ['DONNÉES INDISPONIBLES', 'DONNÉES ANCIENNES', 'Nouvel essai à la prochaine mise à jour.', 'Volume', 'Bas', 'Haut', 'Données du marché', 'Estimation FX', 'Étendue', 'Normale', 'Enregistré', 'Réglages invalides', 'Aucun cours enregistré pour cette sélection', 'depuis le premier cours', 'En hausse', 'En baisse', 'Inchangé'],
-  es: ['DATOS NO DISPONIBLES', 'DATOS ANTIGUOS', 'Se intentará en la próxima actualización.', 'Volumen', 'Mín.', 'Máx.', 'Datos de mercado', 'Estimación FX', 'Extendida', 'Regular', 'Guardado', 'Ajustes no válidos', 'Sin precios guardados para esta selección', 'desde el primer precio', 'Sube', 'Baja', 'Sin cambios'],
-  it: ['DATI NON DISPONIBILI', 'DATI NON AGGIORNATI', 'Nuovo tentativo al prossimo aggiornamento.', 'Volume', 'Min.', 'Max.', 'Dati di mercato', 'Stima FX', 'Estesa', 'Regolare', 'Salvato', 'Impostazioni non valide', 'Nessun prezzo salvato per questa selezione', 'dal primo prezzo', 'In rialzo', 'In ribasso', 'Invariato'],
-  pl: ['BRAK DANYCH', 'NIEAKTUALNE DANE', 'Kolejna próba przy następnym odświeżeniu.', 'Wolumen', 'Min.', 'Maks.', 'Dane rynkowe', 'Szacunek FX', 'Rozszerzona', 'Zwykła', 'Zapisany', 'Nieprawidłowe ustawienia', 'Brak zapisanych cen dla tego wyboru', 'od pierwszej ceny', 'Wzrost', 'Spadek', 'Bez zmian']
-};
 const positive = n => Number.isFinite(n) && n > 0;
 const stamp = n => Number.isSafeInteger(n) && n > 0;
 const barStamp = n => Number.isSafeInteger(n) && n >= -62135596800;
 const bytes = value => new TextEncoder().encode(JSON.stringify(value)).length;
 const round = n => +n.toPrecision(9);
 const choose = (v, list, fallback) => list.includes(String(v)) ? String(v) : fallback;
-const bounded = (v, min, max, fallback) => v === '' || v == null || !Number.isFinite(+v) ? fallback : Math.min(max, Math.max(min, +v));
 
 function symbolFor(value) {
   let text;
@@ -67,11 +58,10 @@ function settings(input) {
     key: [symbol, currency, dateRanges, extended ? 'extended' : 'regular'].join('|'),
     chartType: choose(f.chartType, ['line', 'bars', 'candles'], 'line'),
     locale: choose(f.locale, Object.keys(LOCALES), 'en'),
-    lineWidth: bounded(f.lineWidth, 1, 5, 2), lineType: choose(f.lineType, ['0', '1', '2'], '2'),
+    lineType: choose(f.lineType, ['0', '1', '2'], '2'),
     grid: f.showGridlines === 'show', volume: f.showVolume === 'show',
     reference: f.showReference === 'show',
-    header: choose(f.headerFontSize, ['small', 'medium', 'large'], 'medium'),
-    fontSize: bounded(f.fontSize, 8, 16, 10), precision: choose(f.precision, ['auto', '0', '2', '4', '6'], 'auto')
+    precision: choose(f.precision, ['auto', '0', '2', '4', '6'], 'auto')
   };
 }
 
@@ -259,7 +249,8 @@ function linePath(points, type) {
 }
 
 function chart(state, config) {
-  const candles = config.chartType !== 'line';
+  const hasOHLC = state.bars.some(b => b[1] !== null);
+  const candles = config.chartType !== 'line' && hasOHLC;
   const values = state.bars.flatMap(b => candles && b[1] !== null ? [b[2], b[3]] : [b[4]]);
   if (config.reference) values.push(state.baseline);
   const low = Math.min(...values), high = Math.max(...values);
@@ -274,7 +265,7 @@ function chart(state, config) {
   const points = state.bars.map((b, i) => ({ x: x(i), y: y(b[4]) }));
   let up = '', down = '', flat = '', missing = '';
   const f = n => n.toFixed(1);
-  for (const [i, b] of state.bars.entries()) {
+  if (candles) for (const [i, b] of state.bars.entries()) {
     if (b[1] === null) { missing += `M${f(x(i) - width / 2)},${f(y(b[4]))}h${f(width)}`; continue; }
     const cx = x(i), half = width / 2;
     let p = `M${f(cx)},${f(y(b[2]))}V${f(y(b[3]))}`;
@@ -296,18 +287,16 @@ function chart(state, config) {
         config.range === '1mo' || config.range === '3mo' ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' })
     }).format(new Date(state.bars[i][0] * 1000))
   }));
-  return { path: linePath(points, config.lineType), up, down, flat, volume_path: volume, volume_width: width,
+  return { path: candles ? '' : linePath(points, config.lineType), up, down, flat, volume_path: volume, volume_width: width,
     reference_y: y(state.baseline), last_y: points.at(-1).y,
     ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: number(max - r * (max - min)) })), dates,
-    missing_path: missing, has_ohlc: state.bars.some(b => b[1] !== null), has_volume: hasVolume, digits };
+    missing_path: missing, has_ohlc: hasOHLC, has_volume: hasVolume, digits };
 }
 
 function display(state, stale, detail, config) {
-  const text = COPY[config.locale];
   const base = { has_data: false, stale: true, detail, symbol: config.symbol, currency: config.currency,
-    range_label: config.label, chart_type: config.chartType, line_width: config.lineWidth,
-    grid: config.grid, reference: config.reference, header: config.header, font_size: config.fontSize,
-    labels: { unavailable: text[0], stale: text[1], retry: text[2], volume: text[3], low: text[4], high: text[5], market: text[6], fx: text[7], no_saved: text[12] } };
+    range: config.range, interval: config.interval, extended: config.extended,
+    chart_type: config.chartType, grid: config.grid, reference: config.reference };
   if (!state) return base;
   const graphics = chart(state, config);
   const formatter = new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: graphics.digits, maximumFractionDigits: graphics.digits });
@@ -323,27 +312,14 @@ function display(state, stale, detail, config) {
   const full = new Intl.DateTimeFormat(LOCALES[config.locale], { timeZone: state.timezone, year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short' });
   const change = state.price - state.baseline;
   const percent = change / state.baseline * 100;
-  // Signals follow the return baseline, not the last candle's open. Changes
-  // that round to zero in both displayed units have a neutral indicator.
-  const change_label = signed(change, graphics.digits);
-  const percent_label = signed(percent, 2);
-  const hasSign = value => value.startsWith('+') || value.startsWith('−');
-  const direction = !hasSign(change_label) && !hasSign(percent_label) ? 'flat' : change < 0 ? 'down' : 'up';
   return { ...base, ...graphics, has_data: true, stale, detail, name: state.name, currency: state.currency,
-    price: state.price, change, percent, direction,
-    direction_label: text[direction === 'up' ? 14 : direction === 'down' ? 15 : 16],
+    price: state.price, change, percent,
     price_label: formatter.format(state.price),
-    percent_label: percent_label + '%',
-    absolute_change_label: change_label,
-    change_label: `${change_label} (${percent_label}%)`,
-    high_label: formatter.format(state.high), low_label: formatter.format(state.low),
+    percent_label: signed(percent, 2) + '%',
+    absolute_change_label: signed(change, graphics.digits),
     market_at: state.market_at, market_iso: date.toISOString(), market_label: full.format(date), market_label_compact: compact.format(date),
-    baseline_label: config.range === '1d' && state.return_basis === 'first_close' ? text[13] : '',
-    fx_label: state.fx_at ? `${state.native_currency}→${state.currency} · ${text[7]}` : '',
-    fx_iso: state.fx_at ? new Date(state.fx_at * 1000).toISOString() : '',
-    source_label: `Yahoo · ${config.interval}${state.group > 1 ? ' ×' + state.group : ''}`,
-    session_label: config.extended ? text[8] : text[9],
-    chart_note: config.chartType !== 'line' && !graphics.has_ohlc ? 'OHLC unavailable · line shown' : '' };
+    native_currency: state.native_currency, return_basis: state.return_basis, group: state.group,
+    fx_iso: state.fx_at ? new Date(state.fx_at * 1000).toISOString() : '' };
 }
 
 // Limit each body before JSON parsing so a provider error page or unexpectedly

@@ -43,7 +43,6 @@ async function main() {
   const offline = plugin(async () => ({ ok: false, status: 429 }));
   const stale = await offline.run({ trmnl: { state: fresh.trmnl_state } });
   const unavailable = await offline.run({});
-  fresh.stonks.source_label = 'SAMPLE · ' + fresh.stonks.source_label;
   stale.stonks.detail = 'SAMPLE · HTTP 429';
   const states = { fresh, stale, unavailable };
   async function scenario(fields, fixture = sample(), saved) {
@@ -51,7 +50,7 @@ async function main() {
       trmnl: { plugin_settings: { custom_fields_values: fields }, ...(saved ? { state: saved } : {}) }
     });
     if (!result.stonks.has_data) throw new Error('Invalid preview scenario: ' + result.stonks.detail);
-    result.stonks.source_label = 'SAMPLE · ' + result.stonks.source_label;
+    result.trmnl = { plugin_settings: { custom_fields_values: fields } };
     return result;
   }
   const sourceCloses = sample().chart.result[0].indicators.quote[0].close;
@@ -75,6 +74,7 @@ async function main() {
     state: states.large.trmnl_state,
     plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } }
   } });
+  states.stale_large.trmnl = { plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } } };
   states.stale_large.stonks.detail = 'SAMPLE · HTTP 429';
   const fxMarket = sample({ interval: '1m', seconds: 60, count: 390 });
   const fxRates = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '1m', seconds: 60, count: 1440, startPrice: 0.8 });
@@ -82,7 +82,7 @@ async function main() {
     trmnl: { plugin_settings: { custom_fields_values: { currency: 'EUR', dateRanges: '1d|1', locale: 'es' } } }
   });
   if (!states.converted_day.stonks.has_data) throw new Error(states.converted_day.stonks.detail);
-  states.converted_day.stonks.source_label = 'SAMPLE · ' + states.converted_day.stonks.source_label;
+  states.converted_day.trmnl = { plugin_settings: { custom_fields_values: { currency: 'EUR', dateRanges: '1d|1', locale: 'es' } } };
 
   const shared = fs.readFileSync(path.join(root, 'TRMNL/src/shared.liquid'), 'utf8');
   const settings = YAML.parse(fs.readFileSync(path.join(root, 'TRMNL/src/settings.yml'), 'utf8'));
@@ -146,7 +146,7 @@ async function main() {
           if (!viewSource.trim()) throw new Error('TRMNL requires a nonempty view: ' + layout);
           for (const [state, model] of Object.entries(states)) {
             const id = [device, orientation, layout, state].join('-');
-            const markup = await liquid.parseAndRender(shared + '\n' + viewSource, model);
+            const markup = (await liquid.parseAndRender(shared + '\n' + viewSource, model)).replace(/Yahoo ·/g, 'SAMPLE · Yahoo ·');
             const view = '<div class="view view--' + layout + '">' + markup + '</div>';
             const surface = '<div class="' + classes + '">' +
               (mashup ? '<div class="mashup mashup--' + mashup + '">' + view + '</div>' : view) + '</div>';

@@ -1,6 +1,6 @@
 # STONKS
 
-Native Yahoo Finance charts for TRMNL. STONKS offers the controls from the [TradingView recipe](https://trmnl.com/recipes/tradingview-157210), rendered with TRMNL Framework and inline SVG in `shared.liquid`. The display keeps the price prominent, places source details above the chart, and shows the ticker as plain text. No iframe, remote widget, browser JavaScript, runtime packages, or market-data API key. The default remains **NTNX · USD · one year**.
+Native Yahoo Finance charts for TRMNL. STONKS offers the controls from the [TradingView recipe](https://trmnl.com/recipes/tradingview-157210), rendered with TRMNL Framework and inline SVG. Each view owns its layout; `shared.liquid` defines the common components. The display keeps the price prominent, places source details above the chart, and shows the ticker as plain text. No iframe, remote widget, browser JavaScript, runtime packages, or market-data API key. The default remains **NTNX · USD · one year**.
 
 ## Customize
 
@@ -55,7 +55,7 @@ Market timestamps use the instrument's exchange timezone, with full timezone/yea
 
 Use the registered **`trmnl` MCP server** to manage the existing STONKS installation, ID `522884`. The native MCP connection has been verified after restarting the client. The ignored `.env` contains `TRMNL_MCP_API_KEY`; `.env.example` has only its name. Codex registration is kept in private user configuration. Changing `.env` alone does not rotate the already registered credential. Never commit or log credentials or authenticated MCP URLs.
 
-The plugin uses Static strategy, `{}` static data, Node Serverless, a 60-minute refresh, Framework 3.4.3, and normal screen padding. Its four view files are nonempty registration comments because TRMNL may skip blank views. The shared display uses native Layout, Flex, Title, Value, Label, Description and Title Bar components. Small scoped CSS supplies numeric font sizes, and inline styles place axis labels and the last-price dot. A container query hides the middle date label in narrow slots to prevent large-font date collisions; the framework handles the layout and typography.
+The plugin uses Static strategy, `{}` static data, Node Serverless, a 60-minute refresh, Framework 3.4.3, and normal screen padding. `full.liquid`, `half_horizontal.liquid`, `half_vertical.liquid` and `quadrant.liquid` each own their layout and typography choices. Full keeps the existing prominent quote, half vertical stacks the quote and return, half horizontal limits the largest quote, and quadrant uses compact type. `shared.liquid` defines named templates for the heading, price, return, status, chart, unavailable state and footer, called with explicit parameters through native `{% render %}`. These components use native Layout, Flex, Title, Value, Label, Description and Title Bar components. Small scoped CSS supplies numeric font sizes, and inline styles place axis labels and the last-price dot. A container query hides the middle date label in narrow slots to prevent large-font date collisions; the framework handles the layout and typography.
 
 Use MCP to transfer the seven source files and preview/refresh the plugin. Keep local commits for each iteration. No automatic Git push or deploy-on-push is configured. Checks and CI do not create ZIP files. The historical manual `npm run build` command is retained only for an explicitly requested import archive.
 
@@ -76,7 +76,7 @@ TRMNL_BROWSER=chromium npm run preview
 
 CI runs data checks and the full visual matrix under Node 20, with a 15-minute job limit. It uses synthetic data and needs no TRMNL credential. It does not deploy anything. The pinned browser path and Node 20 checks were also exercised locally; GitHub-hosted CI awaits a repository push.
 
-Node 20+ is required. **48 checks** cover every range, symbol normalization, return calculations, OHLCV grouping, missing values, FX/crypto conversion, pence, stale data, state isolation and corruption, FX regressions and return baselines, streamed response limits, bounded requests, smooth paths, all six locales, direction cues, neutral candles, unique SVG clipping and all view registrations. Runtime code has no package dependencies.
+Node 20+ is required. **50 checks** cover every range, symbol normalization, return calculations, OHLCV grouping, missing values, FX/crypto conversion, pence, stale data, state isolation and corruption, FX regressions and return baselines, streamed response limits, bounded requests, smooth paths, all six locales, direction cues, neutral candles, unique SVG clipping all view registrations, isolated Shared templates, and generation of only the selected chart geometry. Runtime code has no package dependencies.
 
 Open `dist/preview/index.html` for **512 local sample previews**: four profiles × two orientations × four views × sixteen scenarios. The scenarios include fresh/stale/unavailable states, candles with grid/volume, OHLC bars, step lines, large fonts, a long ETF name, crypto precision, intraday candles, large-font stale data, converted 1D data, losses, baseline crossings and unchanged prices. Candles use mixed up/down/doji bars. Each has HTML/PNG output; `report.json` records slot bounds, text overflow, overlapping date/price labels, chart size, fonts, native structure, timestamp fit, endpoint alignment and resolved palette colors. The short `fresh`, `stale`, and `unavailable` filenames point to OG landscape full-screen cases.
 
@@ -86,35 +86,27 @@ Synthetic fixtures are clearly labelled in local previews and never sent to TRMN
 
 For the official local tool, install [trmnlp](https://github.com/usetrmnl/trmnlp) separately and run `cd TRMNL && trmnlp serve`. Review transform settings before making live requests.
 
+## Rendering and Serverless boundaries
+
+Liquid owns UI translations, range/session/source captions, direction indicators, header sizing, and bounded font/stroke controls. It derives the direction from the signed, rounded return labels, so a change that rounds to zero remains neutral. Serverless no longer produces those presentation fields or unused high/low/combined labels. The transform generates either a line or OHLC paths, rather than both, and leaves the saved-state v2 format unchanged.
+
+Serverless still fetches and validates Yahoo/FX data, computes aligned conversions, writes Saved State, and handles outage recovery. Liquid cannot write Saved State. Chart coordinates and monotone interpolation stay in JavaScript because moving that arithmetic into Liquid would make the code longer and harder to verify. `Intl` retains exact numeric rounding, precision and exchange-timezone date formatting across six locales. Removing Node would lose these behaviors or require another service; this change reduces work within each invocation, not the number of invocations.
+
+The [TRMNL chart documentation](https://trmnl.com/framework/docs/3.4/chart) permits any chart library; Highcharts is an example, not a requirement. Its examples need browser JavaScript and remote assets. The current SVG preserves the existing chart controls and exact full-screen render without those dependencies. No Highcharts, Chartkick or `highcharts-more` dependency was added.
+
+The local LiquidJS harness implements native Shared template registration and isolated `render` scopes; those helpers are development-only. Previews use the exact seven files imported into TRMNL.
+
 ## Hosted verification
 
-On 28 October 2026, source was transferred to the existing STONKS installation through MCP, without an archive or state reset. All six markup/Serverless files were read back and matched local source; the hosted settings include the validated custom form and normal screen padding.
+The view/Shared refactor passes **50 Node 20 checks**, **512 local previews**, and **12 hosted previews**: full, half horizontal, half vertical and quadrant on OG Plus, X and B/W/R/Y. The saved OG full, X landscape and B/W/R/Y candle PNGs are byte-for-byte identical to the pre-refactor renders; full-screen chart dimensions remain unchanged throughout the matrix. An offline check with the actual hosted v2 snapshot preserved state, selected chart geometry, formatted money and exchange timestamps exactly. For that snapshot, the `stonks` merge object decreased from 10,214 to 4,892 bytes by omitting unused geometry and presentation fields.
 
-- Live NTNX/USD data succeeded for all six ranges. The restored default quote was **72.67 USD**, timestamped **16:00 EDT**.
-- The one-month EUR candle configuration returned **65.11 EUR**, historical USD→EUR conversion, grid enabled, and available OHLC/volume.
-- A native-currency ETF selection (`VWCE.DE`) returned **171.94 EUR**. A one-month Bitcoin chart (`BTC-USD`) returned **81,163.80 USD** during verification. NTNX converted to BTC returned **0.000895 BTC**. These are verification snapshots, not current quote guarantees.
-- TRMNL completed all eight OG Plus/X server previews across full, half horizontal, half vertical, and quadrant sizes. Representative server images were visually inspected; 512 local previews cover portrait and B/W/R/Y as well.
-- The original NTNX/USD/year, smooth line, English, normal header, 10 px labels, hidden grid/volume settings were restored and refreshed successfully. No synthetic fixture was sent to the hosted plugin.
+Final source was transferred through MCP and all six markup/Serverless files matched on readback. The plugin was healthy with fresh data, and the active NTNX/USD three-month line chart, visible grid, and complete custom field map were preserved. Saved State was retained. No Git push or deploy-on-push was configured.
 
-MCP form updates require string values, including numeric controls. Source updates use `importPluginSettingFiles` with the seven filename/content entries. The separate `writeMarkup` linter currently rejects the valid empty-array return in the FX planning helper; file import successfully executes the same Serverless code. Refresh and inspect merge variables after transferring source rather than treating file acceptance alone as a successful deployment.
+The existing STONKS installation is updated through MCP without an archive or Saved State reset. Keep the user's current market and display selections. Read back all six markup/Serverless files after importing the seven source files; normalized hosted YAML can differ from the local settings file. Refresh and inspect new merge variables before starting previews so they use the current schema.
 
-## Updating the private installation
+MCP form updates require string values, including numeric controls. Source updates use `importPluginSettingFiles`. The separate `writeMarkup` linter currently rejects a valid empty-array return in the FX planning helper; file import successfully executes the same Serverless code. Temporary display changes must restore the full original field map afterward. Never upload synthetic sample variables.
 
-1. Run the Node 20 checks and full preview matrix. Review representative full and quadrant images, including stale and converted data.
-2. Read the hosted files and current settings through MCP. Keep an ignored local backup and preserve the user's symbol, range, currency and display choices.
-3. Verify the custom form YAML through MCP. Import the seven source files, refresh, and wait for fresh merge variables before starting screenshots; a preview queued earlier can capture the previous data schema.
-4. Read back the six markup/Serverless files and compare their contents. Check the normalized settings, saved-state byte count, quote timestamp, and fresh/stale status. Preview OG Plus and X on the server.
-5. Commit the source and verification notes. Never clear Saved State routinely, upload sample merge variables, or include credentials in a commit. Automatic push/deploy remains unconfigured.
-
-The current hybrid design and hardening pass were checked on Node 20.20.2 with 48 data/render checks and 512 previews using the pinned Chromium browser. The existing hosted native-currency snapshot was also exercised offline against the new transform and preserved exactly. The final source was deployed through MCP and read back successfully. All eight OG Plus/X server previews completed with fresh live data. The active NTNX/USD three-month selection, visible grid, and other custom values were preserved; no Saved State reset was needed. The known upstream limitation remains Yahoo availability and coverage; local fallback handles outages after a successful fetch.
-
-## Direction and palette verification
-
-This iteration passes **48 checks on Node 20** and **512 local previews**, with the OG and X landscape views reviewed first. Palette assertions verify solid monochrome signals, readable yellow/black gain badges on B/W/R/Y, red losses, neutral doji candles, and dark green/red on a virtual full-color screen. The native `append_random` filter keeps clip IDs separate when views share a mashup. Local LiquidJS previews register an equivalent development-only filter and reject unknown filters.
-
-Hosted verification completed the four view sizes on OG Plus, X and B/W/R/Y, plus full-screen candle and baseline checks on those three models: **18 server renders**. Source was read back, the plugin remained healthy with fresh data, and the original NTNX/USD three-month line/grid settings were restored. Saved State was retained.
-
-The MCP preview endpoint accepted `og_plus`, `v2` and `og_bwry` but rejected the catalog's legacy `og_png`; original 1-bit OG remains covered locally. Its B/W/R/Y preview responses were grayscale PNG thumbnails, including with an explicit palette ID, so these prove layout/rendering rather than physical color output. Color is checked against the pinned framework's actual palette rules locally; physical B/W/R/Y ink and dithering still require a device check. The generated `dist/preview/direction-showcase.png` shows sample palette examples.
+The MCP preview endpoint accepts `og_plus`, `v2` and `og_bwry` but rejects the catalog's legacy `og_png`; original 1-bit OG is covered locally. B/W/R/Y preview responses are grayscale PNG thumbnails, including with an explicit palette ID. They verify layout rather than physical ink. Colors are checked against the pinned framework's palette rules locally; physical ink and dithering still require a device check.
 
 ## Provider limitations
 
