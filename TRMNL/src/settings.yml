@@ -1,0 +1,10 @@
+---
+name: STONKS
+description: Nutanix, one year at a glance
+strategy: static
+static_data: '{}'
+serverless_language: node
+refresh_interval: 60
+framework_version: 3.4.3
+no_screen_padding: 'yes'
+dark_mode: 'no'
