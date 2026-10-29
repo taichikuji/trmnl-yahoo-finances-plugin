@@ -8,7 +8,7 @@ Yahoo Finance prices and charts for TRMNL, rendered with Framework 3.4.3 and inl
   <img src="media/icon.svg" alt="STONKS icon" width="90">
 </div>
 
-The transparent, responsive [icon.svg](media/icon.svg) uses the same orange (`#E76F55`) as HTTP Pets, TMB and TRMNLGotchi. The shape is Ant Design's StockOutlined, supplied via SVG Repo; see the [license attribution](../LICENSE).
+The original [icon.svg](media/icon.svg) shows a rising stock line on a transparent background, using the same orange (`#E76F55`) as HTTP Pets, TMB and TRMNLGotchi. It is included under the project's [MIT license](../LICENSE).
 
 ## Previews
 
