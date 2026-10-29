@@ -8,7 +8,7 @@ Native Yahoo Finance charts for TRMNL, rendered with Framework 3.4.3 and inline 
   <img src="media/icon.svg" alt="STONKS icon" width="90">
 </div>
 
-The transparent stock icon uses the same orange (`#E76F55`) as HTTP Pets, TMB and TRMNLGotchi. [icon.svg](media/icon.svg) is responsive; [icon-256.svg](media/icon-256.svg) has explicit 256×256 dimensions for upload. The shape is Ant Design's StockOutlined, supplied via SVG Repo; see the [license attribution](../LICENSE).
+The transparent, responsive [icon.svg](media/icon.svg) uses the same orange (`#E76F55`) as HTTP Pets, TMB and TRMNLGotchi. The shape is Ant Design's StockOutlined, supplied via SVG Repo; see the [license attribution](../LICENSE).
 
 ## Previews
 
@@ -34,7 +34,7 @@ Create a Private Plugin with **Static** data `{}`, **Node** Serverless, Framewor
 
 Copy the form and plugin settings from [settings.yml](src/settings.yml). Paste [shared.liquid](src/shared.liquid) into Shared, each layout into its matching markup tab, and the complete [transform.js](src/transform.js) into Serverless. Save, refresh and add the plugin to your playlist.
 
-Upload [media/icon-256.svg](media/icon-256.svg) in the plugin's icon field; the bundle references [media/icon.svg](media/icon.svg). MCP source imports do not upload icon assets.
+Upload [media/icon.svg](media/icon.svg) in the plugin's icon field. MCP source imports do not upload icon assets.
 
 The existing private installation is managed through TRMNL MCP. Repository pushes run checks; hosted updates still use MCP. Keep MCP credentials in the client's private configuration.
 
