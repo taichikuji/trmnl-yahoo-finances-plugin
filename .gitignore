@@ -6,5 +6,4 @@ dist/
 _build/
 *.zip
 *.local.*
-AGENTS.md
 .agents
