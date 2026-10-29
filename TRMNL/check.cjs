@@ -53,7 +53,7 @@ test('malformed market settings fail before fetching; Liquid clamps numeric disp
   const fresh = await load().run({});
   assert.match(await render(fresh, { fontSize: 999, lineWidth: -1 }), /--stonks-font: 16px/);
   assert.match(await render(fresh, { fontSize: 999, lineWidth: -1 }), /stroke-width="1"/);
-  assert.match(await render(fresh, { fontSize: '' }), /--stonks-font: 10px/);
+  assert.match(await render(fresh, { fontSize: '' }), /--stonks-font: 12px/);
 });
 
 test('daily return uses first unadjusted close; 1D uses previous close', async () => {

@@ -50,7 +50,7 @@ The existing private installation is managed through TRMNL MCP. Repository pushe
 | Grid, volume, baseline | Show/hide; volume requires provider data |
 | Extended hours | Available intraday pre/post-market bars |
 | Locale | English, German, French, Spanish, Italian or Polish |
-| Typography | Small/normal/large header; 8–16 px supporting text |
+| Typography | Small/normal/large header; 8–16 px supporting text, default 12 px |
 | Precision | Automatic, 0, 2, 4 or 6 decimals |
 
 Examples: `NTNX`, `VWCE.DE`, `VWRP.L`, `^GSPC`, `BTC-USD`, `EURUSD=X`, `NASDAQ:NTNX`, `XETR:VWCE`. Unknown exchange prefixes require the exact Yahoo ticker. Some instruments lack particular ranges, FX pairs, OHLC or volume.
@@ -65,6 +65,8 @@ Examples: `NTNX`, `VWCE.DE`, `VWRP.L`, `^GSPC`, `BTC-USD`, `EURUSD=X`, `NASDAQ:N
 - **transform.js:** Yahoo/FX requests, validation, conversion, saved-state recovery, chart coordinates and exact numeric/date formatting. No runtime packages or browser scripts.
 
 OG and X use black arrows and hollow rising/filled falling candles. B/W/R/Y adds yellow gains and red losses; full-color palettes use green/red. The main price stays black. The return indicator follows the selected baseline, while each candle follows its own open-to-close move.
+
+On OG full screen, the normal company name uses the native 21 px title and the price remains 38 px. Labels and supporting text default to 12 px, matching TRMNL's small pixel font. Smaller slots retain compact headings, and X uses the framework's device scaling.
 
 ## Data and saved state
 
@@ -100,5 +102,7 @@ magick dist/preview/og-landscape-full-fresh.png -define webp:lossless=true TRMNL
 ## Provider limitations
 
 Yahoo's chart endpoint is undocumented and can fail or change. Instrument coverage, history, FX pairs and pricing can differ from TradingView. Review [Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) for your intended use.
+
+Stock logos are not included in the chart response used by STONKS. Yahoo exposes logo fields on a separate [quote endpoint](https://github.com/gadicc/yahoo-finance2/blob/634e594b30ce962d8b85f92fc1657d9a30a27398/src/modules/quote.ts); the plugin does not add a second request or authentication flow for logos.
 
 [TRMNL Shared templates](https://help.trmnl.com/en/articles/13216853-reusing-markup-with-shared) · [Charts](https://trmnl.com/framework/docs/3.4/chart) · [Serverless](https://help.trmnl.com/en/articles/14130649-serverless) · [Saved State](https://help.trmnl.com/en/articles/16777795-saved-state)

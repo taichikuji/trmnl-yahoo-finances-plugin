@@ -1,7 +1,7 @@
 {% comment %}Shared prepares UI values and defines the components used by each view.{% endcomment %}
 {% assign fields = trmnl.plugin_settings.custom_fields_values %}
 {% assign header = fields.headerFontSize | default: 'medium' %}
-{% assign font_size = fields.fontSize | default: 10 | plus: 0 | at_least: 8 | at_most: 16 %}
+{% assign font_size = fields.fontSize | default: 12 | plus: 0 | at_least: 8 | at_most: 16 %}
 {% assign line_width = fields.lineWidth | default: 2 | plus: 0 | at_least: 1 | at_most: 5 %}
 {% case fields.locale %}
   {% when 'de_DE' %}{% assign words = 'KEINE DATEN|ALTE DATEN|Erneuter Versuch beim nächsten Update.|Marktdaten|FX-Schätzung|Erweitert|Regulär|Keine gespeicherten Kurse für diese Auswahl|ab erstem Kurs|Gestiegen|Gefallen|Unverändert' | split: '|' %}
@@ -68,7 +68,7 @@
 
 {% template stonks_heading %}
 <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
-  <span class="title {% if header == 'large' %}title--base lg:title--large{% elsif header == 'small' %}title--small{% else %}{{ size }}{% endif %} w--min-0" title="{{ stonks.name | default: stonks.symbol | escape }}">{{ stonks.name | default: stonks.symbol | escape }}</span>
+  <span class="title {% if header == 'large' %}{{ large_size | default: 'title--base lg:title--large' }}{% elsif header == 'small' %}title--small{% else %}{{ size }}{% endif %} w--min-0" title="{{ stonks.name | default: stonks.symbol | escape }}">{{ stonks.name | default: stonks.symbol | escape }}</span>
   <span class="label label--small no-shrink">{{ stonks.symbol | escape }}</span>
 </div>
 {% endtemplate %}

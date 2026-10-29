@@ -5,7 +5,7 @@ icon: media/icon.svg
 strategy: static
 static_data: '{}'
 serverless_language: node
-refresh_interval: 60
+refresh_interval: 15
 framework_version: 3.4.3
 no_screen_padding: 'no'
 dark_mode: 'no'
@@ -128,8 +128,8 @@ custom_fields:
   - keyname: fontSize
     field_type: number
     name: Font Size
-    default: 10
-    description: Chart labels and supporting text, from 8 to 16 px. Scales with device density.
+    default: 12
+    description: Chart labels and supporting text, from 8 to 16 px. 12 px is recommended for readability. Scales with device density.
     group: Typography
   - keyname: precision
     field_type: select

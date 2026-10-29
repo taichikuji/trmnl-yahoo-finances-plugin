@@ -206,10 +206,12 @@ async function main() {
               const timeFits = !time || timeRange.getBoundingClientRect().width <=
                 time.closest('.instance').getBoundingClientRect().width + 1;
               const fonts = [...new Set([...document.fonts].filter(f => f.status === 'loaded').map(f => f.family))];
+              const fontSize = selector => { const el = main.querySelector(selector); return el ? parseFloat(getComputedStyle(el).fontSize) : null; };
+              const typography = { heading: fontSize('[data-stonks] .title'), price: fontSize('[data-stonks-price]'), labels: fontSize('[data-stonks-date]') };
               return { width: bounds.width, height: bounds.height,
                 svgWidth: svg?.width, svgHeight: svg?.height,
                 nativeStructure: layout.nextElementSibling?.classList.contains('title_bar'),
-                timeFits, overflow, textOverflow, textOverlaps, fonts, signals, markerError,
+                timeFits, overflow, textOverflow, textOverlaps, fonts, typography, signals, markerError,
                 pathLength: chart?.getTotalLength() ?? null };
             });
             if (failedResources.length) throw new Error(failedResources.join('\n'));
@@ -222,6 +224,8 @@ async function main() {
               errors.push('native slot dimensions');
             }
             if (!measurements.nativeStructure || !measurements.fonts.length) errors.push('native structure/fonts');
+            if (state !== 'unavailable' && measurements.typography.labels < 12) errors.push('chart labels too small');
+            if (layout === 'full' && model.trmnl?.plugin_settings?.custom_fields_values?.headerFontSize !== 'small' && measurements.typography.heading < 21) errors.push('full heading too small');
             if (measurements.overflow.length || measurements.textOverflow.length) errors.push('slot overflow');
             if (measurements.textOverlaps.length) errors.push('overlapping text');
             if (!measurements.timeFits) errors.push('market timestamp truncated');
