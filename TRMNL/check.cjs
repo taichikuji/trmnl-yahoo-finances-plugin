@@ -262,7 +262,12 @@ test('all locales format prices and dates, and every registered view renders onc
         assert.equal((html.match(/data-stonks style=/g) || []).length, 1);
         assert.match(html, /class="title_bar"/); assert.match(html, /data-stonks-volume/);
         assert.equal(html.includes('data-stonks-ohlc'), chartType !== 'line');
-        assert.doesNotMatch(html, /<script|<iframe|<img|NaN|Infinity|{{|{%/);
+        assert.doesNotMatch(html, /<script|<iframe|NaN|Infinity|{{|{%/);
+        const images = [...html.matchAll(/<img\b[^>]*src="([^"]+)"/g)];
+        assert.equal(images.length, 1);
+        assert.match(images[0][1], /^data:image\/svg\+xml;base64,/);
+        const svg = Buffer.from(images[0][1].split(',')[1], 'base64').toString('utf8');
+        assert.match(svg, /^<svg\b[^>]*>[\s\S]*<path\b[\s\S]*<\/svg>$/);
       }
     }
   }

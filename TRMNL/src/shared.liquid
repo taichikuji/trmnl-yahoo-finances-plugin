@@ -1,4 +1,10 @@
 {% comment %}Shared prepares UI values and defines the components used by each view.{% endcomment %}
+{%- capture svg_logo -%}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <path fill="none" stroke="#000" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" d="M10 12v42h44 M18 42l12-12 10 7 14-20 M42 17h12v12"/>
+</svg>
+{%- endcapture -%}
+
 {% assign fields = trmnl.plugin_settings.custom_fields_values %}
 {% assign header = fields.headerFontSize | default: 'medium' %}
 {% assign font_size = fields.fontSize | default: 12 | plus: 0 | at_least: 8 | at_most: 16 %}
@@ -168,9 +174,7 @@
 
 {% template stonks_footer %}
 <div class="title_bar">
-  <svg class="image" width="24" height="24" viewBox="0 0 64 64" aria-hidden="true">
-    <path fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" d="M10 12v42h44 M18 42l12-12 10 7 14-20 M42 17h12v12"/>
-  </svg>
+  <img class="image image--adaptive w--7 h--7" src="data:image/svg+xml;base64,{{ svg_logo | base64_encode }}" alt="STONKS logo">
   <span class="title">STONKS</span>
   <span class="instance">{% if stonks.has_data == true %}<time class="description" datetime="{{ stonks.market_iso | escape }}" title="{{ words[3] | escape }}: {{ stonks.market_label | escape }}" aria-label="{{ words[3] | escape }}: {{ stonks.market_label | escape }}">{{ stonks.market_label_compact | escape }}</time>{% else %}{{ stonks.symbol | escape }} · {{ range_label | escape }}{% endif %}</span>
 </div>
