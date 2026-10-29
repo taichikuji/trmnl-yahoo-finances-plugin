@@ -230,7 +230,7 @@ function curveSegments(points) {
   return segments;
 }
 
-function chart(state, config) {
+function chart(state, config, formatNumber) {
   const hasOHLC = state.bars.some(b => b[1] !== null);
   const candles = config.chartType !== 'line' && hasOHLC;
   const values = state.bars.flatMap(b => candles && b[1] !== null ? [b[2], b[3]] : [b[4]]);
@@ -253,8 +253,6 @@ function chart(state, config) {
     b[1] === null ? null : b[4] - b[1]]) : [];
   const maxVolume = Math.max(1, ...state.bars.map(b => b[5] || 0));
   const volumes = hasVolume ? state.bars.flatMap((b, i) => b[5] === null ? [] : [[f(x(i)), f(274 - b[5] / maxVolume * 40)]]) : [];
-  const digits = config.precision === 'auto' ? (state.currency === 'BTC' || state.currency === 'ETH' || state.price < 1 ? 6 : state.currency === 'JPY' ? 0 : 2) : +config.precision;
-  const number = new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: digits, maximumFractionDigits: digits });
   const date = new Intl.DateTimeFormat(LOCALES[config.locale], {
     timeZone: state.timezone, ...(config.range === '1d' ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } :
       config.range === '1mo' || config.range === '3mo' ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' })
@@ -266,8 +264,8 @@ function chart(state, config) {
     curves: !candles && config.lineType === '2' ? curveSegments(points) : [], candles: candlePoints, volumes,
     body_width: f(width), volume_width: width,
     reference_y: y(state.baseline), last_y: points.at(-1).y,
-    ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: number.format(max - r * (max - min)) })), dates,
-    has_ohlc: hasOHLC, has_volume: hasVolume, digits };
+    ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: formatNumber(max - r * (max - min)) })), dates,
+    has_ohlc: hasOHLC, has_volume: hasVolume };
 }
 
 function display(state, stale, detail, config) {
@@ -275,22 +273,22 @@ function display(state, stale, detail, config) {
     range: config.range, interval: config.interval, extended: config.extended,
     chart_type: config.chartType };
   if (!state) return base;
-  const graphics = chart(state, config);
-  const formatter = new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: graphics.digits, maximumFractionDigits: graphics.digits });
+  const digits = config.precision === 'auto' ? (state.currency === 'BTC' || state.currency === 'ETH' || state.price < 1 ? 6 : state.currency === 'JPY' ? 0 : 2) : +config.precision;
+  const formatter = new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: digits, maximumFractionDigits: digits });
   const signed = (n, digits) => new Intl.NumberFormat(LOCALES[config.locale], {
     minimumFractionDigits: digits, maximumFractionDigits: digits, signDisplay: 'exceptZero'
   }).format(n).replace('-', '−');
   const date = new Date(state.market_at * 1000);
-  const compact = new Intl.DateTimeFormat(LOCALES[config.locale], { timeZone: state.timezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-  const full = new Intl.DateTimeFormat(LOCALES[config.locale], { timeZone: state.timezone, year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short' });
+  const marketLabel = options => date.toLocaleString(LOCALES[config.locale], {
+    timeZone: state.timezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', ...options });
   const change = state.price - state.baseline;
   const percent = change / state.baseline * 100;
-  return { ...base, ...graphics, has_data: true, stale, detail, name: state.name, currency: state.currency,
-    price: state.price, change, percent,
+  return { ...base, ...chart(state, config, formatter.format), has_data: true, stale, detail, name: state.name, currency: state.currency,
+    price: state.price, change, percent, digits,
     price_label: formatter.format(state.price),
     percent_label: signed(percent, 2),
-    absolute_change_label: signed(change, graphics.digits),
-    market_at: state.market_at, market_iso: date.toISOString(), market_label: full.format(date), market_label_compact: compact.format(date),
+    absolute_change_label: signed(change, digits),
+    market_at: state.market_at, market_iso: date.toISOString(), market_label: marketLabel({ year: 'numeric', timeZoneName: 'short' }), market_label_compact: marketLabel(),
     native_currency: state.native_currency, return_basis: state.return_basis, group: state.group,
     fx_iso: state.fx_at ? new Date(state.fx_at * 1000).toISOString() : '' };
 }
