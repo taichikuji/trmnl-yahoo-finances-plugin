@@ -391,6 +391,8 @@ test('cached metadata must agree with the selection, FX state and grouped bar co
     assert.equal(p.validState(corrupted, NOW / 1000, config({})), false);
   }
   // Existing native v2 snapshots remain usable during the first deployed outage.
+  saved.high = Math.max(...saved.bars.map(b => b[2]));
+  saved.low = Math.min(...saved.bars.map(b => b[3]));
   delete saved.return_basis;
   const offline = await load(async () => ({ ok: false, status: 429 })).run(input({}, saved));
   assert.equal(offline.stonks.has_data, true);

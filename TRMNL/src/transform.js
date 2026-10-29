@@ -136,8 +136,6 @@ function aggregateByTime(bars, seconds) {
 
 function makeState(data, config, now) {
   const baseline = config.range === '1d' && positive(data.previous_close) ? data.previous_close : data.bars[0][4];
-  const high = Math.max(...data.bars.map(b => b[2] ?? b[4]));
-  const low = Math.min(...data.bars.map(b => b[3] ?? b[4]));
   let group = Math.max(1, Math.ceil(data.bars.length / 360));
   let state;
   do {
@@ -146,7 +144,7 @@ function makeState(data, config, now) {
     for (let i = 0; i < data.bars.length; i += group) bars.push(combine(data.bars.slice(i, i + group)).map((n, j) => n === null || j === 0 ? n : round(n)));
     state = { v: 2, key: config.key, symbol: data.symbol, name: data.name, currency: data.currency,
       native_currency: data.native_currency, timezone: data.timezone, market_at: data.market_at, fetched_at: now,
-      price: data.price, baseline, high, low,
+      price: data.price, baseline,
       return_basis: config.range === '1d' && positive(data.previous_close) ? 'previous_close' : 'first_close', fx_at: data.fx_at || null, fx_rate: data.fx_rate || null,
       group, source_count: data.bars.length, bars };
     group++;
@@ -163,7 +161,7 @@ function validState(s, now, config) {
     /^[A-Z]{3}$/.test(s.currency) && /^[A-Z]{3}$/.test(s.native_currency) &&
     typeof s.timezone === 'string' && validZone(s.timezone) === s.timezone &&
     stamp(s.market_at) && stamp(s.fetched_at) && s.market_at <= now + 300 && s.fetched_at <= now + 300 &&
-    positive(s.price) && positive(s.baseline) && positive(s.high) && positive(s.low) && s.high >= s.low &&
+    positive(s.price) && positive(s.baseline) &&
     (s.fx_at === null ? s.fx_rate === null && s.currency === s.native_currency :
       stamp(s.fx_at) && s.fx_at <= now + 300 && positive(s.fx_rate) && s.currency !== s.native_currency) &&
     (s.return_basis === undefined || ['previous_close', 'first_close'].includes(s.return_basis)) &&
