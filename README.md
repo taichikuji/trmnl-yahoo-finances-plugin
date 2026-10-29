@@ -1,6 +1,8 @@
 # STONKS
 
-Stocks, ETFs, indices, forex and crypto on your TRMNL, with native Yahoo Finance charts and a clear price and return. Supports lines, OHLC bars and candles without a remote widget or market-data API key.
+watch line go up
+
+Yahoo Finance prices and charts for your TRMNL. Track stocks, ETFs, indices, forex and crypto with lines, OHLC bars or candles. No market-data API key needed.
 
 ![STONKS sample stock chart on TRMNL OG](TRMNL/media/preview_full.webp)
 
@@ -11,9 +13,9 @@ Synthetic sample prices. [All layout previews](TRMNL/README.md#previews).
 - **Symbol:** Yahoo Finance ticker, such as `NTNX`, `VWCE.DE`, `^GSPC` or `BTC-USD`. Common TradingView exchange symbols also work.
 - **Currency:** native currency, available fiat pairs, BTC or ETH. Historical prices use historical exchange rates.
 - **Chart:** six date ranges, line style and width, grid, volume, return baseline, extended hours and price precision.
-- **Typography:** six languages and adjustable header and label sizes.
+- **Text:** six languages and adjustable heading and label sizes.
 
-Full, half horizontal, half vertical and quadrant layouts support TRMNL OG, X and B/W/R/Y. Monochrome uses arrows and hollow/filled candles; color panels add gain/loss highlights. The default is **NTNX · USD · one year**, refreshed every 15 minutes.
+Full, half horizontal, half vertical and quadrant layouts support TRMNL OG, X and B/W/R/Y. Monochrome uses arrows and hollow/filled candles; color panels add gain/loss highlights. The default is **NTNX · USD · one year**, with a **15-minute minimum refresh interval**. Free accounts support 15 minutes; 5 minutes requires TRMNL+. Actual updates follow your device and playlist schedule. See [how TRMNL refresh rates work](https://help.trmnl.com/en/articles/10113695-how-refresh-rates-work).
 
 For private installation and data behavior, see the [plugin guide](TRMNL/README.md#setup).
 

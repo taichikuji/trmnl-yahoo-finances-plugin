@@ -16,12 +16,12 @@ custom_fields:
     category: finance
     github_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin
     learn_more_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin/tree/main/TRMNL#setup
-    description: Made by Ivan Perez, STONKS is a Yahoo Finance charts for your TRMNL. Tracks Stocks, ETFs, indices, forex and crypto.
+    description: Made by Ivan Perez. Yahoo Finance prices and charts for stocks, ETFs, indices, forex and crypto.
   - keyname: symbol
     field_type: string
     name: Symbol
     default: NTNX
-    description: Yahoo Finance ticker or a supported TradingView exchange symbol.
+    description: Yahoo Finance ticker. Common TradingView exchange symbols also work.
     help_text: 'Examples: NTNX, VWCE.DE, ^GSPC, BTC-USD, EURUSD=X. NASDAQ:NTNX and XETR%3AVWCE also work. For other exchanges, copy the exact ticker from <a href="https://finance.yahoo.com/" target="_blank">Yahoo Finance</a>.'
     group: Market
   - keyname: currency
@@ -33,29 +33,29 @@ custom_fields:
     group: Market
   - keyname: dateRanges
     field_type: select
-    name: Date Range
+    name: Date range
     default: 12m|1D
     options:
-      - '1 Day, 1 Minute': 1d|1
-      - '1 Month, 30 Minutes': 1m|30
-      - '3 Months, 1 Hour': 3m|60
-      - '1 Year, 1 Day': 12m|1D
-      - '5 Years, 1 Week': 60m|1W
-      - 'All Time, 1 Month': all|1M
-    help_text: Availability depends on Yahoo and the instrument. Long series are grouped into OHLC candles to fit saved state; ×N shows the grouping factor.
+      - '1 day · 1-minute bars': 1d|1
+      - '1 month · 30-minute bars': 1m|30
+      - '3 months · hourly bars': 3m|60
+      - '1 year · daily bars': 12m|1D
+      - '5 years · weekly bars': 60m|1W
+      - 'All time · monthly bars': all|1M
+    help_text: Ranges vary by symbol. Long histories are grouped to fit saved state; ×N shows how many bars were combined.
     group: Market
   - keyname: extendedHours
     field_type: select
-    name: Extended Hours
+    name: Extended hours
     default: hide
     options:
       - Regular session: hide
       - Include pre/post market: show
-    description: Applies to intraday ranges where the exchange supplies these prices.
+    description: Pre-market and after-hours prices, where available. Intraday ranges only.
     group: Market
   - keyname: chartType
     field_type: select
-    name: Chart Type
+    name: Chart type
     default: line
     options:
       - Line: line
@@ -64,23 +64,23 @@ custom_fields:
     group: Chart
   - keyname: lineWidth
     field_type: number
-    name: Line Width
+    name: Line width
     default: 2
-    description: Line or OHLC stroke width, from 1 to 5 px.
+    description: 'Stroke width for lines, bars and candle outlines: 1–5 px.'
     group: Chart
   - keyname: lineType
     field_type: select
-    name: Line Type
+    name: Line style
     default: '2'
     options:
-      - Simple: '0'
-      - Step Line: '1'
-      - Curved (Smooth Line): '2'
-    description: Smooth lines stay within each segment's price range.
+      - Straight: '0'
+      - Stepped: '1'
+      - Smooth: '2'
+    description: Applies to line charts.
     group: Chart
   - keyname: showGridlines
     field_type: select
-    name: Show Grid Lines
+    name: Grid lines
     default: hide
     options:
       - Show: show
@@ -88,25 +88,26 @@ custom_fields:
     group: Chart
   - keyname: showVolume
     field_type: select
-    name: Show Volume
+    name: Volume
     default: hide
     options:
       - Show: show
       - Hide: hide
-    description: Separate volume strip, when Yahoo supplies trading volume.
+    description: Trading volume below the chart, when available.
     group: Chart
   - keyname: showReference
     field_type: select
-    name: Show Return Baseline
+    name: Return baseline
     default: hide
     options:
       - Show: show
       - Hide: hide
-    description: Dashed line at the return baseline. Native-currency 1D uses the previous close when available. Converted 1D uses the first aligned bar; other ranges use the first close. Color panels distinguish the curve above and below this line.
+    description: Dashed line used to measure the return. Color screens highlight the line chart above and below it.
+    help_text: Native-currency 1D uses the previous close when available. Converted 1D uses the first aligned bar; other ranges use the first close.
     group: Chart
   - keyname: locale
     field_type: select
-    name: Locale
+    name: Language
     default: en
     options:
       - English: en
@@ -115,25 +116,26 @@ custom_fields:
       - Spanish: es
       - Italian: it
       - Polish: pl
-    group: Typography
+    group: Text
   - keyname: headerFontSize
     field_type: select
-    name: Header Font Size
+    name: Heading size
     default: medium
     options:
       - Small: small
       - Normal: medium
       - Large: large
-    group: Typography
+    description: Company name and price.
+    group: Text
   - keyname: fontSize
     field_type: number
-    name: Font Size
+    name: Label size
     default: 12
-    description: Chart labels and supporting text, from 8 to 16 px. 12 px is recommended for readability. Scales with device density.
-    group: Typography
+    description: Chart labels and supporting text, from 8 to 16 px. Default 12 px; scales with device density.
+    group: Text
   - keyname: precision
     field_type: select
-    name: Price Precision
+    name: Decimal places
     default: auto
     options:
       - Automatic: auto
@@ -141,4 +143,4 @@ custom_fields:
       - '2 decimals': '2'
       - '4 decimals': '4'
       - '6 decimals': '6'
-    group: Typography
+    group: Text

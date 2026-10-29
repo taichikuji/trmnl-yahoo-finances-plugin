@@ -1,6 +1,6 @@
 # STONKS
 
-Native Yahoo Finance charts for TRMNL, rendered with Framework 3.4.3 and inline SVG.
+Yahoo Finance prices and charts for TRMNL, rendered with Framework 3.4.3 and inline SVG.
 
 ## Icon
 
@@ -32,6 +32,8 @@ Synthetic sample prices rendered from the actual templates with Framework 3.4.3.
 
 Create a Private Plugin with **Static** data `{}`, **Node** Serverless, Framework **3.4.3** and a **15-minute** refresh interval. Keep normal screen padding.
 
+Free accounts have a **15-minute minimum**; **5 minutes requires TRMNL+**. The plugin interval limits how often data can refresh. It does not run a request every 15 minutes: TRMNL refreshes on demand around your device and playlist schedule, so updates may be hours apart. See [how refresh rates work](https://help.trmnl.com/en/articles/10113695-how-refresh-rates-work).
+
 Copy the form and plugin settings from [settings.yml](src/settings.yml). Paste [shared.liquid](src/shared.liquid) into Shared, each layout into its matching markup tab, and the complete [transform.js](src/transform.js) into Serverless. Save, refresh and add the plugin to your playlist.
 
 Upload [media/icon.svg](media/icon.svg) in the plugin's icon field. MCP source imports do not upload icon assets.
@@ -46,12 +48,12 @@ The existing private installation is managed through TRMNL MCP. Repository pushe
 | Currency | `NATIVE`, available fiat pairs, BTC or ETH |
 | Date range | 1D/minute, 1M/30 minutes, 3M/hour, 1Y/day, 5Y/week, all time/month |
 | Chart type | Line, OHLC bars or candles |
-| Line | Simple, step or monotone smooth; 1–5 px strokes |
+| Line style and width | Straight, stepped or smooth; 1–5 px strokes |
 | Grid, volume, baseline | Show/hide; volume requires provider data |
 | Extended hours | Available intraday pre/post-market bars |
-| Locale | English, German, French, Spanish, Italian or Polish |
-| Typography | Small/normal/large header; 8–16 px supporting text, default 12 px |
-| Precision | Automatic, 0, 2, 4 or 6 decimals |
+| Language | English, German, French, Spanish, Italian or Polish |
+| Heading and label size | Small/normal/large heading; 8–16 px supporting text, default 12 px |
+| Decimal places | Automatic, 0, 2, 4 or 6 decimals |
 
 Examples: `NTNX`, `VWCE.DE`, `VWRP.L`, `^GSPC`, `BTC-USD`, `EURUSD=X`, `NASDAQ:NTNX`, `XETR:VWCE`. Unknown exchange prefixes require the exact Yahoo ticker. Some instruments lack particular ranges, FX pairs, OHLC or volume.
 
