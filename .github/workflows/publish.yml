@@ -1,0 +1,40 @@
+name: Publish to TRMNL
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "TRMNL/src/**"
+      - "TRMNL/media/**"
+      - ".github/workflows/publish.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  publish:
+    name: Push plugin to TRMNL
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Integer from /plugin_settings/<ID>/edit; never commit the API key.
+      - name: Push plugin via trmnlp
+        working-directory: TRMNL
+        env:
+          TRMNL_API_KEY: ${{ secrets.TRMNL_API_KEY }}
+          TRMNL_PLUGIN_SETTING_ID: ${{ secrets.TRMNL_PLUGIN_SETTING_ID }}
+        run: |
+          test -n "$TRMNL_API_KEY"
+          test -n "$TRMNL_PLUGIN_SETTING_ID"
+          docker run --rm \
+            --volume "$(pwd):/plugin" \
+            --env TRMNL_API_KEY \
+            trmnl/trmnlp:latest push --force --id "$TRMNL_PLUGIN_SETTING_ID"

@@ -1,7 +1,15 @@
 name: Test
 on:
+  workflow_call:
   push:
     branches: [main]
+    # Source and media pushes run this workflow through publish.yml.
+    paths:
+      - "TRMNL/check.cjs"
+      - "TRMNL/fixtures/**"
+      - "TRMNL/.trmnlp.yml"
+      - "scripts/**"
+      - ".github/workflows/test.yml"
   pull_request:
 permissions:
   contents: read

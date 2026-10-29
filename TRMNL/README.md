@@ -36,7 +36,9 @@ Copy the form and plugin settings from [settings.yml](src/settings.yml). Paste [
 
 Upload [media/icon.svg](media/icon.svg) in the plugin's icon field. MCP source imports do not upload icon assets.
 
-The existing private installation is managed through TRMNL MCP. Repository pushes run checks; hosted updates still use MCP. Keep MCP credentials in the client's private configuration.
+For automatic publishing, add `TRMNL_API_KEY` and `TRMNL_PLUGIN_SETTING_ID` as GitHub Actions repository secrets. The plugin setting ID is the number in its `/plugin_settings/<ID>/edit` URL. The **Publish to TRMNL** workflow runs the tests and device previews before deploying source or media changes on `main`; it can also run manually.
+
+The existing private installation can also be updated through TRMNL MCP. Keep MCP credentials in the client's private configuration.
 
 ## Settings
 
