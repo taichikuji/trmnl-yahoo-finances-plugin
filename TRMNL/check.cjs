@@ -19,6 +19,7 @@ const config = fields => load().settings(input(fields));
 
 test('native polling URLs preserve Yahoo symbols, ranges and session choices', async () => {
   const source = YAML.parse(fs.readFileSync(path.join(__dirname, 'src/settings.yml'), 'utf8')).polling_url;
+  assert.doesNotMatch(source, /[\r\n]/);
   for (const dateRanges of ['1d|1', '1m|30', '3m|60', '12m|1D', '60m|1W', 'all|1M', 'invalid']) {
     for (const symbol of ['NTNX', '%5ESTOXX50E', 'M%26M.NS']) for (const extendedHours of ['hide', 'show']) {
       const fields = { symbol, dateRanges, extendedHours };
@@ -36,8 +37,35 @@ test('Serverless enriches a native polling response without requesting the stock
   const out = await load(async () => { requests++; throw Error('Unexpected provider request'); }).run(data);
   assert.equal(requests, 0);
   assert.equal(out.stonks.has_data, true, out.stonks.detail);
-  assert.deepEqual(plain(out.chart), data.chart);
+  assert.equal(out.chart, undefined);
+  assert.ok(load().bytes(out) < load().bytes(data));
   assert.deepEqual(plain(out.trmnl_state), plain((await load().run({})).trmnl_state));
+});
+
+test('malformed native responses retain the matching snapshot without another stock request', async () => {
+  const saved = plain((await load().run({})).trmnl_state);
+  for (const chart of [null, {}, { error: { description: 'Unavailable' } }]) {
+    let requests = 0;
+    const out = await load(async () => { requests++; throw Error('Unexpected fetch'); }).run({ chart, ...input({}, saved) });
+    assert.equal(requests, 0);
+    assert.equal(out.stonks.stale, true);
+    assert.deepEqual(plain(out.trmnl_state), saved);
+  }
+});
+
+test('native stock data requests only the FX pair for a converted quote', async () => {
+  const market = sample();
+  const rate = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
+  const requested = [];
+  const out = await load(async url => {
+    requested.push(url);
+    return { ok: true, json: async () => rate };
+  }).run({ ...market, ...input({ currency: 'EUR' }) });
+  assert.equal(requested.length, 1);
+  assert.ok(requested[0].includes('/USDEUR%3DX?'));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.stonks.currency, 'EUR');
+  assert.equal(out.stonks.price, market.chart.result[0].meta.regularMarketPrice * rate.chart.result[0].meta.regularMarketPrice);
 });
 
 for (const [range, interval, seconds, count] of [
@@ -59,6 +87,8 @@ for (const [range, interval, seconds, count] of [
   assert.equal(out.trmnl_state.source_count, count);
   assert.equal(out.stonks.price, data.chart.result[0].meta.regularMarketPrice);
   assert.notEqual(out.trmnl_state.market_at, out.trmnl_state.fetched_at);
+  const native = await load(async () => { throw Error('Stock was already polled'); }).run({ ...data, ...input({ dateRanges: range }) });
+  assert.deepEqual(plain(native), plain(out));
   assert.doesNotMatch(await render(out), /NaN|Infinity/);
 });
 

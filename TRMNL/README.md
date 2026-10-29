@@ -30,7 +30,7 @@ Synthetic sample prices rendered from the actual templates with Framework 3.4.3.
 
 ## Setup
 
-Create a Private Plugin with **Static** data `{}`, **Node** Serverless and Framework **3.4.3**. Keep normal screen padding.
+Create a Private Plugin with **Polling**, **Node** Serverless and Framework **3.4.3**. Use the polling URL and headers from [settings.yml](src/settings.yml), including the User-Agent header. Keep normal screen padding.
 
 Copy the form and plugin settings from [settings.yml](src/settings.yml). Paste [shared.liquid](src/shared.liquid) into Shared, each layout into its matching markup tab, and the complete [transform.js](src/transform.js) into Serverless. Save, refresh and add the plugin to your playlist.
 
@@ -70,7 +70,7 @@ On OG full screen, the normal company name uses the native 21 px title and the p
 
 ## Data and saved state
 
-Yahoo and FX requests share a 3.8-second deadline, with each response limited to 2 MiB. Failures and quote regressions retain the matching saved snapshot and original market timestamp, marked stale. A selection without a valid snapshot shows unavailable data. Source quotes older than seven days are also stale; this is not an exchange calendar.
+TRMNL polls Yahoo directly. Serverless validates and compacts the response, requests FX when needed, and handles recovery. FX and recovery requests share a 3.8-second deadline, with each response limited to 2 MiB. Failures and quote regressions retain the matching saved snapshot and original market timestamp, marked stale. A selection without a valid snapshot shows unavailable data. Source quotes older than seven days are also stale; this is not an exchange calendar.
 
 Saved State is limited to 8,192 bytes. Long histories are grouped into OHLCV buckets; `×N` shows the grouping factor. Market timestamps retain their exact seconds. Changing symbol, currency, range or session prevents reuse of a different selection's chart. Display changes can redraw saved data during an outage. Do not clear Saved State routinely.
 
