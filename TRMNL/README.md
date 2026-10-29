@@ -42,7 +42,7 @@ The existing private installation is managed through TRMNL MCP. Repository pushe
 
 | Control | Options |
 | --- | --- |
-| Symbol | Yahoo ticker or a supported TradingView exchange symbol |
+| Symbol | Yahoo Finance symbol, plain or URL-encoded |
 | Currency | `NATIVE`, available fiat pairs, BTC or ETH |
 | Date range | 1D/minute, 1M/30 minutes, 3M/hour, 1Y/day, 5Y/week, all time/month |
 | Chart type | Line, OHLC bars or candles |
@@ -53,7 +53,7 @@ The existing private installation is managed through TRMNL MCP. Repository pushe
 | Heading and label size | Small/normal/large heading; 8–16 px supporting text, default 12 px |
 | Decimal places | Automatic, 0, 2, 4 or 6 decimals |
 
-Examples: `NTNX`, `VWCE.DE`, `VWRP.L`, `^GSPC`, `BTC-USD`, `EURUSD=X`, `NASDAQ:NTNX`, `XETR:VWCE`. Unknown exchange prefixes require the exact Yahoo ticker. Some instruments lack particular ranges, FX pairs, OHLC or volume.
+Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Some instruments lack particular ranges, FX pairs, OHLC or volume.
 
 ## Templates
 
@@ -101,7 +101,7 @@ magick dist/preview/og-landscape-full-fresh.png -define webp:lossless=true TRMNL
 
 ## Provider limitations
 
-Yahoo's chart endpoint is undocumented and can fail or change. Instrument coverage, history, FX pairs and pricing can differ from TradingView. Review [Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) for your intended use.
+Yahoo's chart endpoint is undocumented and can fail or change. Instrument coverage, history and FX pairs vary. Review [Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) for your intended use.
 
 Stock logos are not included in the chart response used by STONKS. Yahoo exposes logo fields on a separate [quote endpoint](https://github.com/gadicc/yahoo-finance2/blob/634e594b30ce962d8b85f92fc1657d9a30a27398/src/modules/quote.ts); the plugin does not add a second request or authentication flow for logos.
 

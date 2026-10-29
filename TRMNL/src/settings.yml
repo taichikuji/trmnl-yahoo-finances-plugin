@@ -21,8 +21,8 @@ custom_fields:
     field_type: string
     name: Symbol
     default: NTNX
-    description: Yahoo Finance ticker. Common TradingView exchange symbols also work.
-    help_text: 'Examples: NTNX, VWCE.DE, ^GSPC, BTC-USD, EURUSD=X. NASDAQ:NTNX and XETR%3AVWCE also work. For other exchanges, copy the exact ticker from <a href="https://finance.yahoo.com/" target="_blank">Yahoo Finance</a>.'
+    description: Copy the symbol after /quote/ in the Yahoo Finance URL.
+    help_text: 'Examples: NTNX, VWCE.DE, %5ESTOXX50E, BTC-USD, EURUSD=X. Plain symbols such as ^STOXX50E also work. <a href="https://finance.yahoo.com/" target="_blank">Find a symbol on Yahoo Finance</a>.'
     group: Market
   - keyname: currency
     field_type: string

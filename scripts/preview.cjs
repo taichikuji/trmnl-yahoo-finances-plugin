@@ -65,7 +65,7 @@ async function main() {
   states.large = await scenario({ headerFontSize: 'large', fontSize: 16, showVolume: 'show', chartType: 'candles', locale: 'de_DE' });
   const etf = sample({ symbol: 'VWCE.DE', currency: 'EUR' });
   etf.chart.result[0].meta.longName = 'Vanguard FTSE All-World UCITS ETF USD Accumulating';
-  states.etf = await scenario({ symbol: 'XETR:VWCE', currency: 'NATIVE', locale: 'fr', fontSize: 12 }, etf);
+  states.etf = await scenario({ symbol: 'VWCE.DE', currency: 'NATIVE', locale: 'fr', fontSize: 12 }, etf);
   states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
   states.intraday = await scenario({ dateRanges: '1d|1', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
   states.stale_large = await plugin(async () => ({ ok: false, status: 429 })).run({ trmnl: {

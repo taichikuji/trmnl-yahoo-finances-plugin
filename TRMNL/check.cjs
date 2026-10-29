@@ -39,11 +39,33 @@ for (const [range, interval, seconds, count] of [
   assert.doesNotMatch(out.stonks.path, /NaN|Infinity/);
 });
 
-test('symbols accept Yahoo and known TradingView exchanges without guessing unknown ones', () => {
-  const cases = { NTNX: 'NTNX', 'NASDAQ%3ANTNX': 'NTNX', 'XETR:VWCE': 'VWCE.DE', 'LSE:VWRP': 'VWRP.L',
-    'SP:SPX': '^GSPC', '^GSPC': '^GSPC', 'BTC-USD': 'BTC-USD', 'BINANCE:BTCUSDT': 'BTC-USD', 'FX:EURUSD': 'EURUSD=X' };
+test('symbols accept plain and URL-encoded Yahoo tickers without exchange mappings', () => {
+  const cases = { NTNX: 'NTNX', ' ntnx ': 'NTNX', 'VWCE.DE': 'VWCE.DE', 'VWRP.L': 'VWRP.L',
+    '^STOXX50E': '^STOXX50E', '%5ESTOXX50E': '^STOXX50E', '^GSPC': '^GSPC', 'BTC-USD': 'BTC-USD',
+    'EURUSD%3DX': 'EURUSD=X', 'CL=F': 'CL=F', 'M&M.NS': 'M&M.NS', 'M%26M.NS': 'M&M.NS' };
   for (const [from, to] of Object.entries(cases)) assert.equal(load().symbolFor(from), to);
-  for (const bad of ['NOPE:ABC', 'https://example.com', 'A<B', '%broken', 'A:B:C', 'NASDAQ:NTNX:', 'NASDAQ:NTNX::A']) assert.throws(() => load().symbolFor(bad));
+  for (const bad of ['NASDAQ:NTNX', 'NASDAQ%3ANTNX', 'XETR:VWCE', 'SP:SPX', 'BINANCE:BTCUSDT', 'FX:EURUSD',
+    'https://finance.yahoo.com/quote/NTNX/', 'A<B', '%broken', '%255ESTOXX50E', '%2FNTNX', 'A B']) assert.throws(() => load().symbolFor(bad));
+});
+
+test('encoded Yahoo symbols are fetched once-encoded and share saved state with plain symbols', async () => {
+  for (const [encoded, symbol] of [['%5ESTOXX50E', '^STOXX50E'], ['M%26M.NS', 'M&M.NS']]) {
+    let calls = 0;
+    const data = sample({ symbol });
+    const out = await load(async url => {
+      calls++;
+      assert.equal(url, 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) +
+        '?range=1y&interval=1d&includePrePost=false');
+      return { ok: true, json: async () => data };
+    }).run(input({ symbol: encoded }));
+    assert.equal(calls, 1);
+    assert.equal(out.stonks.has_data, true, out.stonks.detail);
+    assert.equal(out.stonks.symbol, symbol);
+    const fallback = await load(async () => ({ ok: false, status: 429 })).run(input({ symbol }, out.trmnl_state));
+    assert.equal(fallback.stonks.has_data, true);
+    assert.equal(fallback.stonks.stale, true);
+    assert.deepEqual(plain(fallback.trmnl_state), plain(out.trmnl_state));
+  }
 });
 
 test('malformed market settings fail before fetching; Liquid clamps numeric display controls', async () => {

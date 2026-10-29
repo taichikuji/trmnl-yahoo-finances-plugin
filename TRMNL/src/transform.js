@@ -25,24 +25,8 @@ const choose = (v, list, fallback) => list.includes(String(v)) ? String(v) : fal
 function symbolFor(value) {
   let text;
   try { text = decodeURIComponent(String(value || 'NTNX').trim()).toUpperCase(); }
-  catch { throw new Error('Use a Yahoo Finance symbol, e.g. NTNX or VWCE.DE'); }
-  if (text.includes(':')) {
-    const [exchange, ticker, extra] = text.split(':');
-    if (extra !== undefined || !ticker) throw new Error('Invalid symbol');
-    const indices = { 'SP:SPX': '^GSPC', 'NASDAQ:NDX': '^NDX', 'DJ:DJI': '^DJI', 'TVC:VIX': '^VIX' };
-    if (indices[text]) return indices[text];
-    const suffix = { NASDAQ: '', NYSE: '', AMEX: '', NYSEARCA: '', ARCA: '', CBOE: '', XETR: '.DE', XETRA: '.DE', LSE: '.L', EURONEXT: '.PA', BME: '.MC', MIL: '.MI', SIX: '.SW', TSX: '.TO', ASX: '.AX', TSE: '.T', HKEX: '.HK' };
-    if (exchange === 'FX' || exchange === 'FX_IDC') {
-      if (!/^[A-Z]{6}$/.test(ticker)) throw new Error('Use a Yahoo forex symbol, e.g. EURUSD=X');
-      text = ticker + '=X';
-    } else if (['BINANCE', 'COINBASE', 'BITSTAMP', 'KRAKEN'].includes(exchange)) {
-      const pair = ticker.match(/^([A-Z0-9]+?)(USDT|USD|EUR|GBP|BTC)$/);
-      if (!pair) throw new Error('Use a Yahoo crypto symbol, e.g. BTC-USD');
-      text = pair[1] + '-' + (pair[2] === 'USDT' ? 'USD' : pair[2]);
-    } else if (Object.hasOwn(suffix, exchange)) text = ticker + suffix[exchange];
-    else throw new Error('Unknown exchange; enter the exact Yahoo Finance symbol');
-  }
-  if (!/^[A-Z0-9^][A-Z0-9.^=\-]{0,39}$/.test(text)) throw new Error('Invalid Yahoo Finance symbol');
+  catch { throw new Error('Use a Yahoo Finance symbol, e.g. NTNX or %5ESTOXX50E'); }
+  if (!/^[A-Z0-9^][A-Z0-9.^=+&\-]{0,39}$/.test(text)) throw new Error('Invalid Yahoo Finance symbol');
   return text;
 }
 
