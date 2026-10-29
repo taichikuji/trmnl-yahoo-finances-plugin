@@ -168,6 +168,9 @@
 
 {% template stonks_footer %}
 <div class="title_bar">
+  <svg class="image" width="24" height="24" viewBox="0 0 64 64" aria-hidden="true">
+    <path fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" d="M10 12v42h44 M18 42l12-12 10 7 14-20 M42 17h12v12"/>
+  </svg>
   <span class="title">STONKS</span>
   <span class="instance">{% if stonks.has_data == true %}<time class="description" datetime="{{ stonks.market_iso | escape }}" title="{{ words[3] | escape }}: {{ stonks.market_label | escape }}" aria-label="{{ words[3] | escape }}: {{ stonks.market_label | escape }}">{{ stonks.market_label_compact | escape }}</time>{% else %}{{ stonks.symbol | escape }} · {{ range_label | escape }}{% endif %}</span>
 </div>
