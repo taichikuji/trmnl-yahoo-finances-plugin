@@ -36,7 +36,7 @@ for (const [range, interval, seconds, count] of [
   assert.equal(out.trmnl_state.source_count, count);
   assert.equal(out.stonks.price, data.chart.result[0].meta.regularMarketPrice);
   assert.notEqual(out.trmnl_state.market_at, out.trmnl_state.fetched_at);
-  assert.doesNotMatch(out.stonks.path, /NaN|Infinity/);
+  assert.doesNotMatch(await render(out), /NaN|Infinity/);
 });
 
 test('symbols accept plain and URL-encoded Yahoo tickers without exchange mappings', () => {
@@ -244,12 +244,15 @@ test('corrupt and oversized state is rejected before fallback', async () => {
   }
 });
 
-test('line styles use distinct paths; smooth cubic control points stay within segment bounds', () => {
+test('Liquid draws distinct line styles; smooth control points stay within segment bounds', async () => {
   const p = load(); const points = [{ x: 4, y: 100 }, { x: 20, y: 10 }, { x: 80, y: 200 }, { x: 696, y: 50 }];
-  assert.match(p.linePath(points, '0'), /L/); assert.match(p.linePath(points, '1'), /H.*V/);
-  const smooth = p.linePath(points, '2'); assert.match(smooth, /C/);
-  const segments = [...smooth.matchAll(/C([\d.]+),([\d.]+),([\d.]+),([\d.]+),([\d.]+),([\d.]+)/g)];
-  segments.forEach((m, i) => { for (const y of [+m[2], +m[4]]) assert.ok(y >= Math.min(points[i].y, points[i + 1].y) && y <= Math.max(points[i].y, points[i + 1].y)); });
+  for (const [lineType, pattern] of [['0', /L/], ['1', /H.*V/], ['2', /C/]]) {
+    const out = await load().run(input({ lineType }));
+    const html = await render(out, { lineType });
+    assert.match(html.match(/data-stonks-line d="([^"]+)"/)[1], pattern);
+  }
+  const segments = p.curveSegments(points);
+  segments.forEach((m, i) => { for (const y of [m[1], m[3]]) assert.ok(y >= Math.min(points[i].y, points[i + 1].y) && y <= Math.max(points[i].y, points[i + 1].y)); });
 });
 
 test('all locales format prices and dates, and every registered view renders once without network widgets', async () => {
@@ -416,11 +419,11 @@ function signalFixture({ price = 106, lastOpen = 108, flat = false } = {}) {
 test('the return indicator follows the selected baseline even when the latest candle falls', async () => {
   const out = await load(ok(signalFixture())).run(input({ chartType: 'candles' }));
   assert.match(await render(out), /aria-label="Up /);
-  assert.equal(out.stonks.percent_label, '+6.00%');
+  assert.equal(out.stonks.percent_label, '+6.00');
   const last = out.trmnl_state.bars.at(-1);
-  assert.ok(last[4] < last[1]); assert.ok(out.stonks.down.length > 0);
-  assert.ok(out.stonks.up.length > 0); assert.ok(out.stonks.flat.length > 0);
+  assert.ok(last[4] < last[1]);
   const html = await render(out);
+  for (const direction of ['up', 'down', 'flat']) assert.match(html, new RegExp('data-stonks-candle="' + direction + '" d="M'));
   assert.match(html, /data-stonks-return="up"/);
   assert.match(html, /data-stonks-candle="down"/);
 });
@@ -428,12 +431,14 @@ test('the return indicator follows the selected baseline even when the latest ca
 test('falling and unchanged returns have distinct accessible indicators', async () => {
   const down = await load(ok(signalFixture({ price: 90 }))).run(input({ locale: 'es' }));
   assert.match(await render(down, { locale: 'es' }), /data-stonks-return="down" aria-label="Baja /);
-  assert.equal(down.stonks.percent_label, '−10,00%');
+  assert.equal(down.stonks.percent_label, '−10,00');
   const flat = await load(ok(signalFixture({ price: 100, flat: true }))).run(input({ chartType: 'candles' }));
   assert.match(await render(flat), /data-stonks-return="flat"/);
-  assert.equal(flat.stonks.percent_label, '0.00%');
-  assert.equal(flat.stonks.up, ''); assert.equal(flat.stonks.down, ''); assert.ok(flat.stonks.flat);
+  assert.equal(flat.stonks.percent_label, '0.00');
   const html = await render(flat);
+  assert.match(html, /data-stonks-candle="up" d=""/);
+  assert.match(html, /data-stonks-candle="down" d=""/);
+  assert.match(html, /data-stonks-candle="flat" d="M/);
   assert.match(html, /aria-label="Unchanged 0.00%/);
 });
 
@@ -441,7 +446,7 @@ test('changes that round to zero do not show negative zero or a misleading direc
   for (const price of [100 + 1e-7, 100 - 1e-7]) {
     const out = await load(ok(signalFixture({ price, flat: true }))).run({});
     assert.match(await render(out), /data-stonks-return="flat"/);
-    assert.equal(out.stonks.percent_label, '0.00%');
+    assert.equal(out.stonks.percent_label, '0.00');
     assert.equal(out.stonks.absolute_change_label, '0.00');
   }
 });
@@ -449,11 +454,12 @@ test('changes that round to zero do not show negative zero or a misleading direc
 test('baseline clipping preserves the complete curve with unique SVG fragment ids', async () => {
   for (const lineType of ['0', '1', '2']) {
     const out = await load(ok(signalFixture())).run(input({ showReference: 'show', lineType }));
-    const html = await render(out);
+    const fields = { showReference: 'show', lineType };
+    const html = await render(out, fields);
     const above = html.match(/data-stonks-above d="([^"]+)"/);
     const below = html.match(/data-stonks-below d="([^"]+)"/);
-    assert.equal(above?.[1], out.stonks.path); assert.equal(below?.[1], out.stonks.path);
-    const second = await render(out);
+    assert.ok(above?.[1].startsWith('M')); assert.equal(below?.[1], above?.[1]);
+    const second = await render(out, fields);
     const ids = [...(html + second).matchAll(/<clipPath id="([^"]+)"/g)].map(m => m[1]);
     assert.equal(ids.length, 4); assert.equal(new Set(ids).size, 4);
     for (const id of ids.slice(0, 2)) assert.ok(html.includes('url(#' + id + ')'));
@@ -485,14 +491,17 @@ test('Shared defines reusable components and only the selected view emits conten
   assert.equal(await liquid.parseAndRender("{% assign secret = 'outer' %}{% template isolated %}{{ secret }}{{ value }}{% endtemplate %}{% render 'isolated', value: 'passed' %}"), 'passed');
 });
 
-test('the transform generates only the selected chart geometry without changing saved data', async () => {
+test('the transform returns numeric geometry and Liquid draws it without changing saved data', async () => {
   const line = await load().run({});
   const candles = await load().run(input({ chartType: 'candles' }));
   assert.deepEqual(plain(line.trmnl_state), plain(candles.trmnl_state));
-  assert.ok(line.stonks.path.length > 0);
-  assert.equal(line.stonks.up + line.stonks.down + line.stonks.flat + line.stonks.missing_path, '');
-  assert.equal(candles.stonks.path, '');
-  assert.ok(candles.stonks.up.length + candles.stonks.down.length + candles.stonks.flat.length > 0);
+  assert.ok(line.stonks.points.length > 0);
+  assert.equal(line.stonks.candles.length, 0);
+  assert.equal(candles.stonks.points.length, 0);
+  assert.ok(candles.stonks.candles.length > 0);
+  for (const out of [line, candles]) for (const key of ['path', 'up', 'down', 'flat', 'missing_path', 'volume_path', 'grid', 'reference']) assert.equal(key in out.stonks, false);
+  assert.match(await render(line), /data-stonks-line d="M/);
+  assert.match(await render(candles), /data-stonks-candle="up" d="M/);
 });
 
 test('trmnlp supplies an offline sample that renders all native views', async () => {

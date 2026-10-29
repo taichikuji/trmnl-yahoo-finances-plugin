@@ -6,7 +6,7 @@
       {% render 'stonks_return', stonks: stonks, words: words, direction: direction, range_label: range_label %}
     </div>
     {% render 'stonks_status', stonks: stonks, words: words %}
-    {% render 'stonks_chart', stonks: stonks, direction: direction, range_label: range_label, line_width: line_width %}
+    {% render 'stonks_chart', stonks: stonks, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
   {% else %}
     {% render 'stonks_unavailable', stonks: stonks, words: words %}
   {% endif %}

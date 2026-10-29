@@ -91,11 +91,11 @@
 {% case direction %}{% when 'up' %}{% assign direction_label = words[9] %}{% when 'down' %}{% assign direction_label = words[10] %}{% else %}{% assign direction_label = words[11] %}{% endcase %}
 <div class="flex flex--col flex--right gap--xsmall no-shrink">
   <div class="flex flex--row gap--xsmall">
-    <span class="label label--outline flex flex--row gap--xsmall" data-stonks-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ stonks.percent_label | escape }} · {{ range_label | escape }}">
+    <span class="label label--outline flex flex--row gap--xsmall" data-stonks-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ stonks.percent_label | escape }}% · {{ range_label | escape }}">
       <svg class="w--3 h--3 no-shrink" viewBox="0 0 12 12" aria-hidden="true">
         {% if direction == 'up' %}<path d="M6 1L11 6H8V11H4V6H1Z" fill="currentColor" />{% elsif direction == 'down' %}<path d="M4 1H8V6H11L6 11L1 6H4Z" fill="currentColor" />{% else %}<path d="M1 5H11V7H1Z" fill="currentColor" />{% endif %}
       </svg>
-      <span>{{ stonks.percent_label | escape }}</span>
+      <span>{{ stonks.percent_label | escape }}%</span>
     </span>
     <span class="label label--small">{{ range_label | escape }}</span>
   </div>
@@ -111,38 +111,76 @@
 {% endtemplate %}
 
 {% template stonks_chart %}
+{%- assign line_type = fields.lineType | default: '2' | append: '' -%}
+{%- capture line_path -%}
+  {%- for point in stonks.points -%}
+    {%- if forloop.first -%}M{{ point[0] }},{{ point[1] }}
+    {%- elsif line_type == '0' -%}L{{ point[0] }},{{ point[1] }}
+    {%- elsif line_type == '1' -%}H{{ point[0] }}V{{ point[1] }}
+    {%- else -%}
+      {%- assign segment_index = forloop.index0 | minus: 1 -%}
+      C{{ stonks.curves[segment_index] | join: ',' }}
+    {%- endif -%}
+  {%- endfor -%}
+{%- endcapture -%}
+{%- assign up_path = '' -%}
+{%- assign down_path = '' -%}
+{%- assign flat_path = '' -%}
+{%- assign missing_path = '' -%}
+{%- for candle in stonks.candles -%}
+  {%- if candle[3] == nil -%}
+    {%- capture missing -%}M{{ candle[1] }},{{ candle[6] }}h{{ stonks.body_width }}{%- endcapture -%}
+    {%- assign missing_path = missing_path | append: missing -%}
+  {%- else -%}
+    {%- capture candle_path -%}
+      M{{ candle[0] }},{{ candle[4] }}V{{ candle[5] }}
+      {%- if stonks.chart_type == 'bars' -%}
+        M{{ candle[1] }},{{ candle[3] }}H{{ candle[0] }}M{{ candle[0] }},{{ candle[6] }}H{{ candle[2] }}
+      {%- else -%}
+        {%- assign top = candle[3] | at_most: candle[6] -%}
+        M{{ candle[1] }},{{ top }}h{{ stonks.body_width }}v{{ candle[7] }}h-{{ stonks.body_width }}Z
+      {%- endif -%}
+    {%- endcapture -%}
+    {%- if candle[8] > 0 -%}{%- assign up_path = up_path | append: candle_path -%}
+    {%- elsif candle[8] < 0 -%}{%- assign down_path = down_path | append: candle_path -%}
+    {%- else -%}{%- assign flat_path = flat_path | append: candle_path -%}{%- endif -%}
+  {%- endif -%}
+{%- endfor -%}
+{%- capture volume_path -%}
+  {%- for point in stonks.volumes -%}M{{ point[0] }},274V{{ point[1] }}{%- endfor -%}
+{%- endcapture -%}
 <div class="stretch flex flex--row gap--xsmall w--full" data-stonks-chart>
   <div class="stretch flex flex--col gap--xsmall h--full w--min-0">
     <div class="stretch relative w--full">
       <svg class="block" data-stonks-plot xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none" role="img" aria-label="{{ stonks.name | escape }} · {{ range_label | escape }} · {{ stonks.currency | escape }}">
         <title>{{ stonks.symbol | escape }} · {{ stonks.price_label | escape }} {{ stonks.currency | escape }} · {{ stonks.market_label | escape }}</title>
-        {% if stonks.grid == true %}
+        {% if fields.showGridlines == 'show' %}
           {% for tick in stonks.ticks %}<path d="M4,{{ tick.y }}H696" fill="none" stroke="currentColor" stroke-dasharray="1 6" stroke-width="0.5" vector-effect="non-scaling-stroke" />{% endfor %}
           {% for date in stonks.dates %}<path d="M{{ date.x }},12V274" fill="none" stroke="currentColor" stroke-dasharray="1 6" stroke-width="0.5" vector-effect="non-scaling-stroke" />{% endfor %}
         {% endif %}
-        {% if stonks.reference == true %}<path d="M4,{{ stonks.reference_y }}H696" fill="none" stroke="currentColor" stroke-dasharray="6 4" stroke-width="1" vector-effect="non-scaling-stroke" />{% endif %}
+        {% if fields.showReference == 'show' %}<path d="M4,{{ stonks.reference_y }}H696" fill="none" stroke="currentColor" stroke-dasharray="6 4" stroke-width="1" vector-effect="non-scaling-stroke" />{% endif %}
         {% if stonks.chart_type == 'line' or stonks.has_ohlc != true %}
-          {% if stonks.reference == true %}
+          {% if fields.showReference == 'show' %}
             {% assign clip_id = 'stonks-' | append_random %}
             {% assign below_height = 286 | minus: stonks.reference_y %}
             <defs>
               <clipPath id="{{ clip_id }}-above"><rect x="0" y="0" width="700" height="{{ stonks.reference_y }}" /></clipPath>
               <clipPath id="{{ clip_id }}-below"><rect x="0" y="{{ stonks.reference_y }}" width="700" height="{{ below_height }}" /></clipPath>
             </defs>
-            <path data-stonks-line data-stonks-above d="{{ stonks.path | escape }}" clip-path="url(#{{ clip_id }}-above)" fill="none" stroke="var(--stonks-rise)" stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
-            <path data-stonks-below d="{{ stonks.path | escape }}" clip-path="url(#{{ clip_id }}-below)" fill="none" stroke="var(--stonks-fall)" stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+            <path data-stonks-line data-stonks-above d="{{ line_path | escape }}" clip-path="url(#{{ clip_id }}-above)" fill="none" stroke="var(--stonks-rise)" stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+            <path data-stonks-below d="{{ line_path | escape }}" clip-path="url(#{{ clip_id }}-below)" fill="none" stroke="var(--stonks-fall)" stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
           {% else %}
-            <path data-stonks-line d="{{ stonks.path | escape }}" fill="none" stroke="currentColor" stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
+            <path data-stonks-line d="{{ line_path | escape }}" fill="none" stroke="currentColor" stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
           {% endif %}
         {% else %}
           <g data-stonks-ohlc stroke="currentColor" stroke-width="{{ line_width }}" stroke-linejoin="miter">
-            <path data-stonks-candle="up" d="{{ stonks.up | escape }}" stroke="var(--stonks-rise)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-rise-fill){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
-            <path data-stonks-candle="down" d="{{ stonks.down | escape }}" stroke="var(--stonks-fall)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-fall-fill){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
-            <path data-stonks-candle="flat" d="{{ stonks.flat | escape }}" fill="var(--stonks-paper)" vector-effect="non-scaling-stroke" />
-            <path d="{{ stonks.missing_path | escape }}" fill="none" vector-effect="non-scaling-stroke" />
+            <path data-stonks-candle="up" d="{{ up_path | escape }}" stroke="var(--stonks-rise)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-rise-fill){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
+            <path data-stonks-candle="down" d="{{ down_path | escape }}" stroke="var(--stonks-fall)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-fall-fill){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
+            <path data-stonks-candle="flat" d="{{ flat_path | escape }}" fill="var(--stonks-paper)" vector-effect="non-scaling-stroke" />
+            <path d="{{ missing_path | escape }}" fill="none" vector-effect="non-scaling-stroke" />
           </g>
         {% endif %}
-        {% if stonks.has_volume == true %}<path data-stonks-volume d="{{ stonks.volume_path | escape }}" fill="none" stroke="currentColor" stroke-width="{{ stonks.volume_width }}" />{% endif %}
+        {% if stonks.has_volume == true %}<path data-stonks-volume d="{{ volume_path | escape }}" fill="none" stroke="currentColor" stroke-width="{{ stonks.volume_width }}" />{% endif %}
       </svg>
       {% if stonks.chart_type == 'line' or stonks.has_ohlc != true %}
         <span class="absolute bg--black rounded--full w--2 h--2" data-stonks-point="{{ direction | escape }}" aria-hidden="true" style="left: 99.428571%; top: {{ stonks.last_y | times: 100.0 | divided_by: 286.0 }}%; transform: translate(-50%, -50%);"></span>

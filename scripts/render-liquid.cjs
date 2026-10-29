@@ -9,7 +9,7 @@ function loadPlugin(overrides = {}) {
     fetch, AbortController, TextEncoder, TextDecoder, setTimeout, clearTimeout, ...overrides
   };
   const source = fs.readFileSync(path.join(__dirname, '../TRMNL/src/transform.js'), 'utf8');
-  vm.runInNewContext(source + '\nthis.plugin = { run, parseYahoo, validState, bytes, settings, symbolFor, linePath };', sandbox);
+  vm.runInNewContext(source + '\nthis.plugin = { run, parseYahoo, validState, bytes, settings, symbolFor, curveSegments };', sandbox);
   return sandbox.plugin;
 }
 

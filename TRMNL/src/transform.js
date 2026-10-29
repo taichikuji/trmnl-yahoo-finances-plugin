@@ -1,5 +1,5 @@
 // TRMNL Node 20 Serverless. Provider requests and rendering share a 3.8s deadline.
-// Liquid owns layout and captions; only data, chart math and Intl formatting live here.
+// Liquid owns SVG drawing, layout and captions; keep data, chart math and Intl here.
 const REQUEST_TIMEOUT_MS = 3800;
 const DAY = 86400;
 const STATE_LIMIT = 8192;
@@ -43,7 +43,7 @@ function settings(input) {
     chartType: choose(f.chartType, ['line', 'bars', 'candles'], 'line'),
     locale: choose(f.locale, Object.keys(LOCALES), 'en'),
     lineType: choose(f.lineType, ['0', '1', '2'], '2'),
-    grid: f.showGridlines === 'show', volume: f.showVolume === 'show',
+    volume: f.showVolume === 'show',
     reference: f.showReference === 'show',
     precision: choose(f.precision, ['auto', '0', '2', '4', '6'], 'auto')
   };
@@ -213,11 +213,9 @@ function convert(data, rates, config) {
     fx_at: Math.min(...rates.map(r => r.data.market_at)), fx_rate: current };
 }
 
-function linePath(points, type) {
-  if (!points.length) return '';
-  const f = n => n.toFixed(1);
-  let path = `M${f(points[0].x)},${f(points[0].y)}`;
-  if (type !== '2') return path + points.slice(1).map(p => type === '1' ? `H${f(p.x)}V${f(p.y)}` : `L${f(p.x)},${f(p.y)}`).join('');
+function curveSegments(points) {
+  if (points.length < 2) return [];
+  const segments = [];
   // A monotone cubic stays inside each pair's price range: smoothing must not
   // manufacture highs/lows. Zero the tangent at every local extremum.
   const slopes = points.slice(1).map((p, i) => (p.y - points[i].y) / (p.x - points[i].x));
@@ -228,9 +226,10 @@ function linePath(points, type) {
     const dx = (b.x - a.x) / 3;
     // Clamp the control points too, including the end tangents.
     const clamp = v => Math.max(Math.min(a.y, b.y), Math.min(Math.max(a.y, b.y), v));
-    path += `C${f(a.x + dx)},${f(clamp(a.y + tangents[i - 1] * dx))},${f(b.x - dx)},${f(clamp(b.y - tangents[i] * dx))},${f(b.x)},${f(b.y)}`;
+    segments.push([a.x + dx, clamp(a.y + tangents[i - 1] * dx), b.x - dx, clamp(b.y - tangents[i] * dx), b.x, b.y]
+      .map(n => +n.toFixed(1)));
   }
-  return path;
+  return segments;
 }
 
 function chart(state, config) {
@@ -248,22 +247,14 @@ function chart(state, config) {
   const x = i => PLOT.left + i / (state.bars.length - 1) * (PLOT.right - PLOT.left);
   const width = Math.max(0.8, Math.min(9, 500 / state.bars.length));
   const points = state.bars.map((b, i) => ({ x: x(i), y: y(b[4]) }));
-  let up = '', down = '', flat = '', missing = '';
-  const f = n => n.toFixed(1);
-  if (candles) for (const [i, b] of state.bars.entries()) {
-    if (b[1] === null) { missing += `M${f(x(i) - width / 2)},${f(y(b[4]))}h${f(width)}`; continue; }
-    const cx = x(i), half = width / 2;
-    let p = `M${f(cx)},${f(y(b[2]))}V${f(y(b[3]))}`;
-    if (config.chartType === 'bars') p += `M${f(cx - half)},${f(y(b[1]))}H${f(cx)}M${f(cx)},${f(y(b[4]))}H${f(cx + half)}`;
-    else {
-      const top = Math.min(y(b[1]), y(b[4]));
-      const height = Math.max(0.8, Math.abs(y(b[1]) - y(b[4])));
-      p += `M${f(cx - half)},${f(top)}h${f(width)}v${f(height)}h-${f(width)}Z`;
-    }
-    if (b[4] > b[1]) up += p; else if (b[4] < b[1]) down += p; else flat += p;
-  }
+  const f = n => +n.toFixed(1);
+  // Candle coordinates: center, left, right, open, high, low, close, height, change.
+  const candlePoints = candles ? state.bars.map((b, i) => [f(x(i)), f(x(i) - width / 2), f(x(i) + width / 2),
+    ...[b[1], b[2], b[3], b[4]].map(p => p === null ? null : f(y(p))),
+    b[1] === null ? null : f(Math.max(0.8, Math.abs(y(b[1]) - y(b[4])))),
+    b[1] === null ? null : b[4] - b[1]]) : [];
   const maxVolume = Math.max(1, ...state.bars.map(b => b[5] || 0));
-  const volume = hasVolume ? state.bars.map((b, i) => b[5] === null ? '' : `M${f(x(i))},274V${f(274 - b[5] / maxVolume * 40)}`).join('') : '';
+  const volumes = hasVolume ? state.bars.flatMap((b, i) => b[5] === null ? [] : [[f(x(i)), f(274 - b[5] / maxVolume * 40)]]) : [];
   const digits = config.precision === 'auto' ? (state.currency === 'BTC' || state.currency === 'ETH' || state.price < 1 ? 6 : state.currency === 'JPY' ? 0 : 2) : +config.precision;
   const number = new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: digits, maximumFractionDigits: digits });
   const date = new Intl.DateTimeFormat(LOCALES[config.locale], {
@@ -273,16 +264,18 @@ function chart(state, config) {
   const dates = [0, Math.round((state.bars.length - 1) / 2), state.bars.length - 1].map(i => ({
     x: x(i), label: date.format(new Date(state.bars[i][0] * 1000))
   }));
-  return { path: candles ? '' : linePath(points, config.lineType), up, down, flat, volume_path: volume, volume_width: width,
+  return { points: candles ? [] : points.map(p => [f(p.x), f(p.y)]),
+    curves: !candles && config.lineType === '2' ? curveSegments(points) : [], candles: candlePoints, volumes,
+    body_width: f(width), volume_width: width,
     reference_y: y(state.baseline), last_y: points.at(-1).y,
     ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: number.format(max - r * (max - min)) })), dates,
-    missing_path: missing, has_ohlc: hasOHLC, has_volume: hasVolume, digits };
+    has_ohlc: hasOHLC, has_volume: hasVolume, digits };
 }
 
 function display(state, stale, detail, config) {
   const base = { has_data: false, stale: true, detail, symbol: config.symbol, currency: config.currency,
     range: config.range, interval: config.interval, extended: config.extended,
-    chart_type: config.chartType, grid: config.grid, reference: config.reference };
+    chart_type: config.chartType };
   if (!state) return base;
   const graphics = chart(state, config);
   const formatter = new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: graphics.digits, maximumFractionDigits: graphics.digits });
@@ -297,7 +290,7 @@ function display(state, stale, detail, config) {
   return { ...base, ...graphics, has_data: true, stale, detail, name: state.name, currency: state.currency,
     price: state.price, change, percent,
     price_label: formatter.format(state.price),
-    percent_label: signed(percent, 2) + '%',
+    percent_label: signed(percent, 2),
     absolute_change_label: signed(change, graphics.digits),
     market_at: state.market_at, market_iso: date.toISOString(), market_label: full.format(date), market_label_compact: compact.format(date),
     native_currency: state.native_currency, return_basis: state.return_basis, group: state.group,
