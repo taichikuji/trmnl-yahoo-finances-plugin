@@ -30,7 +30,7 @@ Synthetic sample prices rendered from the actual templates with Framework 3.4.3.
 
 ## Setup
 
-Create a Private Plugin with **Static** data `{}`, **Node** Serverless, Framework **3.4.3** and a **60-minute** refresh interval. Keep normal screen padding.
+Create a Private Plugin with **Static** data `{}`, **Node** Serverless, Framework **3.4.3** and a **15-minute** refresh interval. Keep normal screen padding.
 
 Copy the form and plugin settings from [settings.yml](src/settings.yml). Paste [shared.liquid](src/shared.liquid) into Shared, each layout into its matching markup tab, and the complete [transform.js](src/transform.js) into Serverless. Save, refresh and add the plugin to your playlist.
 
