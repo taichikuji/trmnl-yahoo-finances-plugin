@@ -39,7 +39,6 @@
     --stonks-rise: var(--stonks-ink);
     --stonks-fall: var(--stonks-ink);
     --stonks-rise-fill: var(--stonks-paper);
-    --stonks-fall-fill: var(--stonks-ink);
     --stonks-gain-accent: var(--stonks-paper);
   }
   /* SVG needs solid paint; text utilities can use clipped dither backgrounds.
@@ -47,20 +46,17 @@
   .screen--color-4bwry [data-stonks] {
     --stonks-fall: var(--bg-red-color);
     --stonks-rise-fill: var(--bg-green-color);
-    --stonks-fall-fill: var(--bg-red-color);
     --stonks-gain-accent: var(--bg-green-color);
   }
   :is(.screen--color-6a, .screen--color-7a) [data-stonks] {
     --stonks-rise: var(--bg-green-color);
     --stonks-fall: var(--bg-red-color);
     --stonks-rise-fill: var(--bg-green-color);
-    --stonks-fall-fill: var(--bg-red-color);
   }
   .screen--color-full [data-stonks] {
     --stonks-rise: var(--green-25);
     --stonks-fall: var(--red-30);
     --stonks-rise-fill: var(--green-25);
-    --stonks-fall-fill: var(--red-30);
   }
   [data-stonks] [data-stonks-return="up"] { color: var(--stonks-rise); background-color: var(--stonks-gain-accent); border-color: var(--stonks-rise); }
   [data-stonks] [data-stonks-return="down"] { color: var(--stonks-fall); border-color: var(--stonks-fall); }
@@ -146,9 +142,6 @@
     {%- else -%}{%- assign flat_path = flat_path | append: candle_path -%}{%- endif -%}
   {%- endif -%}
 {%- endfor -%}
-{%- capture volume_path -%}
-  {%- for point in stonks.volumes -%}M{{ point[0] }},274V{{ point[1] }}{%- endfor -%}
-{%- endcapture -%}
 <div class="stretch flex flex--row gap--xsmall w--full" data-stonks-chart>
   <div class="stretch flex flex--col gap--xsmall h--full w--min-0">
     <div class="stretch relative w--full">
@@ -159,30 +152,32 @@
           {% for date in stonks.dates %}<path d="M{{ date.x }},12V274" fill="none" stroke="currentColor" stroke-dasharray="1 6" stroke-width="0.5" vector-effect="non-scaling-stroke" />{% endfor %}
         {% endif %}
         {% if fields.showReference == 'show' %}<path d="M4,{{ stonks.reference_y }}H696" fill="none" stroke="currentColor" stroke-dasharray="6 4" stroke-width="1" vector-effect="non-scaling-stroke" />{% endif %}
-        {% if stonks.chart_type == 'line' or stonks.has_ohlc != true %}
-          {% if fields.showReference == 'show' %}
-            {% assign clip_id = 'stonks-' | append_random %}
-            {% assign below_height = 286 | minus: stonks.reference_y %}
-            <defs>
-              <clipPath id="{{ clip_id }}-above"><rect x="0" y="0" width="700" height="{{ stonks.reference_y }}" /></clipPath>
-              <clipPath id="{{ clip_id }}-below"><rect x="0" y="{{ stonks.reference_y }}" width="700" height="{{ below_height }}" /></clipPath>
-            </defs>
-            <path data-stonks-line data-stonks-above d="{{ line_path | escape }}" clip-path="url(#{{ clip_id }}-above)" fill="none" stroke="var(--stonks-rise)" stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
-            <path data-stonks-below d="{{ line_path | escape }}" clip-path="url(#{{ clip_id }}-below)" fill="none" stroke="var(--stonks-fall)" stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
-          {% else %}
-            <path data-stonks-line d="{{ line_path | escape }}" fill="none" stroke="currentColor" stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" />
-          {% endif %}
+        {% if line_path != empty %}
+          <g stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round">
+            {% if fields.showReference == 'show' %}
+              {% assign clip_id = 'stonks-' | append_random %}
+              {% assign below_height = 286 | minus: stonks.reference_y %}
+              <defs>
+                <clipPath id="{{ clip_id }}-above"><rect x="0" y="0" width="700" height="{{ stonks.reference_y }}" /></clipPath>
+                <clipPath id="{{ clip_id }}-below"><rect x="0" y="{{ stonks.reference_y }}" width="700" height="{{ below_height }}" /></clipPath>
+              </defs>
+              <path data-stonks-line data-stonks-above d="{{ line_path | escape }}" clip-path="url(#{{ clip_id }}-above)" fill="none" stroke="var(--stonks-rise)" vector-effect="non-scaling-stroke" />
+              <path data-stonks-below d="{{ line_path | escape }}" clip-path="url(#{{ clip_id }}-below)" fill="none" stroke="var(--stonks-fall)" vector-effect="non-scaling-stroke" />
+            {% else %}
+              <path data-stonks-line d="{{ line_path | escape }}" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke" />
+            {% endif %}
+          </g>
         {% else %}
           <g data-stonks-ohlc stroke="currentColor" stroke-width="{{ line_width }}" stroke-linejoin="miter">
             <path data-stonks-candle="up" d="{{ up_path | escape }}" stroke="var(--stonks-rise)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-rise-fill){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
-            <path data-stonks-candle="down" d="{{ down_path | escape }}" stroke="var(--stonks-fall)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-fall-fill){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
+            <path data-stonks-candle="down" d="{{ down_path | escape }}" stroke="var(--stonks-fall)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-fall){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
             <path data-stonks-candle="flat" d="{{ flat_path | escape }}" fill="var(--stonks-paper)" vector-effect="non-scaling-stroke" />
             <path d="{{ missing_path | escape }}" fill="none" vector-effect="non-scaling-stroke" />
           </g>
         {% endif %}
-        {% if stonks.has_volume == true %}<path data-stonks-volume d="{{ volume_path | escape }}" fill="none" stroke="currentColor" stroke-width="{{ stonks.volume_width }}" />{% endif %}
+        {% if stonks.has_volume == true %}<path data-stonks-volume d="{% for point in stonks.volumes %}M{{ point[0] }},274V{{ point[1] }}{% endfor %}" fill="none" stroke="currentColor" stroke-width="{{ stonks.volume_width }}" />{% endif %}
       </svg>
-      {% if stonks.chart_type == 'line' or stonks.has_ohlc != true %}
+      {% if line_path != empty %}
         <span class="absolute bg--black rounded--full w--2 h--2" data-stonks-point="{{ direction | escape }}" aria-hidden="true" style="left: 99.428571%; top: {{ stonks.last_y | times: 100.0 | divided_by: 286.0 }}%; transform: translate(-50%, -50%);"></span>
       {% endif %}
     </div>
