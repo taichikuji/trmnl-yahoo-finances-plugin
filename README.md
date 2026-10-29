@@ -15,7 +15,7 @@ Synthetic sample prices. [All layout previews](TRMNL/README.md#previews).
 - **Chart:** six date ranges, line style and width, grid, volume, return baseline, extended hours and price precision.
 - **Text:** six languages and adjustable heading and label sizes.
 
-Full, half horizontal, half vertical and quadrant layouts support TRMNL OG, X and B/W/R/Y. Monochrome uses arrows and hollow/filled candles; color panels add gain/loss highlights. The default is **NTNX · USD · one year**, with a **15-minute minimum refresh interval**. Free accounts support 15 minutes; 5 minutes requires TRMNL+. Actual updates follow your device and playlist schedule. See [how TRMNL refresh rates work](https://help.trmnl.com/en/articles/10113695-how-refresh-rates-work).
+Full, half horizontal, half vertical and quadrant layouts support TRMNL OG, X and B/W/R/Y. Monochrome uses arrows and hollow/filled candles; color panels add gain/loss highlights.
 
 For private installation and data behavior, see the [plugin guide](TRMNL/README.md#setup).
 

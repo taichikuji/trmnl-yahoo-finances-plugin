@@ -30,9 +30,7 @@ Synthetic sample prices rendered from the actual templates with Framework 3.4.3.
 
 ## Setup
 
-Create a Private Plugin with **Static** data `{}`, **Node** Serverless, Framework **3.4.3** and a **15-minute** refresh interval. Keep normal screen padding.
-
-Free accounts have a **15-minute minimum**; **5 minutes requires TRMNL+**. The plugin interval limits how often data can refresh. It does not run a request every 15 minutes: TRMNL refreshes on demand around your device and playlist schedule, so updates may be hours apart. See [how refresh rates work](https://help.trmnl.com/en/articles/10113695-how-refresh-rates-work).
+Create a Private Plugin with **Static** data `{}`, **Node** Serverless and Framework **3.4.3**. Keep normal screen padding.
 
 Copy the form and plugin settings from [settings.yml](src/settings.yml). Paste [shared.liquid](src/shared.liquid) into Shared, each layout into its matching markup tab, and the complete [transform.js](src/transform.js) into Serverless. Save, refresh and add the plugin to your playlist.
 
