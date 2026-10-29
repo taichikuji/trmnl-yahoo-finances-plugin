@@ -2,8 +2,20 @@
 name: STONKS
 description: watch line go up
 icon: media/icon.svg
-strategy: static
-static_data: '{}'
+strategy: polling
+polling_verb: get
+polling_headers: 'Accept: application/json'
+polling_url: |-
+  {%- assign ticker = symbol | default: 'NTNX' | strip | url_decode | upcase | url_encode -%}
+  {%- case dateRanges -%}
+    {%- when '1d|1' -%}{%- assign query = 'range=1d&interval=1m' -%}
+    {%- when '1m|30' -%}{%- assign query = 'range=1mo&interval=30m' -%}
+    {%- when '3m|60' -%}{%- assign query = 'range=3mo&interval=60m' -%}
+    {%- when '60m|1W' -%}{%- assign query = 'range=5y&interval=1wk' -%}
+    {%- when 'all|1M' -%}{%- assign query = 'range=max&interval=1mo' -%}
+    {%- else -%}{%- assign query = 'range=1y&interval=1d' -%}
+  {%- endcase -%}
+  https://query1.finance.yahoo.com/v8/finance/chart/{{ ticker }}?{{ query }}&includePrePost={% if extendedHours == 'show' or extendedHours == 'true' or extendedHours == 'yes' %}true{% else %}false{% endif %}
 serverless_language: node
 refresh_interval: 15
 framework_version: 3.4.3

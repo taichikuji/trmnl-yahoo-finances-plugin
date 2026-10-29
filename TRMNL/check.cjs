@@ -17,6 +17,29 @@ const render = (out, fields = {}, name = 'full') => liquid.parseAndRender(
 const layoutNames = ['full', 'half_horizontal', 'half_vertical', 'quadrant'];
 const config = fields => load().settings(input(fields));
 
+test('native polling URLs preserve Yahoo symbols, ranges and session choices', async () => {
+  const source = YAML.parse(fs.readFileSync(path.join(__dirname, 'src/settings.yml'), 'utf8')).polling_url;
+  for (const dateRanges of ['1d|1', '1m|30', '3m|60', '12m|1D', '60m|1W', 'all|1M', 'invalid']) {
+    for (const symbol of ['NTNX', '%5ESTOXX50E', 'M%26M.NS']) for (const extendedHours of ['hide', 'show']) {
+      const fields = { symbol, dateRanges, extendedHours };
+      const url = await liquid.parseAndRender(source, fields);
+      const expected = config(fields);
+      assert.equal(url, 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(expected.symbol) +
+        '?range=' + expected.range + '&interval=' + expected.interval + '&includePrePost=' + expected.extended);
+    }
+  }
+});
+
+test('Serverless enriches a native polling response without requesting the stock twice', async () => {
+  const data = sample();
+  let requests = 0;
+  const out = await load(async () => { requests++; throw Error('Unexpected provider request'); }).run(data);
+  assert.equal(requests, 0);
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.deepEqual(plain(out.chart), data.chart);
+  assert.deepEqual(plain(out.trmnl_state), plain((await load().run({})).trmnl_state));
+});
+
 for (const [range, interval, seconds, count] of [
   ['1d|1', '1m', 60, 390], ['1m|30', '30m', 1800, 580], ['3m|60', '60m', 3600, 520],
   ['12m|1D', '1d', 86400, 262], ['60m|1W', '1wk', 604800, 261], ['all|1M', '1mo', 2678400, 900]
@@ -276,9 +299,9 @@ test('all locales format prices and dates, and every registered view renders onc
   }
 });
 
-test('form offers all recipe controls, with values matching runtime and static Node configuration', () => {
+test('form offers all recipe controls, with values matching runtime and native polling configuration', () => {
   const s = YAML.parse(fs.readFileSync(path.join(__dirname, 'src/settings.yml'), 'utf8'));
-  assert.equal(s.strategy, 'static'); assert.equal(s.serverless_language, 'node'); assert.equal(s.no_screen_padding, 'no');
+  assert.equal(s.strategy, 'polling'); assert.equal(s.serverless_language, 'node'); assert.equal(s.no_screen_padding, 'no');
   const fields = Object.fromEntries(s.custom_fields.map(f => [f.keyname, f]));
   for (const key of ['symbol', 'currency', 'chartType', 'locale', 'dateRanges', 'lineWidth', 'lineType', 'showGridlines', 'showVolume', 'headerFontSize', 'fontSize']) assert.ok(fields[key]);
   assert.equal(fields.dateRanges.options.length, 6); assert.equal(fields.locale.options.length, 6);

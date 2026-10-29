@@ -342,7 +342,7 @@ async function run(input) {
       return parseYahoo(await readResponse(response), now, c, symbol, fx);
     };
     const work = (async () => {
-      const data = await request(config.symbol, config);
+      const data = input?.chart ? parseYahoo(input, now, config) : await request(config.symbol, config);
       const plan = conversionPlan(data.currency, config.currency);
       // A five-day FX window also covers gaps before the first intraday bar.
       const fxConfig = { ...config, range: config.range === '1d' ? '5d' : config.range, extended: false };
@@ -354,9 +354,9 @@ async function run(input) {
     if (previous?.fx_at && state.fx_at && state.fx_at < previous.fx_at) throw new Error('Provider returned older exchange rate');
     const detail = now - state.market_at > MAX_MARKET_AGE ? 'Provider prices are over 7 days old' :
       state.fx_at && now - state.fx_at > MAX_MARKET_AGE ? 'Exchange rate is over 7 days old' : '';
-    return { stonks: display(state, !!detail, detail, config), trmnl_state: state };
+    return { chart: input?.chart, stonks: display(state, !!detail, detail, config), trmnl_state: state };
   } catch (error) {
     const detail = controller.signal.aborted ? 'Request timed out' : String(error?.message || 'Market data unavailable').slice(0, 160);
-    return { stonks: display(previous, true, detail, config), ...(previous ? { trmnl_state: previous } : {}) };
+    return { chart: input?.chart, stonks: display(previous, true, detail, config), ...(previous ? { trmnl_state: previous } : {}) };
   } finally { clearTimeout(timer); controller.abort(); }
 }
