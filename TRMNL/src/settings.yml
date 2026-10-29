@@ -1,6 +1,6 @@
 ---
 name: STONKS
-description: Native market charts, your way
+description: watch line go up
 icon: media/icon.svg
 strategy: static
 static_data: '{}'
@@ -16,7 +16,7 @@ custom_fields:
     category: finance
     github_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin
     learn_more_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin/tree/main/TRMNL#setup
-    description: Native Yahoo Finance charts for every TRMNL layout. Stocks, ETFs, indices, forex and crypto. Direction arrows stay clear on monochrome screens; color panels add automatic highlights.
+    description: Made by Ivan Perez, STONKS is a Yahoo Finance charts for your TRMNL. Tracks Stocks, ETFs, indices, forex and crypto.
   - keyname: symbol
     field_type: string
     name: Symbol
