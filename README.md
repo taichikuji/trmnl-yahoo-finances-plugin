@@ -2,6 +2,10 @@
 
 Stocks, ETFs, indices, forex and crypto on your TRMNL, with native Yahoo Finance charts and a clear price and return. Supports lines, OHLC bars and candles without a remote widget or market-data API key.
 
+![STONKS sample stock chart on TRMNL OG](TRMNL/media/preview_full.webp)
+
+Synthetic sample prices. [All layout previews](TRMNL/README.md#previews).
+
 ## Settings
 
 - **Symbol:** Yahoo Finance ticker, such as `NTNX`, `VWCE.DE`, `^GSPC` or `BTC-USD`. Common TradingView exchange symbols also work.

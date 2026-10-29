@@ -43,7 +43,7 @@ test('symbols accept Yahoo and known TradingView exchanges without guessing unkn
   const cases = { NTNX: 'NTNX', 'NASDAQ%3ANTNX': 'NTNX', 'XETR:VWCE': 'VWCE.DE', 'LSE:VWRP': 'VWRP.L',
     'SP:SPX': '^GSPC', '^GSPC': '^GSPC', 'BTC-USD': 'BTC-USD', 'BINANCE:BTCUSDT': 'BTC-USD', 'FX:EURUSD': 'EURUSD=X' };
   for (const [from, to] of Object.entries(cases)) assert.equal(load().symbolFor(from), to);
-  for (const bad of ['NOPE:ABC', 'https://example.com', 'A<B', '%broken', 'A:B:C']) assert.throws(() => load().symbolFor(bad));
+  for (const bad of ['NOPE:ABC', 'https://example.com', 'A<B', '%broken', 'A:B:C', 'NASDAQ:NTNX:', 'NASDAQ:NTNX::A']) assert.throws(() => load().symbolFor(bad));
 });
 
 test('malformed market settings fail before fetching; Liquid clamps numeric display controls', async () => {
@@ -65,6 +65,30 @@ test('daily return uses first unadjusted close; 1D uses previous close', async (
   const intraday = sample({ interval: '1m', seconds: 60, count: 390 });
   const one = await load(ok(intraday)).run(input({ dateRanges: '1d|1' }));
   assert.equal(one.stonks.change, intraday.chart.result[0].meta.regularMarketPrice - intraday.chart.result[0].meta.chartPreviousClose);
+});
+
+test('new quote bars preserve exact seconds through saved-state compaction', async () => {
+  const data = sample({ count: 4, interval: '1m', seconds: 60 });
+  const r = data.chart.result[0];
+  r.meta.regularMarketTime += 66;
+  const out = await load(ok(data)).run(input({ dateRanges: '1d|1' }));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.trmnl_state.bars.at(-1)[0], r.meta.regularMarketTime);
+  assert.equal(out.trmnl_state.market_at, r.meta.regularMarketTime);
+  const fallback = await load(async () => ({ ok: false, status: 429 })).run(input({ dateRanges: '1d|1' }, out.trmnl_state));
+  assert.deepEqual(plain(fallback.trmnl_state), plain(out.trmnl_state));
+});
+
+test('1D uses a valid previous close when the preferred provider field is invalid', async () => {
+  for (const invalid of [0, -1, 'missing']) {
+    const data = sample({ interval: '1m', seconds: 60 });
+    data.chart.result[0].meta.chartPreviousClose = invalid;
+    data.chart.result[0].meta.previousClose = 42;
+    const out = await load(ok(data)).run(input({ dateRanges: '1d|1' }));
+    assert.equal(out.stonks.has_data, true, out.stonks.detail);
+    assert.equal(out.trmnl_state.baseline, 42);
+    assert.equal(out.trmnl_state.return_basis, 'previous_close');
+  }
 });
 
 test('15m provider data is aggregated into actual 30m OHLCV bars', () => {
@@ -316,6 +340,18 @@ test('streamed JSON preserves multibyte names split between response chunks', as
   const out = await load(async () => new Response(stream)).run({});
   assert.equal(out.stonks.has_data, true, out.stonks.detail);
   assert.equal(out.stonks.name, data.chart.result[0].meta.longName);
+});
+
+test('provider text remains escaped content in every native view', async () => {
+  const data = sample();
+  data.chart.result[0].meta.longName = '<script>alert("quote")</script> & {{ 7 | plus: 1 }}';
+  const out = await load(ok(data)).run({});
+  for (const name of layoutNames) {
+    const html = await render(out, {}, name);
+    assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /&lt;script&gt;/);
+    assert.match(html, /{{ 7 \| plus: 1 }}/);
+  }
 });
 
 test('the shared deadline also covers an FX body that stops responding', async () => {

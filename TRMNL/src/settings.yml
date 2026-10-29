@@ -14,6 +14,8 @@ custom_fields:
     field_type: author_bio
     name: About STONKS
     category: finance
+    github_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin
+    learn_more_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin/tree/main/TRMNL#setup
     description: Native Yahoo Finance charts for every TRMNL layout. Stocks, ETFs, indices, forex and crypto. Direction arrows stay clear on monochrome screens; color panels add automatic highlights.
   - keyname: symbol
     field_type: string

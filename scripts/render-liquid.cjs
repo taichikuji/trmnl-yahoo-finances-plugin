@@ -9,10 +9,9 @@ function loadPlugin(overrides = {}) {
     fetch, AbortController, TextEncoder, TextDecoder, setTimeout, clearTimeout, ...overrides
   };
   const source = fs.readFileSync(path.join(__dirname, '../TRMNL/src/transform.js'), 'utf8');
-  vm.runInNewContext(source + '\nthis.plugin = { run, chart, parseYahoo, validState, bytes, settings, symbolFor, aggregateByTime, combine, convert, makeState, linePath };', sandbox);
+  vm.runInNewContext(source + '\nthis.plugin = { run, parseYahoo, validState, bytes, settings, symbolFor, linePath };', sandbox);
   return sandbox.plugin;
 }
-
 
 // Development-only equivalents of the native TRMNL filters used by our views.
 const { randomUUID } = require('node:crypto');

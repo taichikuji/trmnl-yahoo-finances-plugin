@@ -44,12 +44,11 @@ async function main() {
   const unavailable = await offline.run({});
   stale.stonks.detail = 'SAMPLE · HTTP 429';
   const states = { fresh, stale, unavailable };
-  async function scenario(fields, fixture = sample(), saved) {
-    const result = await plugin(async () => ({ ok: true, json: async () => fixture })).run({
-      trmnl: { plugin_settings: { custom_fields_values: fields }, ...(saved ? { state: saved } : {}) }
-    });
+  async function scenario(fields, fixture = sample()) {
+    const trmnl = { plugin_settings: { custom_fields_values: fields } };
+    const result = await plugin(async () => ({ ok: true, json: async () => fixture })).run({ trmnl });
     if (!result.stonks.has_data) throw new Error('Invalid preview scenario: ' + result.stonks.detail);
-    result.trmnl = { plugin_settings: { custom_fields_values: fields } };
+    result.trmnl = trmnl;
     return result;
   }
   const sourceCloses = sample().chart.result[0].indicators.quote[0].close;
@@ -93,7 +92,6 @@ async function main() {
       parsed.origin === 'https://trmnl.com' && /^\/fonts\/[\w.-]+$/.test(parsed.pathname) && !parsed.search ?
         parsed.pathname.slice(1) : null;
     if (!name) throw new Error('Unexpected preview resource: ' + url);
-    if (url === frameworkURL && process.env.TRMNL_CSS_PATH) return fs.readFileSync(process.env.TRMNL_CSS_PATH);
     const file = path.join(cache, name);
     if (!fs.existsSync(file)) {
       const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
@@ -171,7 +169,6 @@ async function main() {
                 if (!node.textContent.trim() || node.parentElement.closest('svg')) continue;
                 const range = document.createRange();
                 range.selectNodeContents(node);
-                if (node.parentElement.closest('[data-clamp]')) continue;
                 if ([...range.getClientRects()].some(outside)) textOverflow.push(node.textContent.trim());
               }
               const textOverlaps = [];
@@ -185,7 +182,6 @@ async function main() {
                 a.selectNodeContents(price); b.selectNodeContents(currency);
                 if (overlaps(a.getBoundingClientRect(), b.getBoundingClientRect())) textOverlaps.push('price and currency');
               }
-              const clipped = [...main.querySelectorAll('[data-stonks] [data-clamp]')].filter(el => el.scrollWidth > el.clientWidth + 1);
               const paint = selector => {
                 const el = main.querySelector(selector);
                 if (!el) return null;
@@ -213,7 +209,7 @@ async function main() {
               return { width: bounds.width, height: bounds.height,
                 svgWidth: svg?.width, svgHeight: svg?.height,
                 nativeStructure: layout.nextElementSibling?.classList.contains('title_bar'),
-                timeFits, overflow, textOverflow, textOverlaps, fonts, signals, markerError, clipped: clipped.map(el => el.textContent.trim()),
+                timeFits, overflow, textOverflow, textOverlaps, fonts, signals, markerError,
                 pathLength: chart?.getTotalLength() ?? null };
             });
             if (failedResources.length) throw new Error(failedResources.join('\n'));

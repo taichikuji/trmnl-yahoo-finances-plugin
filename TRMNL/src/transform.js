@@ -28,7 +28,7 @@ function symbolFor(value) {
   catch { throw new Error('Use a Yahoo Finance symbol, e.g. NTNX or VWCE.DE'); }
   if (text.includes(':')) {
     const [exchange, ticker, extra] = text.split(':');
-    if (extra || !ticker) throw new Error('Invalid symbol');
+    if (extra !== undefined || !ticker) throw new Error('Invalid symbol');
     const indices = { 'SP:SPX': '^GSPC', 'NASDAQ:NDX': '^NDX', 'DJ:DJI': '^DJI', 'TVC:VIX': '^VIX' };
     if (indices[text]) return indices[text];
     const suffix = { NASDAQ: '', NYSE: '', AMEX: '', NYSEARCA: '', ARCA: '', CBOE: '', XETR: '.DE', XETRA: '.DE', LSE: '.L', EURONEXT: '.PA', BME: '.MC', MIL: '.MI', SIX: '.SW', TSX: '.TO', ASX: '.AX', TSE: '.T', HKEX: '.HK' };
@@ -126,9 +126,10 @@ function parseYahoo(payload, now, config, expectedSymbol = config.symbol, fx = f
   }
   // Yahoo occasionally answers 30m with 15m bars. Aggregate rather than relabel.
   const normalized = !fx && config.interval === '30m' && m.dataGranularity === '15m' ? aggregateByTime(bars, 1800) : bars;
+  const previous = positive(m.chartPreviousClose) ? m.chartPreviousClose : m.previousClose;
   return { bars: normalized, symbol: expectedSymbol, name: String(m.longName || m.shortName || expectedSymbol).slice(0, 140),
     currency, native_currency: currency, timezone, price: latest, market_at,
-    previous_close: positive(m.chartPreviousClose || m.previousClose) ? (m.chartPreviousClose || m.previousClose) * unit : null };
+    previous_close: positive(previous) ? previous * unit : null };
 }
 
 function combine(group) {
@@ -153,11 +154,12 @@ function makeState(data, config, now) {
   const baseline = config.range === '1d' && positive(data.previous_close) ? data.previous_close : data.bars[0][4];
   const high = Math.max(...data.bars.map(b => b[2] ?? b[4]));
   const low = Math.min(...data.bars.map(b => b[3] ?? b[4]));
-  let group = 1;
+  let group = Math.max(1, Math.ceil(data.bars.length / 360));
   let state;
   do {
     const bars = [];
-    for (let i = 0; i < data.bars.length; i += group) bars.push(combine(data.bars.slice(i, i + group)).map(n => n === null ? null : round(n)));
+    // Keep timestamps exact: rounding can move an appended quote after market_at.
+    for (let i = 0; i < data.bars.length; i += group) bars.push(combine(data.bars.slice(i, i + group)).map((n, j) => n === null || j === 0 ? n : round(n)));
     state = { v: 2, key: config.key, symbol: data.symbol, name: data.name, currency: data.currency,
       native_currency: data.native_currency, timezone: data.timezone, market_at: data.market_at, fetched_at: now,
       price: data.price, baseline, high, low,
@@ -214,10 +216,11 @@ function convert(data, rates, config) {
     const factor = factorAt(b[0]);
     return b.map((n, i) => i >= 1 && i <= 4 && n !== null ? n * factor : n);
   });
-  bars.at(-1)[4] = data.price * current;
-  if (bars.at(-1)[1] !== null) {
-    bars.at(-1)[2] = Math.max(bars.at(-1)[2], bars.at(-1)[4]);
-    bars.at(-1)[3] = Math.min(bars.at(-1)[3], bars.at(-1)[4]);
+  const last = bars.at(-1);
+  last[4] = data.price * current;
+  if (last[1] !== null) {
+    last[2] = Math.max(last[2], last[4]);
+    last[3] = Math.min(last[3], last[4]);
   }
   return { ...data, bars, price: data.price * current, currency: config.currency,
     // The quote has no reliable previous-close timestamp. A converted 1D
@@ -230,6 +233,7 @@ function linePath(points, type) {
   if (!points.length) return '';
   const f = n => n.toFixed(1);
   let path = `M${f(points[0].x)},${f(points[0].y)}`;
+  if (type !== '2') return path + points.slice(1).map(p => type === '1' ? `H${f(p.x)}V${f(p.y)}` : `L${f(p.x)},${f(p.y)}`).join('');
   // A monotone cubic stays inside each pair's price range: smoothing must not
   // manufacture highs/lows. Zero the tangent at every local extremum.
   const slopes = points.slice(1).map((p, i) => (p.y - points[i].y) / (p.x - points[i].x));
@@ -237,13 +241,10 @@ function linePath(points, type) {
     slopes[i - 1] * slopes[i] <= 0 ? 0 : 2 / (1 / slopes[i - 1] + 1 / slopes[i]));
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1], b = points[i];
-    if (type === '1') path += `H${f(b.x)}V${f(b.y)}`;
-    else if (type === '2') {
-      const dx = (b.x - a.x) / 3;
-      // Clamp the control points too, including the end tangents.
-      const clamp = v => Math.max(Math.min(a.y, b.y), Math.min(Math.max(a.y, b.y), v));
-      path += `C${f(a.x + dx)},${f(clamp(a.y + tangents[i - 1] * dx))},${f(b.x - dx)},${f(clamp(b.y - tangents[i] * dx))},${f(b.x)},${f(b.y)}`;
-    } else path += `L${f(b.x)},${f(b.y)}`;
+    const dx = (b.x - a.x) / 3;
+    // Clamp the control points too, including the end tangents.
+    const clamp = v => Math.max(Math.min(a.y, b.y), Math.min(Math.max(a.y, b.y), v));
+    path += `C${f(a.x + dx)},${f(clamp(a.y + tangents[i - 1] * dx))},${f(b.x - dx)},${f(clamp(b.y - tangents[i] * dx))},${f(b.x)},${f(b.y)}`;
   }
   return path;
 }
@@ -280,16 +281,17 @@ function chart(state, config) {
   const maxVolume = Math.max(1, ...state.bars.map(b => b[5] || 0));
   const volume = hasVolume ? state.bars.map((b, i) => b[5] === null ? '' : `M${f(x(i))},274V${f(274 - b[5] / maxVolume * 40)}`).join('') : '';
   const digits = config.precision === 'auto' ? (state.currency === 'BTC' || state.currency === 'ETH' || state.price < 1 ? 6 : state.currency === 'JPY' ? 0 : 2) : +config.precision;
-  const number = n => new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+  const number = new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const date = new Intl.DateTimeFormat(LOCALES[config.locale], {
+    timeZone: state.timezone, ...(config.range === '1d' ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } :
+      config.range === '1mo' || config.range === '3mo' ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' })
+  });
   const dates = [0, Math.round((state.bars.length - 1) / 2), state.bars.length - 1].map(i => ({
-    x: x(i), label: new Intl.DateTimeFormat(LOCALES[config.locale], {
-      timeZone: state.timezone, ...(config.range === '1d' ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } :
-        config.range === '1mo' || config.range === '3mo' ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' })
-    }).format(new Date(state.bars[i][0] * 1000))
+    x: x(i), label: date.format(new Date(state.bars[i][0] * 1000))
   }));
   return { path: candles ? '' : linePath(points, config.lineType), up, down, flat, volume_path: volume, volume_width: width,
     reference_y: y(state.baseline), last_y: points.at(-1).y,
-    ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: number(max - r * (max - min)) })), dates,
+    ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: number.format(max - r * (max - min)) })), dates,
     missing_path: missing, has_ohlc: hasOHLC, has_volume: hasVolume, digits };
 }
 
@@ -300,13 +302,9 @@ function display(state, stale, detail, config) {
   if (!state) return base;
   const graphics = chart(state, config);
   const formatter = new Intl.NumberFormat(LOCALES[config.locale], { minimumFractionDigits: graphics.digits, maximumFractionDigits: graphics.digits });
-  const signed = (n, digits) => {
-    const parts = new Intl.NumberFormat(LOCALES[config.locale], {
-      minimumFractionDigits: digits, maximumFractionDigits: digits
-    }).formatToParts(Math.abs(n));
-    const zero = !parts.some(p => ['integer', 'fraction'].includes(p.type) && /[1-9]/.test(p.value));
-    return (zero ? '' : n < 0 ? '−' : '+') + parts.map(p => p.value).join('');
-  };
+  const signed = (n, digits) => new Intl.NumberFormat(LOCALES[config.locale], {
+    minimumFractionDigits: digits, maximumFractionDigits: digits, signDisplay: 'exceptZero'
+  }).format(n).replace('-', '−');
   const date = new Date(state.market_at * 1000);
   const compact = new Intl.DateTimeFormat(LOCALES[config.locale], { timeZone: state.timezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   const full = new Intl.DateTimeFormat(LOCALES[config.locale], { timeZone: state.timezone, year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZoneName: 'short' });
