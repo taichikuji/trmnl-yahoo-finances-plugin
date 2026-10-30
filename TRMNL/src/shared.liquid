@@ -10,12 +10,12 @@
 {% assign font_size = fields.fontSize | default: 12 | plus: 0 | at_least: 8 | at_most: 16 %}
 {% assign line_width = fields.lineWidth | default: 2 | plus: 0 | at_least: 1 | at_most: 5 %}
 {% case fields.locale %}
-  {% when 'de_DE' %}{% assign words = 'KEINE DATEN|ALTE DATEN|Erneuter Versuch beim nächsten Update.|Marktdaten|FX-Schätzung|Erweitert|Regulär|Keine gespeicherten Kurse für diese Auswahl|ab erstem Kurs|Gestiegen|Gefallen|Unverändert' | split: '|' %}
-  {% when 'fr' %}{% assign words = 'DONNÉES INDISPONIBLES|DONNÉES ANCIENNES|Nouvel essai à la prochaine mise à jour.|Données du marché|Estimation FX|Étendue|Normale|Aucun cours enregistré pour cette sélection|depuis le premier cours|En hausse|En baisse|Inchangé' | split: '|' %}
-  {% when 'es' %}{% assign words = 'DATOS NO DISPONIBLES|DATOS ANTIGUOS|Se intentará en la próxima actualización.|Datos de mercado|Estimación FX|Extendida|Regular|Sin precios guardados para esta selección|desde el primer precio|Sube|Baja|Sin cambios' | split: '|' %}
-  {% when 'it' %}{% assign words = 'DATI NON DISPONIBILI|DATI NON AGGIORNATI|Nuovo tentativo al prossimo aggiornamento.|Dati di mercato|Stima FX|Estesa|Regolare|Nessun prezzo salvato per questa selezione|dal primo prezzo|In rialzo|In ribasso|Invariato' | split: '|' %}
-  {% when 'pl' %}{% assign words = 'BRAK DANYCH|NIEAKTUALNE DANE|Kolejna próba przy następnym odświeżeniu.|Dane rynkowe|Szacunek FX|Rozszerzona|Zwykła|Brak zapisanych cen dla tego wyboru|od pierwszej ceny|Wzrost|Spadek|Bez zmian' | split: '|' %}
-  {% else %}{% assign words = 'DATA UNAVAILABLE|STALE DATA|Next refresh will try again.|Market data|FX estimate|Extended|Regular|No saved prices for this selection|from first bar|Up|Down|Unchanged' | split: '|' %}
+  {% when 'de_DE' %}{% assign words = 'KEINE DATEN|ALTE DATEN|Erneuter Versuch beim nächsten Update.|Marktdaten|Erweitert|Regulär|Keine gespeicherten Kurse für diese Auswahl|ab erstem Kurs|Gestiegen|Gefallen|Unverändert' | split: '|' %}
+  {% when 'fr' %}{% assign words = 'DONNÉES INDISPONIBLES|DONNÉES ANCIENNES|Nouvel essai à la prochaine mise à jour.|Données du marché|Étendue|Normale|Aucun cours enregistré pour cette sélection|depuis le premier cours|En hausse|En baisse|Inchangé' | split: '|' %}
+  {% when 'es' %}{% assign words = 'DATOS NO DISPONIBLES|DATOS ANTIGUOS|Se intentará en la próxima actualización.|Datos de mercado|Extendida|Regular|Sin precios guardados para esta selección|desde el primer precio|Sube|Baja|Sin cambios' | split: '|' %}
+  {% when 'it' %}{% assign words = 'DATI NON DISPONIBILI|DATI NON AGGIORNATI|Nuovo tentativo al prossimo aggiornamento.|Dati di mercato|Estesa|Regolare|Nessun prezzo salvato per questa selezione|dal primo prezzo|In rialzo|In ribasso|Invariato' | split: '|' %}
+  {% when 'pl' %}{% assign words = 'BRAK DANYCH|NIEAKTUALNE DANE|Kolejna próba przy następnym odświeżeniu.|Dane rynkowe|Rozszerzona|Zwykła|Brak zapisanych cen dla tego wyboru|od pierwszej ceny|Wzrost|Spadek|Bez zmian' | split: '|' %}
+  {% else %}{% assign words = 'DATA UNAVAILABLE|STALE DATA|Next refresh will try again.|Market data|Extended|Regular|No saved prices for this selection|from first bar|Up|Down|Unchanged' | split: '|' %}
 {% endcase %}
 {% case stonks.range %}
   {% when '1d' %}{% assign range_label = '1D' %}
@@ -84,7 +84,7 @@
 {% endtemplate %}
 
 {% template stonks_return %}
-{% case direction %}{% when 'up' %}{% assign direction_label = words[9] %}{% when 'down' %}{% assign direction_label = words[10] %}{% else %}{% assign direction_label = words[11] %}{% endcase %}
+{% case direction %}{% when 'up' %}{% assign direction_label = words[8] %}{% when 'down' %}{% assign direction_label = words[9] %}{% else %}{% assign direction_label = words[10] %}{% endcase %}
 <div class="flex flex--col flex--right gap--xsmall no-shrink">
   <div class="flex flex--row gap--xsmall">
     <span class="label label--outline flex flex--row gap--xsmall" data-stonks-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ stonks.percent_label | escape }}% · {{ range_label | escape }}">
@@ -101,7 +101,7 @@
 
 {% template stonks_status %}
 <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
-  <span class="description w--min-0" title="{{ stonks.detail | escape }}{% if stonks.fx_iso != '' %} FX: {{ stonks.fx_iso | escape }}{% endif %}">{% if stonks.stale == true %}{{ stonks.detail | escape }}{% else %}Yahoo · {{ stonks.interval | escape }}{% if stonks.group > 1 %} ×{{ stonks.group }}{% endif %} · {% if stonks.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}{% if stonks.chart_type != 'line' and stonks.has_ohlc != true %} · OHLC unavailable · line shown{% endif %}{% endif %}{% if stonks.fx_iso != '' %} · {{ stonks.native_currency | escape }}→{{ stonks.currency | escape }} · {{ words[4] }}{% endif %}{% if stonks.range == '1d' and stonks.return_basis == 'first_close' %} · {{ words[8] }}{% endif %}</span>
+  <span class="description w--min-0" title="{{ stonks.detail | escape }}">{% if stonks.stale == true %}{{ stonks.detail | escape }}{% else %}Yahoo · {{ stonks.interval | escape }}{% if stonks.group > 1 %} ×{{ stonks.group }}{% endif %} · {% if stonks.extended %}{{ words[4] }}{% else %}{{ words[5] }}{% endif %}{% if stonks.chart_type != 'line' and stonks.has_ohlc != true %} · OHLC unavailable · line shown{% endif %}{% endif %}{% if stonks.range == '1d' and stonks.return_basis == 'first_close' %} · {{ words[7] }}{% endif %}</span>
   {% if stonks.stale == true %}<span class="label label--small label--filled no-shrink">{{ words[1] | escape }}</span>{% endif %}
 </div>
 {% endtemplate %}
@@ -201,7 +201,7 @@
 <div class="stretch flex flex--col flex--center gap--small text--center w--full">
   <span class="title title--small">{{ words[0] | escape }}</span>
   <span class="description w--full">{{ stonks.detail | escape }}</span>
-  <span class="description w--full">{{ words[7] | escape }}.<br />{{ words[2] | escape }}</span>
+  <span class="description w--full">{{ words[6] | escape }}.<br />{{ words[2] | escape }}</span>
 </div>
 {% endtemplate %}
 

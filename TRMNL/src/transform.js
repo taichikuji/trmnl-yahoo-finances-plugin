@@ -1,4 +1,4 @@
-// TRMNL Node 20 Serverless. Yahoo requests share a 3.8s deadline; never retry.
+// TRMNL Node 20 Serverless. One Yahoo request with a 3.8s deadline; never retry.
 // Liquid owns SVG drawing, layout and captions; keep data, chart math and Intl here.
 const REQUEST_TIMEOUT_MS = 3800;
 const DAY = 86400;
@@ -31,7 +31,7 @@ function symbolFor(value) {
 }
 
 function symbolsFor(value) {
-  const symbols = String(value || 'NTNX').split(',').map(part => {
+  const symbols = String(value ?? 'NTNX').split(',').map(part => {
     if (!part.trim()) throw new Error('Enter symbols separated by commas without empty entries');
     return symbolFor(part);
   });
@@ -49,14 +49,12 @@ function settings(input) {
   const index = cursor?.list === list && Number.isSafeInteger(cursor.next) &&
     cursor.next >= 0 && cursor.next < symbols.length && bytes(input.trmnl.state) <= STATE_LIMIT ? cursor.next : 0;
   const symbol = symbols[index];
-  const currency = String(f.currency || 'USD').trim().toUpperCase();
-  if (!/^(NATIVE|[A-Z]{3})$/.test(currency)) throw new Error('Use a currency code, e.g. USD, EUR, BTC or NATIVE');
   const dateRanges = choose(f.dateRanges, Object.keys(RANGES), '12m|1D');
   const extended = ['show', 'true', 'yes'].includes(String(f.extendedHours));
   return {
-    symbol, symbols, currency, dateRanges, ...RANGES[dateRanges], extended,
+    symbol, symbols, dateRanges, ...RANGES[dateRanges], extended,
     rotation: symbols.length > 1 ? { list, next: (index + 1) % symbols.length } : undefined,
-    key: [symbol, currency, dateRanges, extended ? 'extended' : 'regular'].join('|'),
+    key: [symbol, 'NATIVE', dateRanges, extended ? 'extended' : 'regular'].join('|'),
     chartType: choose(f.chartType, ['line', 'bars', 'candles'], 'line'),
     locale: choose(f.locale, Object.keys(LOCALES), 'en'),
     lineType: choose(f.lineType, ['0', '1', '2'], '2'),
@@ -79,15 +77,15 @@ function validZone(zone) {
 }
 
 // Each candle is [time, open, high, low, close, volume]. Never invent OHLC/volume.
-function parseYahoo(payload, now, config, expectedSymbol = config.symbol, fx = false) {
+function parseYahoo(payload, now, config) {
   const results = payload?.chart?.result;
   if (payload?.chart?.error || !Array.isArray(results) || results.length !== 1) throw new Error('Symbol or range unavailable from Yahoo');
   const { meta: m, timestamp: times, indicators } = results[0] || {};
   const q = indicators?.quote?.[0];
   const accepted = config.interval === '30m' ? ['15m', '30m'] : config.interval === '60m' ? ['60m', '1h'] : [config.interval];
-  if (String(m?.symbol).toUpperCase() !== expectedSymbol) throw new Error('Provider returned a different symbol');
+  if (String(m?.symbol).toUpperCase() !== config.symbol) throw new Error('Provider returned a different symbol');
   if (!positive(m.regularMarketPrice) || !stamp(m.regularMarketTime) || m.regularMarketTime > now + 300) throw new Error('Invalid provider quote or timestamp');
-  if (!accepted.includes(m.dataGranularity)) throw new Error(`${fx ? 'FX' : 'Provider'} interval ${String(m.dataGranularity).slice(0, 10)} unavailable for ${config.interval}`);
+  if (!accepted.includes(m.dataGranularity)) throw new Error(`Provider interval ${String(m.dataGranularity).slice(0, 10)} unavailable for ${config.interval}`);
   if (!Array.isArray(times) || !Array.isArray(q?.close) || times.length !== q.close.length || times.length > 30000) throw new Error('Invalid provider price series');
   if (typeof m.currency !== 'string' || !/^[A-Za-z]{3}$/.test(m.currency)) throw new Error('Provider currency unavailable');
   const timezone = validZone(m.exchangeTimezoneName || 'UTC');
@@ -126,9 +124,9 @@ function parseYahoo(payload, now, config, expectedSymbol = config.symbol, fx = f
     } else bars.push([quoteTime, null, null, null, price, null]);
   }
   // Yahoo occasionally answers 30m with 15m bars. Aggregate rather than relabel.
-  const normalized = !fx && config.interval === '30m' && m.dataGranularity === '15m' ? aggregateByTime(bars, 1800) : bars;
+  const normalized = config.interval === '30m' && m.dataGranularity === '15m' ? aggregateByTime(bars, 1800) : bars;
   const previous = positive(m.chartPreviousClose) ? m.chartPreviousClose : m.previousClose;
-  return { bars: normalized, symbol: expectedSymbol, name: String(m.longName || m.shortName || expectedSymbol).slice(0, 140),
+  return { bars: normalized, symbol: config.symbol, name: String(m.longName || m.shortName || config.symbol).slice(0, 140),
     currency, native_currency: currency, timezone, price: latest, market_at,
     previous_close: positive(previous) ? previous * unit : null };
 }
@@ -153,10 +151,11 @@ function aggregateByTime(bars, seconds) {
 
 function makeState(data, config, now) {
   const baseline = config.range === '1d' && positive(data.previous_close) ? data.previous_close : data.bars[0][4];
+  // Keep the v2 snapshot format so existing native charts remain valid fallbacks.
   const state = compactState({ v: 2, key: config.key, symbol: data.symbol, name: data.name, currency: data.currency,
       native_currency: data.native_currency, timezone: data.timezone, market_at: data.market_at, fetched_at: now,
       price: data.price, baseline,
-      return_basis: config.range === '1d' && positive(data.previous_close) ? 'previous_close' : 'first_close', fx_at: data.fx_at || null, fx_rate: data.fx_rate || null,
+      return_basis: config.range === '1d' && positive(data.previous_close) ? 'previous_close' : 'first_close', fx_at: null, fx_rate: null,
       group: 1, source_count: data.bars.length, bars: data.bars, rotation: config.rotation });
   if (!validState(state, now, config)) throw new Error('Saved chart could not be validated');
   return state;
@@ -176,16 +175,14 @@ function compactState(source) {
 }
 
 function validState(s, now, config) {
-  return !!s && s.v === 2 && (!config || s.key === config.key) && typeof s.key === 'string' && s.key.length < 150 &&
-    typeof s.symbol === 'string' && (!config || (s.symbol === config.symbol &&
-      s.currency === (config.currency === 'NATIVE' ? s.native_currency : config.currency) &&
-      (config.range !== '1d' || s.fx_at === null || s.return_basis === 'first_close'))) && typeof s.name === 'string' && s.name.length <= 140 &&
+  // Accept legacy native-currency keys, but never reuse a converted chart.
+  return !!s && s.v === 2 && (!config || s.key === config.key || s.key === config.key.replace('|NATIVE|', `|${s.currency}|`)) && typeof s.key === 'string' && s.key.length < 150 &&
+    typeof s.symbol === 'string' && (!config || s.symbol === config.symbol) && typeof s.name === 'string' && s.name.length <= 140 &&
     /^[A-Z]{3}$/.test(s.currency) && /^[A-Z]{3}$/.test(s.native_currency) &&
     typeof s.timezone === 'string' && validZone(s.timezone) === s.timezone &&
     stamp(s.market_at) && stamp(s.fetched_at) && s.market_at <= now + 300 && s.fetched_at <= now + 300 &&
     positive(s.price) && positive(s.baseline) &&
-    (s.fx_at === null ? s.fx_rate === null && s.currency === s.native_currency :
-      stamp(s.fx_at) && s.fx_at <= now + 300 && positive(s.fx_rate) && s.currency !== s.native_currency) &&
+    s.fx_at === null && s.fx_rate === null && s.currency === s.native_currency &&
     (s.return_basis === undefined || ['previous_close', 'first_close'].includes(s.return_basis)) &&
     Number.isSafeInteger(s.group) && s.group >= 1 && Number.isSafeInteger(s.source_count) &&
     Array.isArray(s.bars) && s.bars.length >= 2 && s.bars.length <= 360 && s.source_count >= s.bars.length && s.source_count <= 30001 &&
@@ -195,42 +192,6 @@ function validState(s, now, config) {
       ((b[1] === null && b[2] === null && b[3] === null) ||
         (positive(b[1]) && positive(b[2]) && positive(b[3]) && b[2] >= Math.max(b[1], b[4]) && b[3] <= Math.min(b[1], b[4]))) &&
       (b[5] === null || (Number.isFinite(b[5]) && b[5] >= 0))) && bytes(s) <= STATE_LIMIT;
-}
-
-function conversionPlan(from, to) {
-  if (to === 'NATIVE' || to === from) return [];
-  if (['BTC', 'ETH'].includes(to)) return [
-    ...(from === 'USD' ? [] : [{ symbol: from + 'USD=X', divide: false }]),
-    { symbol: to + '-USD', divide: true }
-  ];
-  return [{ symbol: from + to + '=X', divide: false }];
-}
-function convert(data, rates, config) {
-  if (!rates.length) return data;
-  const at = (series, t) => {
-    let left = 0, right = series.bars.length - 1, found = -1;
-    while (left <= right) { const mid = (left + right) >> 1; if (series.bars[mid][0] <= t) { found = mid; left = mid + 1; } else right = mid - 1; }
-    if (found < 0 || t - series.bars[found][0] > Math.max(MAX_MARKET_AGE, config.seconds * 2)) throw new Error('Historical exchange rate unavailable');
-    return series.bars[found][4];
-  };
-  const factorAt = t => rates.reduce((v, r) => r.divide ? v / at(r.data, t) : v * at(r.data, t), 1);
-  const current = rates.reduce((v, r) => r.divide ? v / r.data.price : v * r.data.price, 1);
-  if (!positive(current) || rates.some(r => Math.abs(r.data.market_at - data.market_at) > MAX_MARKET_AGE)) throw new Error('Exchange rate is out of date');
-  const bars = data.bars.map(b => {
-    const factor = factorAt(b[0]);
-    return b.map((n, i) => i >= 1 && i <= 4 && n !== null ? n * factor : n);
-  });
-  const last = bars.at(-1);
-  last[4] = data.price * current;
-  if (last[1] !== null) {
-    last[2] = Math.max(last[2], last[4]);
-    last[3] = Math.min(last[3], last[4]);
-  }
-  return { ...data, bars, price: data.price * current, currency: config.currency,
-    // The quote has no reliable previous-close timestamp. A converted 1D
-    // return therefore starts at its first aligned bar, labelled in the view.
-    previous_close: null,
-    fx_at: Math.min(...rates.map(r => r.data.market_at)), fx_rate: current };
 }
 
 function curveSegments(points) {
@@ -291,7 +252,7 @@ function chart(state, config, formatNumber) {
 }
 
 function display(state, stale, detail, config) {
-  const base = { has_data: false, stale: true, detail, symbol: config.symbol, currency: config.currency,
+  const base = { has_data: false, stale: true, detail, symbol: config.symbol, currency: '',
     range: config.range, interval: config.interval, extended: config.extended,
     chart_type: config.chartType };
   if (!state) return base;
@@ -312,7 +273,7 @@ function display(state, stale, detail, config) {
     absolute_change_label: signed(change, digits),
     market_at: state.market_at, market_iso: date.toISOString(), market_label: marketLabel({ year: 'numeric', timeZoneName: 'short' }), market_label_compact: marketLabel(),
     native_currency: state.native_currency, return_basis: state.return_basis, group: state.group,
-    fx_iso: state.fx_at ? new Date(state.fx_at * 1000).toISOString() : '' };
+    fx_iso: '' };
 }
 
 // Limit each body before JSON parsing so a provider error page or unexpectedly
@@ -352,7 +313,7 @@ async function run(input) {
   // The cursor advances independently; fallback always keeps its own ticker.
   const priorConfig = config.symbols.includes(cached?.symbol) ? {
     ...config, symbol: cached.symbol,
-    key: [cached.symbol, config.currency, config.dateRanges, config.extended ? 'extended' : 'regular'].join('|')
+    key: [cached.symbol, 'NATIVE', config.dateRanges, config.extended ? 'extended' : 'regular'].join('|')
   } : null;
   const fallback = priorConfig && validState(cached, now, priorConfig) ? cached : null;
   const controller = new AbortController();
@@ -361,27 +322,16 @@ async function run(input) {
     const deadline = new Promise((_, reject) => {
       timer = setTimeout(() => { controller.abort(); reject(new Error('Request timed out')); }, REQUEST_TIMEOUT_MS);
     });
-    const request = async (symbol, c, fx = false) => {
-      controller.signal.throwIfAborted();
-      const response = await fetch(yahooURL(symbol, c), { signal: controller.signal, redirect: 'error', headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' } });
-      if (!response.ok) throw new Error(`${fx ? 'FX' : 'Yahoo'} HTTP ${response.status}`);
+    const work = (async () => {
+      const response = await fetch(yahooURL(config.symbol, config), { signal: controller.signal, redirect: 'error', headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      if (!response.ok) throw new Error(`Yahoo HTTP ${response.status}`);
       const payload = await readResponse(response);
       controller.signal.throwIfAborted();
-      return parseYahoo(payload, now, c, symbol, fx);
-    };
-    const work = (async () => {
-      const data = await request(config.symbol, config);
-      const plan = conversionPlan(data.currency, config.currency);
-      // A five-day FX window also covers gaps before the first intraday bar.
-      const fxConfig = { ...config, range: config.range === '1d' ? '5d' : config.range, extended: false };
-      const rates = await Promise.all(plan.map(async p => ({ ...p, data: await request(p.symbol, fxConfig, true) })));
-      return makeState(convert(data, rates, config), config, now);
+      return makeState(parseYahoo(payload, now, config), config, now);
     })();
     const state = await Promise.race([work, deadline]);
     if (previous && state.market_at < previous.market_at) throw new Error('Provider returned older data');
-    if (previous?.fx_at && state.fx_at && state.fx_at < previous.fx_at) throw new Error('Provider returned older exchange rate');
-    const detail = now - state.market_at > MAX_MARKET_AGE ? 'Provider prices are over 7 days old' :
-      state.fx_at && now - state.fx_at > MAX_MARKET_AGE ? 'Exchange rate is over 7 days old' : '';
+    const detail = now - state.market_at > MAX_MARKET_AGE ? 'Provider prices are over 7 days old' : '';
     return { stonks: display(state, !!detail, detail, config), trmnl_state: state };
   } catch (error) {
     const detail = controller.signal.aborted ? 'Request timed out' : String(error?.message || 'Market data unavailable').slice(0, 160);

@@ -129,28 +129,9 @@ test('single-ticker failures preserve the v2 snapshot exactly and recover withou
   assert.equal(calls.length, 3);
 });
 
-test('an FX failure also advances rotation while retaining the previous converted chart', async () => {
-  const fields = { symbol: 'NTNX,AAPL,NVDA', currency: 'EUR' };
-  const rate = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
-  const saved = plain((await load(quotes(sample(), rate)).run(input(fields))).trmnl_state);
-  const calls = [];
-  const out = await load(async url => {
-    calls.push(url);
-    return url.includes('/AAPL?') ? ok(sample({ symbol: 'AAPL' }))() : { ok: false, status: 429 };
-  }).run(input(fields, saved));
-  assert.equal(calls.length, 2);
-  assert.ok(calls[0].includes('/AAPL?'));
-  assert.ok(calls[1].includes('/USDEUR%3DX?'));
-  assert.equal(out.stonks.symbol, 'NTNX');
-  assert.equal(out.stonks.currency, 'EUR');
-  assert.equal(out.stonks.price, saved.price);
-  assert.equal(out.stonks.detail, 'FX HTTP 429');
-  assert.equal(load().settings(input(fields, plain(out.trmnl_state))).symbol, 'NVDA');
-});
-
 test('invalid lists and settings are rejected before any request', async () => {
   const oversized = Array.from({ length: 110 }, (_, i) => 'A'.repeat(37) + String(i).padStart(3, '0')).join(',');
-  for (const symbol of ['NTNX,,AAPL', ',NTNX', 'NTNX,', 'NTNX, ntnx', '^GSPC,%5EGSPC',
+  for (const symbol of ['', ' ', 'NTNX,,AAPL', ',NTNX', 'NTNX,', 'NTNX, ntnx', '^GSPC,%5EGSPC',
     'NTNX,%broken', 'NTNX,NASDAQ:AAPL', 'NTNX,<script>', oversized]) {
     let calls = 0;
     const out = await load(async () => { calls++; throw Error('Unexpected fetch'); }).run(input({ symbol }));
@@ -198,7 +179,7 @@ test('rotation discards incompatible charts while still saving the next position
   const fields = { symbol: 'NTNX,AAPL,NVDA' };
   const saved = plain((await run(sample(), fields)).trmnl_state);
   for (const [changes, state] of [
-    [{ symbol: 'AAPL,NVDA' }, saved], [{ currency: 'EUR' }, saved], [{ dateRanges: '1d|1' }, saved],
+    [{ symbol: 'AAPL,NVDA' }, saved], [{ dateRanges: '1d|1' }, saved],
     [{ extendedHours: 'show' }, saved], [{}, { ...saved, price: -1 }], [{}, { ...saved, junk: 'x'.repeat(8192) }]
   ]) {
     const out = await load(async () => ({ ok: false, status: 429 })).run(input({ ...fields, ...changes }, state));
@@ -227,29 +208,47 @@ test('fresh and legacy charts fit the complete state budget with a large rotatio
   assert.ok(failed.trmnl_state.group > legacy.group);
 });
 
-test('mixed native currencies need one request each; conversion requests only the required FX pairs', async () => {
+test('mixed currencies always use one request, including obsolete conversion settings', async () => {
   const market = sample({ symbol: 'VWCE.DE', currency: 'EUR' });
-  let state;
-  for (const [symbol, currency] of [['NTNX', 'USD'], ['VWCE.DE', 'EUR']]) {
-    const calls = [];
-    const out = await load(async url => { calls.push(url); return quotes(sample(), market)(url); })
-      .run(input({ symbol: 'NTNX,VWCE.DE', currency: 'NATIVE' }, state));
-    assert.equal(calls.length, 1);
-    assert.equal(out.stonks.symbol, symbol);
-    assert.equal(out.stonks.currency, currency);
-    state = plain(out.trmnl_state);
+  for (const oldCurrency of [undefined, 'NATIVE', 'USD', 'EUR', 'BTC', 'invalid']) {
+    let state;
+    for (const [symbol, currency] of [['NTNX', 'USD'], ['VWCE.DE', 'EUR'], ['NTNX', 'USD']]) {
+      const calls = [];
+      const out = await load(async url => { calls.push(url); return quotes(sample(), market)(url); })
+        .run(input({ symbol: 'NTNX,VWCE.DE', currency: oldCurrency }, state));
+      assert.equal(calls.length, 1);
+      assert.equal(out.stonks.has_data, true, out.stonks.detail);
+      assert.equal(out.stonks.symbol, symbol);
+      assert.equal(out.stonks.currency, currency);
+      assert.equal(out.stonks.fx_iso, '');
+      state = plain(out.trmnl_state);
+    }
   }
-  const calls = [];
-  const rate = sample({ symbol: 'EURUSD=X', startPrice: 1.1 });
-  const btc = sample({ symbol: 'BTC-USD', startPrice: 60000 });
-  const out = await load(async url => { calls.push(decodeURIComponent(new URL(url).pathname.split('/').at(-1))); return quotes(market, rate, btc)(url); })
-    .run(input({ symbol: 'VWCE.DE,NTNX', currency: 'BTC' }));
-  assert.equal(out.stonks.has_data, true, out.stonks.detail);
-  assert.deepEqual(calls, ['VWCE.DE', 'EURUSD=X', 'BTC-USD']);
-  assert.equal(out.stonks.currency, 'BTC');
 });
 
-test('a timed-out stock body cannot trigger FX requests after the refresh completes', async () => {
+test('legacy native charts survive an outage; converted charts require a new quote', async () => {
+  const fields = { symbol: 'NTNX,VWCE.DE' };
+  const saved = plain((await run(sample(), fields)).trmnl_state);
+  saved.key = 'NTNX|USD|12m|1D|regular';
+  delete saved.rotation;
+  for (const state of [saved, { ...saved, key: 'NTNX|NATIVE|12m|1D|regular' }]) {
+    const out = await load(async () => ({ ok: false, status: 429 })).run(input(fields, state));
+    assert.equal(out.stonks.has_data, true);
+    assert.equal(out.stonks.currency, 'USD');
+    assert.equal(out.stonks.price, saved.price);
+    assert.equal(out.trmnl_state.rotation.next, 1);
+  }
+  const converted = { ...saved, key: 'NTNX|EUR|12m|1D|regular', currency: 'EUR', fx_at: saved.market_at, fx_rate: 0.9 };
+  const failed = await load(async () => ({ ok: false, status: 429 })).run(input(fields, converted));
+  assert.equal(failed.stonks.has_data, false);
+  assert.deepEqual(plain(failed.trmnl_state), { rotation: { list: fields.symbol, next: 1 } });
+  const recovered = await run(sample({ symbol: 'VWCE.DE', currency: 'EUR' }), fields, failed.trmnl_state);
+  assert.equal(recovered.stonks.has_data, true, recovered.stonks.detail);
+  assert.equal(recovered.stonks.symbol, 'VWCE.DE');
+  assert.equal(recovered.stonks.currency, 'EUR');
+});
+
+test('a late response cannot change the timed-out refresh or issue another request', async () => {
   let finish, calls = 0;
   const out = await load(async () => {
     calls++;
@@ -383,28 +382,9 @@ for (const [label, change] of Object.entries({
   assert.equal(out.stonks.has_data, false); assert.equal(out.trmnl_state, undefined);
 });
 
-for (const [name, failure] of [
-  ['429', async () => ({ ok: false, status: 429 })], ['network', async () => { throw new Error('Network unavailable'); }],
-  ['JSON', async () => ({ ok: true, json: async () => { throw new SyntaxError('Bad JSON'); } })], ['invalid', ok({})]
-]) test(`${name} keeps a saved converted chart on FX failure without retries`, async () => {
-  let requests = 0;
-  const failing = load(async (...args) => {
-    requests++;
-    return args[0].includes('/NTNX?') ? ok(sample())() : failure(...args);
-  });
-  const fields = { currency: 'EUR' };
-  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
-  const saved = plain((await load(quotes(sample(), fx)).run(input(fields))).trmnl_state);
-  const out = await failing.run(input(fields, saved));
-  assert.equal(requests, 2);
-  assert.deepEqual(plain(out.trmnl_state), saved); assert.equal(out.stonks.stale, true);
-  assert.equal(out.stonks.market_at, saved.market_at);
-  if (name === '429') assert.equal(out.stonks.detail, 'FX HTTP 429');
-});
-
-test('saved fallback never crosses symbol, currency, range or session boundaries', async () => {
+test('saved fallback never crosses symbol, range or session boundaries', async () => {
   const saved = plain((await run(sample())).trmnl_state);
-  for (const f of [{ symbol: 'AAPL' }, { currency: 'EUR' }, { dateRanges: '1d|1' }, { extendedHours: 'show' }]) {
+  for (const f of [{ symbol: 'AAPL' }, { dateRanges: '1d|1' }, { extendedHours: 'show' }]) {
     const out = await load(async () => ({ ok: false, status: 429 })).run(input(f, saved));
     assert.equal(out.stonks.has_data, false); assert.equal(out.trmnl_state, undefined);
   }
@@ -417,49 +397,18 @@ test('presentation changes redraw cached data even when the provider is unavaila
   assert.equal(out.stonks.chart_type, 'candles'); assert.match(await render(out, { locale: 'es' }), /DATOS ANTIGUOS/);
 });
 
-test('one deadline bounds FX response bodies without retries', async () => {
+test('one deadline bounds response bodies and aborts the request without retries', async () => {
   let calls = 0, aborted = false;
   const out = await load(async (url, options) => {
     calls++; options.signal.addEventListener('abort', () => { aborted = true; });
-    if (url.includes('/NTNX?')) return ok(sample())();
     return { ok: true, json: () => new Promise(() => {}) };
-  }, { setTimeout: fn => setTimeout(fn, 10) }).run(input({ currency: 'EUR' }));
-  assert.equal(calls, 2); assert.equal(aborted, true); assert.equal(out.stonks.detail, 'Request timed out');
+  }, { setTimeout: fn => setTimeout(fn, 10) }).run(input());
+  assert.equal(calls, 1); assert.equal(aborted, true); assert.equal(out.stonks.detail, 'Request timed out');
 });
 
-test('real historical FX rates convert the curve, latest price and baseline', async () => {
-  const market = sample();
-  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
-  const r = fx.chart.result[0];
-  const out = await load(async url => ({ ok: true, json: async () => url.includes('USDEUR') ? fx : market })).run(input({ currency: 'EUR' }));
-  assert.equal(out.stonks.has_data, true, out.stonks.detail);
-  assert.equal(out.stonks.currency, 'EUR');
-  assert.equal(out.stonks.price, market.chart.result[0].meta.regularMarketPrice * r.meta.regularMarketPrice);
-  assert.equal(out.trmnl_state.baseline, market.chart.result[0].indicators.quote[0].close[0] * r.indicators.quote[0].close[0]);
-  assert.match(await render(out), /USD→EUR/);
-  assert.ok(out.stonks.fx_iso);
-});
-
-test('BTC conversion divides by BTC-USD rather than pretending BTC is a fiat pair', async () => {
-  const market = sample(); const btc = sample({ symbol: 'BTC-USD', startPrice: 60000 });
-  const out = await load(async url => ({ ok: true, json: async () => url.includes('BTC-USD') ? btc : market })).run(input({ currency: 'BTC' }));
-  assert.equal(out.stonks.has_data, true, out.stonks.detail);
-  assert.equal(out.stonks.price, market.chart.result[0].meta.regularMarketPrice / btc.chart.result[0].meta.regularMarketPrice);
-  assert.equal(out.stonks.digits, 6);
-});
-
-test('unavailable, misaligned or stale FX cannot publish a misleading converted chart', async () => {
-  for (const mutate of [r => { r.timestamp = r.timestamp.map(t => t + 1); r.meta.regularMarketTime += 1; },
-    r => { r.meta.regularMarketTime -= 10 * 86400; r.timestamp = r.timestamp.map(t => t - 10 * 86400); }]) {
-    const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 }); mutate(fx.chart.result[0]);
-    const out = await load(async url => ({ ok: true, json: async () => url.includes('USDEUR') ? fx : sample() })).run(input({ currency: 'EUR' }));
-    assert.equal(out.stonks.has_data, false); assert.equal(out.trmnl_state, undefined);
-  }
-});
-
-test('pence are converted to pounds before display and FX', async () => {
+test('pence are normalized to pounds without a conversion request', async () => {
   const data = sample({ symbol: 'VWRP.L', currency: 'GBp', startPrice: 10000 });
-  const out = await run(data, { symbol: 'VWRP.L', currency: 'NATIVE' });
+  const out = await run(data, { symbol: 'VWRP.L' });
   assert.equal(out.stonks.currency, 'GBP'); assert.equal(out.stonks.price, data.chart.result[0].meta.regularMarketPrice / 100);
 });
 
@@ -527,61 +476,16 @@ test('all locales format prices and dates, and every registered view renders onc
   }
 });
 
-test('form keeps existing controls and runs Serverless with Static data', () => {
+test('form removes currency conversion and runs Serverless with Static data', () => {
   const s = YAML.parse(fs.readFileSync(path.join(__dirname, 'src/settings.yml'), 'utf8'));
   assert.equal(s.strategy, 'static'); assert.deepEqual(JSON.parse(s.static_data), {}); assert.equal(s.polling_url, undefined); assert.equal(s.serverless_language, 'node'); assert.equal(s.no_screen_padding, 'no');
   const fields = Object.fromEntries(s.custom_fields.map(f => [f.keyname, f]));
-  for (const key of ['symbol', 'currency', 'chartType', 'locale', 'dateRanges', 'lineWidth', 'lineType', 'showGridlines', 'showVolume', 'headerFontSize', 'fontSize']) assert.ok(fields[key]);
+  for (const key of ['symbol', 'chartType', 'locale', 'dateRanges', 'lineWidth', 'lineType', 'showGridlines', 'showVolume', 'headerFontSize', 'fontSize']) assert.ok(fields[key]);
+  assert.equal(fields.currency, undefined);
   assert.equal(fields.dateRanges.options.length, 6); assert.equal(fields.locale.options.length, 6);
 });
 
-test('converted 1D returns start at the first aligned price and label that baseline', async () => {
-  const market = sample({ interval: '1m', seconds: 60, count: 390 });
-  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '1m', seconds: 60, count: 1440, startPrice: 0.8 });
-  const out = await load(async url => ({ ok: true, json: async () => url.includes('USDEUR') ? fx : market }))
-    .run(input({ currency: 'EUR', dateRanges: '1d|1', showReference: 'show' }));
-  assert.equal(out.stonks.has_data, true, out.stonks.detail);
-  const first = market.chart.result[0].timestamp[0];
-  const rateIndex = fx.chart.result[0].timestamp.findLastIndex(t => t <= first);
-  const baseline = market.chart.result[0].indicators.quote[0].close[0] * fx.chart.result[0].indicators.quote[0].close[rateIndex];
-  assert.equal(out.trmnl_state.baseline, baseline);
-  assert.equal(out.trmnl_state.return_basis, 'first_close');
-  assert.equal(out.stonks.change, out.stonks.price - baseline);
-  const html = await render(out);
-  assert.match(html, /from first bar/);
-  // A v2 snapshot using the former, unaligned converted previous-close baseline
-  // must not silently survive as a valid 1D fallback after this correction.
-  const old = { ...plain(out.trmnl_state), return_basis: 'previous_close' };
-  assert.equal(load().validState(old, NOW / 1000, config({ currency: 'EUR', dateRanges: '1d|1' })), false);
-});
-
-test('an older FX quote cannot replace a matching saved converted chart', async () => {
-  const market = sample();
-  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
-  const fetch = async url => ({ ok: true, json: async () => url.includes('USDEUR') ? fx : market });
-  const saved = plain((await load(fetch).run(input({ currency: 'EUR' }))).trmnl_state);
-  fx.chart.result[0].meta.regularMarketTime -= 60;
-  fx.chart.result[0].timestamp = fx.chart.result[0].timestamp.map(t => t - 60);
-  const out = await load(fetch).run(input({ currency: 'EUR' }, saved));
-  assert.equal(out.stonks.stale, true);
-  assert.equal(out.stonks.detail, 'Provider returned older exchange rate');
-  assert.deepEqual(plain(out.trmnl_state), saved);
-});
-
-test('old FX is marked stale even when the asset quote is within the age limit', async () => {
-  const market = sample();
-  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
-  for (const [data, days] of [[market, 6], [fx, 8]]) {
-    const r = data.chart.result[0]; r.meta.regularMarketTime -= days * 86400;
-    r.timestamp = r.timestamp.map(t => t - days * 86400);
-  }
-  const out = await load(async url => ({ ok: true, json: async () => url.includes('USDEUR') ? fx : market })).run(input({ currency: 'EUR' }));
-  assert.equal(out.stonks.has_data, true, out.stonks.detail);
-  assert.equal(out.stonks.stale, true);
-  assert.equal(out.stonks.detail, 'Exchange rate is over 7 days old');
-});
-
-test('cached metadata must agree with the selection, FX state and grouped bar count', async () => {
+test('cached metadata must agree with the selection, native currency and grouped bar count', async () => {
   const p = load(); const saved = plain((await p.run(input())).trmnl_state);
   for (const corrupted of [{ ...saved, symbol: 'AAPL' }, { ...saved, currency: 'EUR' },
     { ...saved, fx_rate: 1.2 }, { ...saved, source_count: saved.bars.length * saved.group + 1 },
@@ -598,16 +502,14 @@ test('cached metadata must agree with the selection, FX state and grouped bar co
 });
 
 test('oversized declared or streamed bodies preserve fallback within the response budget', async () => {
-  const fields = { currency: 'EUR' };
-  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
-  const saved = plain((await load(quotes(sample(), fx)).run(input(fields))).trmnl_state);
+  const saved = plain((await run()).trmnl_state);
   let cancelled = false;
   const stream = new ReadableStream({
     pull(controller) { controller.enqueue(new Uint8Array(1024 * 1024).fill(32)); },
     cancel() { cancelled = true; }
   });
   for (const response of [new Response('{}', { headers: { 'content-length': String(2 * 1024 * 1024 + 1) } }), new Response(stream)]) {
-    const out = await load(async url => url.includes('/NTNX?') ? ok(sample())() : response).run(input(fields, saved));
+    const out = await load(async () => response).run(input({}, saved));
     assert.equal(out.stonks.detail, 'Provider response exceeds 2 MiB');
     assert.equal(out.stonks.stale, true);
     assert.deepEqual(plain(out.trmnl_state), saved);
@@ -616,16 +518,17 @@ test('oversized declared or streamed bodies preserve fallback within the respons
 });
 
 test('streamed JSON preserves multibyte names split between response chunks', async () => {
-  const data = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
-  data.chart.result[0].meta.longName = 'FX · 日本株';
+  const data = sample();
+  data.chart.result[0].meta.longName = 'SAMPLE · 日本株';
   const encoded = new TextEncoder().encode(JSON.stringify(data));
   const split = encoded.findIndex(byte => byte === 0xe6) + 1;
   const stream = new ReadableStream({ start(controller) {
     controller.enqueue(encoded.slice(0, split)); controller.enqueue(encoded.slice(split)); controller.close();
   } });
-  const out = await load(async url => url.includes('/NTNX?') ? ok(sample())() : new Response(stream)).run(input({ currency: 'EUR' }));
+  const out = await load(async () => new Response(stream)).run(input());
   assert.equal(out.stonks.has_data, true, out.stonks.detail);
-  assert.equal(out.stonks.price, sample().chart.result[0].meta.regularMarketPrice * data.chart.result[0].meta.regularMarketPrice);
+  assert.equal(out.stonks.name, 'SAMPLE · 日本株');
+  assert.equal(out.stonks.price, data.chart.result[0].meta.regularMarketPrice);
 });
 
 test('provider text remains escaped content in every native view', async () => {
@@ -640,15 +543,13 @@ test('provider text remains escaped content in every native view', async () => {
   }
 });
 
-test('the shared deadline also covers an FX stream that stops responding', async () => {
+test('the deadline also covers a response stream that stops responding', async () => {
   let calls = 0;
-  const market = sample();
   const out = await load(async url => {
     calls++;
-    if (url.includes('/NTNX?')) return ok(market)();
     return new Response(new ReadableStream({ start() {} }));
-  }, { setTimeout: fn => setTimeout(fn, 30) }).run(input({ currency: 'EUR' }));
-  assert.equal(calls, 2); assert.equal(out.stonks.has_data, false);
+  }, { setTimeout: fn => setTimeout(fn, 30) }).run(input());
+  assert.equal(calls, 1); assert.equal(out.stonks.has_data, false);
   assert.equal(out.stonks.detail, 'Request timed out');
 });
 

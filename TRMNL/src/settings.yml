@@ -24,13 +24,6 @@ custom_fields:
     description: One Yahoo Finance symbol, or distinct symbols separated by commas to rotate each refresh.
     help_text: 'Examples: NTNX, VWCE.DE, %5ESTOXX50E, BTC-USD, EURUSD=X. Enter NTNX,AAPL,NVDA to rotate. Plain symbols such as ^STOXX50E also work. <a href="https://finance.yahoo.com/" target="_blank">Find a symbol on Yahoo Finance</a>.'
     group: Market
-  - keyname: currency
-    field_type: string
-    name: Currency
-    default: USD
-    description: Display currency, or NATIVE to use the instrument's currency.
-    help_text: 'Examples: USD, EUR, GBP, JPY, BTC, ETH. Conversion requires a Yahoo exchange-rate pair. Historical prices use historical rates; converted OHLC is an estimate. Unsupported pairs show an error.'
-    group: Market
   - keyname: dateRanges
     field_type: select
     name: Date range
@@ -103,7 +96,7 @@ custom_fields:
       - Show: show
       - Hide: hide
     description: Dashed line used to measure the return. Color screens highlight the line chart above and below it.
-    help_text: Native-currency 1D uses the previous close when available. Converted 1D uses the first aligned bar; other ranges use the first close.
+    help_text: 1D uses the previous close when available; otherwise, the first close is used.
     group: Chart
   - keyname: locale
     field_type: select

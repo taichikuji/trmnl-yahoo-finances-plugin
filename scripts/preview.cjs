@@ -65,8 +65,8 @@ async function main() {
   states.large = await scenario({ headerFontSize: 'large', fontSize: 16, showVolume: 'show', chartType: 'candles', locale: 'de_DE' });
   const etf = sample({ symbol: 'VWCE.DE', currency: 'EUR' });
   etf.chart.result[0].meta.longName = 'Vanguard FTSE All-World UCITS ETF USD Accumulating';
-  states.etf = await scenario({ symbol: 'VWCE.DE', currency: 'NATIVE', locale: 'fr', fontSize: 12 }, etf);
-  states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
+  states.etf = await scenario({ symbol: 'VWCE.DE', locale: 'fr', fontSize: 12 }, etf);
+  states.crypto = await scenario({ symbol: 'BTC-USD', locale: 'es', precision: '6' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
   states.intraday = await scenario({ dateRanges: '1d|1', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
   states.stale_large = await offline.run({ trmnl: {
     state: states.large.trmnl_state,
@@ -74,13 +74,13 @@ async function main() {
   } });
   states.stale_large.trmnl = { plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } } };
   states.stale_large.stonks.detail = 'SAMPLE · ' + states.stale_large.stonks.detail;
-  const fxMarket = sample({ interval: '1m', seconds: 60, count: 390 });
-  const fxRates = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '1m', seconds: 60, count: 1440, startPrice: 0.8 });
-  states.converted_day = await plugin(quotes(fxMarket, fxRates)).run({
-    trmnl: { plugin_settings: { custom_fields_values: { currency: 'EUR', dateRanges: '1d|1', locale: 'es' } } }
-  });
-  if (!states.converted_day.stonks.has_data) throw new Error(states.converted_day.stonks.detail);
-  states.converted_day.trmnl = { plugin_settings: { custom_fields_values: { currency: 'EUR', dateRanges: '1d|1', locale: 'es' } } };
+  const rotationFields = { symbol: 'NTNX,AAPL,NVDA' };
+  const rotation = await scenario(rotationFields);
+  states.rotation_stale = await offline.run({ trmnl: {
+    state: rotation.trmnl_state, plugin_settings: { custom_fields_values: rotationFields }
+  } });
+  states.rotation_stale.trmnl = rotation.trmnl;
+  states.rotation_stale.stonks.detail = 'SAMPLE · ' + states.rotation_stale.stonks.detail;
 
   const shared = fs.readFileSync(path.join(root, 'TRMNL/src/shared.liquid'), 'utf8');
   const settings = YAML.parse(fs.readFileSync(path.join(root, 'TRMNL/src/settings.yml'), 'utf8'));
