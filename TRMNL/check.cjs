@@ -32,6 +32,81 @@ test('native polling URLs preserve Yahoo symbols, ranges and session choices', a
   }
 });
 
+test('native polling URL and Serverless agree on comma-separated rotation', async () => {
+  const source = YAML.parse(fs.readFileSync(path.join(__dirname, 'src/settings.yml'), 'utf8')).polling_url;
+  const fields = { symbol: ' NTNX , aapl , %5ESTOXX50E ' };
+  for (const [last, expected] of [
+    [null, 'NTNX'], ['NTNX', 'AAPL'], ['AAPL', '^STOXX50E'],
+    ['^STOXX50E', 'NTNX'], ['MSFT', 'NTNX']
+  ]) {
+    const state = last ? { symbol: last } : undefined;
+    const expectedConfig = load().settings(input(fields, state));
+    assert.equal(expectedConfig.symbol, expected);
+    const url = await liquid.parseAndRender(source, { ...fields, ...(state ? { trmnl: { state } } : {}) });
+    assert.equal(url, 'https://query1.finance.yahoo.com/v8/finance/chart/' +
+      encodeURIComponent(expected) + '?range=1y&interval=1d&includePrePost=false');
+    assert.doesNotMatch(url, /\s/);
+  }
+});
+
+test('multiple tickers rotate on successful native polls, then wrap without extra requests', async () => {
+  const fields = { symbol: 'NTNX,AAPL,NVDA' };
+  let saved;
+  let requests = 0;
+  const p = load(async () => { requests++; throw Error('Unexpected stock request'); });
+  for (const symbol of ['NTNX', 'AAPL', 'NVDA', 'NTNX']) {
+    assert.equal(p.settings(input(fields, saved)).symbol, symbol);
+    const out = await p.run(polled(sample({ symbol }), fields, saved));
+    assert.equal(out.stonks.has_data, true, out.stonks.detail);
+    assert.equal(out.stonks.symbol, symbol);
+    assert.equal(out.trmnl_state.symbol, symbol);
+    assert.equal(p.validState(out.trmnl_state, NOW / 1000, p.settings(input(fields, saved))), true);
+    assert.ok(p.bytes(out.trmnl_state) <= 8192);
+    saved = plain(out.trmnl_state);
+  }
+  assert.equal(requests, 0);
+});
+
+test('failed rotating polls keep the last ticker labelled correctly and retry the same next ticker', async () => {
+  const fields = { symbol: 'NTNX,AAPL' };
+  const saved = plain((await load().run(polled(sample(), fields))).trmnl_state);
+  const p = load(async () => { throw Error('Failed native poll must not fetch again'); });
+  for (let i = 0; i < 2; i++) {
+    assert.equal(p.settings(input(fields, saved)).symbol, 'AAPL');
+    const failed = await p.run(input(fields, saved));
+    assert.equal(failed.stonks.has_data, true);
+    assert.equal(failed.stonks.stale, true);
+    assert.equal(failed.stonks.symbol, 'NTNX');
+    assert.equal(failed.stonks.detail, 'Yahoo polling failed');
+    assert.deepEqual(plain(failed.trmnl_state), saved);
+    assert.match(await render(failed, fields), />STALE DATA<\/span>/);
+  }
+  const recovered = await p.run(polled(sample({ symbol: 'AAPL' }), fields, saved));
+  assert.equal(recovered.stonks.has_data, true, recovered.stonks.detail);
+  assert.equal(recovered.stonks.stale, false);
+  assert.equal(recovered.stonks.symbol, 'AAPL');
+  assert.equal(p.settings(input(fields, recovered.trmnl_state)).symbol, 'NTNX');
+});
+
+test('rotation cannot reuse stale charts from removed symbols, changed options or corrupt state', async () => {
+  const saved = plain((await load().run(sample())).trmnl_state);
+  for (const [fields, state] of [
+    [{ symbol: 'AAPL,NVDA' }, saved],
+    [{ symbol: 'NTNX,AAPL', currency: 'EUR' }, saved],
+    [{ symbol: 'NTNX,AAPL' }, { ...saved, price: -1 }]
+  ]) {
+    const out = await load().run(input(fields, state));
+    assert.equal(out.stonks.has_data, false);
+    assert.equal(out.stonks.stale, true);
+    assert.equal(out.trmnl_state, undefined);
+  }
+  for (const symbols of ['NTNX,,AAPL', ',NTNX', 'NTNX,']) {
+    const out = await load().run(input({ symbol: symbols }, saved));
+    assert.equal(out.stonks.has_data, false);
+    assert.match(out.stonks.detail, /comma/);
+  }
+});
+
 test('Serverless enriches a native polling response without requesting the stock twice', async () => {
   const data = sample();
   let requests = 0;
