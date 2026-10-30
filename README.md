@@ -1,6 +1,6 @@
 # STONKS
 
-watch line go up
+A TRMNL Yahoo Finances plugin to display ETFs, Stocks and even Crypto!
 
 Yahoo Finance prices and charts for your TRMNL. Track stocks, ETFs, indices, forex and crypto with lines, OHLC bars or candles. No market-data API key needed.
 
