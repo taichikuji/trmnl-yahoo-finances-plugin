@@ -31,10 +31,12 @@ function symbolFor(value) {
 }
 
 function symbolsFor(value) {
-  return String(value || 'NTNX').split(',').map(part => {
+  const symbols = String(value || 'NTNX').split(',').map(part => {
     if (!part.trim()) throw new Error('Enter symbols separated by commas without empty entries');
     return symbolFor(part);
   });
+  if (new Set(symbols).size !== symbols.length) throw new Error('Remove duplicate Yahoo Finance symbols');
+  return symbols;
 }
 
 function settings(input) {
