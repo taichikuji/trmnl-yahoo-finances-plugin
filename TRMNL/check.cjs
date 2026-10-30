@@ -105,6 +105,9 @@ test('rotation cannot reuse stale charts from removed symbols, changed options o
     assert.equal(out.stonks.has_data, false);
     assert.match(out.stonks.detail, /comma/);
   }
+  const duplicate = await load().run(input({ symbol: 'NTNX, ntnx' }, saved));
+  assert.equal(duplicate.stonks.has_data, false);
+  assert.match(duplicate.stonks.detail, /duplicate/);
 });
 
 test('Serverless enriches a native polling response without requesting the stock twice', async () => {
