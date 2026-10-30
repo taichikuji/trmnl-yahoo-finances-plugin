@@ -11,7 +11,6 @@ Synthetic sample prices. [All layout previews](TRMNL/README.md#previews).
 ## Settings
 
 - **Symbols:** One Yahoo Finance symbol, such as `NTNX` or `VWCE.DE`, or a rotation list such as `NTNX,AAPL,NVDA`.
-- **Currency:** native currency, available fiat pairs, BTC or ETH. Historical prices use historical exchange rates.
 - **Chart:** six date ranges, line style and width, grid, volume, return baseline, extended hours and price precision.
 - **Text:** six languages and adjustable heading and label sizes.
 
@@ -30,6 +29,6 @@ trmnlp serve
 
 The local configuration uses synthetic prices without contacting Yahoo. Templates and settings live in [TRMNL/src/](TRMNL/src/); the [development guide](TRMNL/README.md#development) covers tests and device previews.
 
-Data comes from Yahoo Finance's chart endpoint. Coverage and availability vary; quotes can be delayed. Failed requests retain the matching saved chart and mark it stale.
+Each instrument uses its original currency: AAPL in USD, VWCE.DE in EUR. Each refresh makes at most one request to Yahoo Finance's chart endpoint, with no retries. Coverage and availability vary; quotes can be delayed. Failed requests retain the matching saved chart and mark it stale.
 
 [Questions or ideas?](https://github.com/taichikuji/trmnl-yahoo-finances-plugin/issues) · [License](LICENSE)

@@ -34,7 +34,7 @@ Create a Private Plugin with **Static**, Static Data set to `{}`, **Node** Serve
 
 Copy the form and plugin settings from [settings.yml](src/settings.yml). Paste [shared.liquid](src/shared.liquid) into Shared, each layout into its matching markup tab, and the complete [transform.js](src/transform.js) into Serverless. Save, refresh and add the plugin to your playlist.
 
-When upgrading a Polling installation, change its strategy to Static and set Static Data to `{}` along with the new Serverless script. Existing saved charts remain usable; keep Saved State intact.
+When upgrading a Polling installation, change its strategy to Static and set Static Data to `{}` along with the new Serverless script. Existing unconverted charts remain usable; previously converted charts need a fresh quote. Keep Saved State intact.
 
 Upload [media/icon.svg](media/icon.svg) in the plugin's icon field. MCP source imports do not upload icon assets.
 
@@ -47,7 +47,6 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 | Control | Options |
 | --- | --- |
 | Symbols | One Yahoo Finance symbol or a comma-separated rotation list |
-| Currency | `NATIVE`, available fiat pairs, BTC or ETH |
 | Date range | 1D/minute, 1M/30 minutes, 3M/hour, 1Y/day, 5Y/week, all time/month |
 | Chart type | Line, OHLC bars or candles |
 | Line style and width | Straight, stepped or smooth; 1–5 px strokes |
@@ -57,7 +56,7 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 | Heading and label size | Small/normal/large heading; 8–16 px supporting text, default 12 px |
 | Decimal places | Automatic, 0, 2, 4 or 6 decimals |
 
-Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Enter `NTNX,AAPL,NVDA` to rotate in order, then repeat. If AAPL fails after NTNX loads, NTNX stays visible as **STALE DATA** and the next refresh tries NVDA. Entries must be distinct and nonempty. Some instruments lack particular ranges, FX pairs, OHLC or volume.
+Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Enter `NTNX,AAPL,NVDA` to rotate in order, then repeat. If AAPL fails after NTNX loads, NTNX stays visible as **STALE DATA** and the next refresh tries NVDA. Entries must be distinct and nonempty. Each instrument uses its original currency: AAPL in USD, VWCE.DE in EUR. Some instruments lack particular ranges, OHLC or volume.
 
 ## Templates
 
@@ -66,7 +65,7 @@ Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Enter `NTNX,A
 - **half_horizontal.liquid:** short layout with a cap on the largest quote size.
 - **half_vertical.liquid:** stacked quote and return above the chart.
 - **quadrant.liquid:** compact typography for the smallest slot.
-- **transform.js:** Yahoo requests and validation, rotation, FX conversion, saved-state recovery, chart coordinates and exact numeric/date formatting. No runtime packages or browser scripts.
+- **transform.js:** Yahoo requests and validation, rotation, saved-state recovery, chart coordinates and exact numeric/date formatting. No runtime packages or browser scripts.
 
 OG and X use black arrows and hollow rising/filled falling candles. B/W/R/Y adds yellow gains and red losses; full-color palettes use green/red. The main price stays black. The return indicator follows the selected baseline, while each candle follows its own open-to-close move.
 
@@ -76,13 +75,13 @@ On OG full screen, the normal company name uses the native 21 px title and the p
 
 Serverless requests one selected ticker per refresh, validates the response and saves its chart. A failed request, including HTTP 429, displays the last compatible chart with **STALE DATA** and the error, retaining its ticker, price and market timestamp. Without a usable chart, it shows unavailable data. Rotation advances after either outcome, so an unavailable ticker cannot block the list.
 
-Requests are never retried, and another ticker is only attempted on the next refresh. Native-currency charts need one Yahoo request. Conversion adds one request per required FX pair (up to two for conversion from non-USD into BTC/ETH). All requests share a 3.8-second deadline and each response is limited to 2 MiB. FX failures, invalid responses and regressions against the saved chart also use stale fallback. Source or FX quotes older than seven days are stale; this is not an exchange calendar. A successful, current response clears the stale flag.
+Each refresh makes at most one Yahoo request, with no retries, redirects or currency-conversion lookups. Another ticker is only attempted on the next refresh. The request has a 3.8-second deadline and a 2 MiB response limit. Invalid responses and regressions against the saved chart also use stale fallback. Quotes older than seven days are stale; this is not an exchange calendar. A successful, current response clears the stale flag.
 
 The refresh interval is the minimum time between eligible updates; actual refreshes follow the device and playlist cadence. Avoid repeated Force Refresh requests while rate-limited.
 
-Saved State holds the next ticker position and the last successful chart within 8,192 bytes. Changing the normalized ticker list restarts at its first entry; spacing, case and equivalent URL encoding preserve the position. Missing or invalid cursor metadata also starts at the first ticker. Very long lists are rejected to leave room for chart data. Long histories are grouped into OHLCV buckets; `×N` shows the grouping factor. Removing the cached symbol or changing currency, range or session prevents reuse of an incompatible chart. Display changes can redraw saved data during an outage. Do not clear Saved State routinely.
+Saved State holds the next ticker position and the last successful chart within 8,192 bytes. Changing the normalized ticker list restarts at its first entry; spacing, case and equivalent URL encoding preserve the position. Missing or invalid cursor metadata also starts at the first ticker. Very long lists are rejected to leave room for chart data. Long histories are grouped into OHLCV buckets; `×N` shows the grouping factor. Removing the cached symbol or changing range or session prevents reuse of an incompatible chart. Display changes can redraw saved data during an outage. Do not clear Saved State routinely.
 
-Prices and returns use unadjusted closes, excluding reinvested dividends. Native-currency 1D returns use the previous close when available; other returns use the first close. Currency conversion aligns historical rates at or before each asset bar. Converted OHLC values are estimates, labelled **FX estimate**; converted 1D returns start at the first aligned bar, labelled **from first bar**. Unsupported or stale FX pairs are rejected. Market times use the exchange timezone.
+Prices and returns use unadjusted closes, excluding reinvested dividends. 1D returns use the previous close when available; otherwise, the first close is used. A 1D chart without a previous close is labelled **from first bar**. Market times use the exchange timezone.
 
 ## Development
 
@@ -97,7 +96,7 @@ npx playwright-core install --with-deps chromium
 TRMNL_BROWSER=chromium node scripts/preview.cjs
 ```
 
-These packages are development tools only. The test suite covers market data, FX, saved-state isolation, failures, chart geometry, locales and Liquid rendering. GitHub Actions runs the same checks on `main` pushes and pull requests.
+These packages are development tools only. The test suite covers market data, rotation, request counts, saved-state isolation, failures, chart geometry, locales and Liquid rendering. GitHub Actions runs the same checks on `main` pushes and pull requests.
 
 Open `dist/preview/index.html` for 512 sample previews: four device profiles, both orientations, all four layouts and sixteen data/chart scenarios. The script uses the pinned framework and actual fonts, checks bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
 
@@ -109,7 +108,7 @@ magick dist/preview/og-landscape-full-fresh.png -define webp:lossless=true TRMNL
 
 ## Provider limitations
 
-Yahoo's chart endpoint is undocumented and can fail or change. Instrument coverage, history and FX pairs vary. Review [Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) for your intended use.
+Yahoo's chart endpoint is undocumented and can fail or change. Instrument coverage and history vary. Review [Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) for your intended use.
 
 Stock logos are not included in the chart response used by STONKS. Yahoo exposes logo fields on a separate [quote endpoint](https://github.com/gadicc/yahoo-finance2/blob/634e594b30ce962d8b85f92fc1657d9a30a27398/src/modules/quote.ts); the plugin does not add a second request or authentication flow for logos.
 
