@@ -44,7 +44,7 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 
 | Control | Options |
 | --- | --- |
-| Symbol | Yahoo Finance symbol, plain or URL-encoded |
+| Symbols | One Yahoo Finance symbol or a comma-separated rotation list |
 | Currency | `NATIVE`, available fiat pairs, BTC or ETH |
 | Date range | 1D/minute, 1M/30 minutes, 3M/hour, 1Y/day, 5Y/week, all time/month |
 | Chart type | Line, OHLC bars or candles |
@@ -55,7 +55,7 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 | Heading and label size | Small/normal/large heading; 8–16 px supporting text, default 12 px |
 | Decimal places | Automatic, 0, 2, 4 or 6 decimals |
 
-Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Some instruments lack particular ranges, FX pairs, OHLC or volume.
+Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Enter `NTNX,AAPL,NVDA` to display one ticker per successful refresh, in order, then repeat. A failed poll keeps the previous ticker displayed as stale and retries the next ticker on the following refresh. Some instruments lack particular ranges, FX pairs, OHLC or volume.
 
 ## Templates
 
@@ -78,7 +78,7 @@ Serverless never retries the stock request, even on a fresh installation. A sele
 
 Saved-state fallback does not suppress TRMNL's polling-health warnings or control its transport retries: [TRMNL can retry a timed-out poll, and repeated polling failures can stop refreshes](https://help.trmnl.com/en/articles/17434705-plugin-strategies). After Yahoo recovers, use **Reset Health** if TRMNL has stopped the plugin. Avoid repeated Force Refresh requests while rate-limited. Keep Saved State intact so the fallback remains available.
 
-Saved State is limited to 8,192 bytes. Long histories are grouped into OHLCV buckets; `×N` shows the grouping factor. Market timestamps retain their exact seconds. Changing symbol, currency, range or session prevents reuse of a different selection's chart. Display changes can redraw saved data during an outage. Do not clear Saved State routinely.
+Saved State is limited to 8,192 bytes, so rotation keeps only the last successful chart, not one chart per ticker. The saved symbol determines which ticker TRMNL polls next; no scheduler or extra stock requests are needed. If the next ticker fails, the previous ticker remains visibly marked **STALE DATA**, never presented as the failed ticker's price. Long histories are grouped into OHLCV buckets; `×N` shows the grouping factor. Market timestamps retain their exact seconds. Removing a symbol from the list, or changing currency, range or session, prevents reuse of an incompatible chart. Display changes can redraw saved data during an outage. Do not clear Saved State routinely.
 
 Prices and returns use unadjusted closes, excluding reinvested dividends. Native-currency 1D returns use the previous close when available; other returns use the first close. Currency conversion aligns historical rates at or before each asset bar. Converted OHLC values are estimates, labelled **FX estimate**; converted 1D returns start at the first aligned bar, labelled **from first bar**. Unsupported or stale FX pairs are rejected. Market times use the exchange timezone.
 
