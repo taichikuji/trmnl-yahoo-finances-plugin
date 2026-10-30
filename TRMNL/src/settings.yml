@@ -8,7 +8,17 @@ polling_headers: |-
   Accept: application/json
   User-Agent: Mozilla/5.0
 polling_url: >-
-  https://query1.finance.yahoo.com/v8/finance/chart/{{ symbol | default: 'NTNX' | strip | url_decode | upcase | url_encode }}?
+  https://query1.finance.yahoo.com/v8/finance/chart/
+  {%- assign symbols = symbol | default: 'NTNX' | split: ',' -%}
+  {%- assign selected = symbols.first | strip | url_decode | upcase -%}
+  {%- assign last_symbol = trmnl.state.symbol | default: '' -%}
+  {%- assign advance = false -%}
+  {%- for value in symbols -%}
+    {%- assign candidate = value | strip | url_decode | upcase -%}
+    {%- if advance -%}{%- assign selected = candidate -%}{%- break -%}{%- endif -%}
+    {%- if candidate == last_symbol -%}{%- assign advance = true -%}{%- endif -%}
+  {%- endfor -%}
+  {{- selected | url_encode -}}?
   {%- case dateRanges -%}
   {%- when '1d|1' -%}range=1d&interval=1m
   {%- when '1m|30' -%}range=1mo&interval=30m
@@ -33,10 +43,10 @@ custom_fields:
     description: Made by Ivan Perez. Yahoo Finance prices and charts for stocks, ETFs, indices, forex and crypto.
   - keyname: symbol
     field_type: string
-    name: Symbol
+    name: Symbols
     default: NTNX
-    description: Copy the symbol after /quote/ in the Yahoo Finance URL.
-    help_text: 'Examples: NTNX, VWCE.DE, %5ESTOXX50E, BTC-USD, EURUSD=X. Plain symbols such as ^STOXX50E also work. <a href="https://finance.yahoo.com/" target="_blank">Find a symbol on Yahoo Finance</a>.'
+    description: One Yahoo Finance symbol, or multiple separated by commas to rotate each successful refresh.
+    help_text: 'Examples: NTNX, VWCE.DE, %5ESTOXX50E, BTC-USD, EURUSD=X. Enter NTNX,AAPL,NVDA to rotate. Plain symbols such as ^STOXX50E also work. <a href="https://finance.yahoo.com/" target="_blank">Find a symbol on Yahoo Finance</a>.'
     group: Market
   - keyname: currency
     field_type: string
