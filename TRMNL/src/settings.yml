@@ -14,9 +14,9 @@ polling_url: >-
   {%- assign last_symbol = trmnl.state.symbol | default: '' -%}
   {%- assign advance = false -%}
   {%- for value in symbols -%}
-    {%- assign candidate = value | strip | url_decode | upcase -%}
-    {%- if advance -%}{%- assign selected = candidate -%}{%- break -%}{%- endif -%}
-    {%- if candidate == last_symbol -%}{%- assign advance = true -%}{%- endif -%}
+  {%- assign candidate = value | strip | url_decode | upcase -%}
+  {%- if advance -%}{%- assign selected = candidate -%}{%- break -%}{%- endif -%}
+  {%- if candidate == last_symbol -%}{%- assign advance = true -%}{%- endif -%}
   {%- endfor -%}
   {{- selected | url_encode -}}?
   {%- case dateRanges -%}
