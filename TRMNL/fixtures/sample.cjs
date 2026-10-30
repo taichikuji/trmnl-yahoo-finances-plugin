@@ -25,4 +25,13 @@ function sample(options = {}) {
   };
   return { chart: { result: [{ meta, timestamp: times, indicators }], error: null } };
 }
-module.exports = { sample, NOW };
+// Serve only explicitly supplied symbols; previews and tests never contact Yahoo.
+function quotes(...payloads) {
+  return async url => {
+    const symbol = decodeURIComponent(new URL(url).pathname.split('/').at(-1));
+    const data = payloads.find(p => p.chart.result[0].meta.symbol === symbol);
+    if (!data) throw new Error('Unexpected fixture request: ' + symbol);
+    return { ok: true, json: async () => structuredClone(data) };
+  };
+}
+module.exports = { sample, quotes, NOW };

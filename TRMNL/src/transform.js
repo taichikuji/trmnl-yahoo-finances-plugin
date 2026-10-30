@@ -1,4 +1,4 @@
-// TRMNL Node 20 Serverless. FX requests share a 3.8s deadline; never retry a poll.
+// TRMNL Node 20 Serverless. Yahoo requests share a 3.8s deadline; never retry.
 // Liquid owns SVG drawing, layout and captions; keep data, chart math and Intl here.
 const REQUEST_TIMEOUT_MS = 3800;
 const DAY = 86400;
@@ -42,14 +42,20 @@ function symbolsFor(value) {
 function settings(input) {
   const f = input?.trmnl?.plugin_settings?.custom_fields_values || {};
   const symbols = symbolsFor(f.symbol);
-  const last = symbols.indexOf(input?.trmnl?.state?.symbol);
-  const symbol = symbols[(last + 1) % symbols.length];
+  const list = symbols.join(',');
+  // Reserve at least half of Saved State for the chart, even with a long list.
+  if (list.length > STATE_LIMIT / 2) throw new Error('Too many symbols for Saved State');
+  const cursor = input?.trmnl?.state?.rotation;
+  const index = cursor?.list === list && Number.isSafeInteger(cursor.next) &&
+    cursor.next >= 0 && cursor.next < symbols.length && bytes(input.trmnl.state) <= STATE_LIMIT ? cursor.next : 0;
+  const symbol = symbols[index];
   const currency = String(f.currency || 'USD').trim().toUpperCase();
   if (!/^(NATIVE|[A-Z]{3})$/.test(currency)) throw new Error('Use a currency code, e.g. USD, EUR, BTC or NATIVE');
   const dateRanges = choose(f.dateRanges, Object.keys(RANGES), '12m|1D');
   const extended = ['show', 'true', 'yes'].includes(String(f.extendedHours));
   return {
     symbol, symbols, currency, dateRanges, ...RANGES[dateRanges], extended,
+    rotation: symbols.length > 1 ? { list, next: (index + 1) % symbols.length } : undefined,
     key: [symbol, currency, dateRanges, extended ? 'extended' : 'regular'].join('|'),
     chartType: choose(f.chartType, ['line', 'bars', 'candles'], 'line'),
     locale: choose(f.locale, Object.keys(LOCALES), 'en'),
@@ -147,20 +153,25 @@ function aggregateByTime(bars, seconds) {
 
 function makeState(data, config, now) {
   const baseline = config.range === '1d' && positive(data.previous_close) ? data.previous_close : data.bars[0][4];
-  let group = Math.max(1, Math.ceil(data.bars.length / 360));
+  const state = compactState({ v: 2, key: config.key, symbol: data.symbol, name: data.name, currency: data.currency,
+      native_currency: data.native_currency, timezone: data.timezone, market_at: data.market_at, fetched_at: now,
+      price: data.price, baseline,
+      return_basis: config.range === '1d' && positive(data.previous_close) ? 'previous_close' : 'first_close', fx_at: data.fx_at || null, fx_rate: data.fx_rate || null,
+      group: 1, source_count: data.bars.length, bars: data.bars, rotation: config.rotation });
+  if (!validState(state, now, config)) throw new Error('Saved chart could not be validated');
+  return state;
+}
+
+function compactState(source) {
+  let group = Math.max(1, Math.ceil(source.bars.length / 360));
   let state;
   do {
     const bars = [];
     // Keep timestamps exact: rounding can move an appended quote after market_at.
-    for (let i = 0; i < data.bars.length; i += group) bars.push(combine(data.bars.slice(i, i + group)).map((n, j) => n === null || j === 0 ? n : round(n)));
-    state = { v: 2, key: config.key, symbol: data.symbol, name: data.name, currency: data.currency,
-      native_currency: data.native_currency, timezone: data.timezone, market_at: data.market_at, fetched_at: now,
-      price: data.price, baseline,
-      return_basis: config.range === '1d' && positive(data.previous_close) ? 'previous_close' : 'first_close', fx_at: data.fx_at || null, fx_rate: data.fx_rate || null,
-      group, source_count: data.bars.length, bars };
+    for (let i = 0; i < source.bars.length; i += group) bars.push(combine(source.bars.slice(i, i + group)).map((n, j) => n === null || j === 0 ? n : round(n)));
+    state = { ...source, group: source.group * group, bars };
     group++;
-  } while ((state.bars.length > 360 || bytes(state) > STATE_LIMIT) && group < data.bars.length);
-  if (!validState(state, now, config)) throw new Error('Saved chart could not be validated');
+  } while ((state.bars.length > 360 || bytes(state) > STATE_LIMIT) && group < source.bars.length);
   return state;
 }
 
@@ -338,8 +349,7 @@ async function run(input) {
   catch (error) { return { stonks: display(null, true, error.message, settings({})) }; }
   const cached = input?.trmnl?.state;
   const previous = validState(cached, now, config) ? cached : null;
-  // Only one chart fits Saved State. During a rotating poll failure, show the
-  // last successful ticker explicitly, rather than mislabelling its old price.
+  // The cursor advances independently; fallback always keeps its own ticker.
   const priorConfig = config.symbols.includes(cached?.symbol) ? {
     ...config, symbol: cached.symbol,
     key: [cached.symbol, config.currency, config.dateRanges, config.extended ? 'extended' : 'regular'].join('|')
@@ -348,23 +358,23 @@ async function run(input) {
   const controller = new AbortController();
   let timer;
   try {
-    // Failed native polls arrive without chart or HTTP status. Never request
-    // the stock again, even on a fresh install without saved data.
-    if (input?.chart === undefined) throw new Error('Yahoo polling failed');
     const deadline = new Promise((_, reject) => {
       timer = setTimeout(() => { controller.abort(); reject(new Error('Request timed out')); }, REQUEST_TIMEOUT_MS);
     });
-    const request = async (symbol, c) => {
-      const response = await fetch(yahooURL(symbol, c), { signal: controller.signal, headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' } });
-      if (!response.ok) throw new Error(`FX HTTP ${response.status}`);
-      return parseYahoo(await readResponse(response), now, c, symbol, true);
+    const request = async (symbol, c, fx = false) => {
+      controller.signal.throwIfAborted();
+      const response = await fetch(yahooURL(symbol, c), { signal: controller.signal, redirect: 'error', headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' } });
+      if (!response.ok) throw new Error(`${fx ? 'FX' : 'Yahoo'} HTTP ${response.status}`);
+      const payload = await readResponse(response);
+      controller.signal.throwIfAborted();
+      return parseYahoo(payload, now, c, symbol, fx);
     };
     const work = (async () => {
-      const data = parseYahoo(input, now, config);
+      const data = await request(config.symbol, config);
       const plan = conversionPlan(data.currency, config.currency);
       // A five-day FX window also covers gaps before the first intraday bar.
       const fxConfig = { ...config, range: config.range === '1d' ? '5d' : config.range, extended: false };
-      const rates = await Promise.all(plan.map(async p => ({ ...p, data: await request(p.symbol, fxConfig) })));
+      const rates = await Promise.all(plan.map(async p => ({ ...p, data: await request(p.symbol, fxConfig, true) })));
       return makeState(convert(data, rates, config), config, now);
     })();
     const state = await Promise.race([work, deadline]);
@@ -375,7 +385,10 @@ async function run(input) {
     return { stonks: display(state, !!detail, detail, config), trmnl_state: state };
   } catch (error) {
     const detail = controller.signal.aborted ? 'Request timed out' : String(error?.message || 'Market data unavailable').slice(0, 160);
+    let state = { ...fallback, rotation: config.rotation };
+    if (fallback && bytes(state) > STATE_LIMIT) state = compactState(state);
+    if (fallback && !validState(state, now, priorConfig)) state = { rotation: config.rotation };
     return { stonks: display(fallback, true, detail, fallback ? priorConfig : config),
-      ...(fallback ? { trmnl_state: fallback } : {}) };
+      ...(fallback || config.rotation ? { trmnl_state: state } : {}) };
   } finally { clearTimeout(timer); controller.abort(); }
 }

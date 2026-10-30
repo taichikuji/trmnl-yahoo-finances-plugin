@@ -2,32 +2,8 @@
 name: STONKS
 description: watch line go up
 icon: media/icon.svg
-strategy: polling
-polling_verb: get
-polling_headers: |-
-  Accept: application/json
-  User-Agent: Mozilla/5.0
-polling_url: >-
-  https://query1.finance.yahoo.com/v8/finance/chart/
-  {%- assign symbols = symbol | default: 'NTNX' | split: ',' -%}
-  {%- assign selected = symbols.first | strip | url_decode | upcase -%}
-  {%- assign last_symbol = trmnl.state.symbol | default: '' -%}
-  {%- assign advance = false -%}
-  {%- for value in symbols -%}
-  {%- assign candidate = value | strip | url_decode | upcase -%}
-  {%- if advance -%}{%- assign selected = candidate -%}{%- break -%}{%- endif -%}
-  {%- if candidate == last_symbol -%}{%- assign advance = true -%}{%- endif -%}
-  {%- endfor -%}
-  {{- selected | url_encode -}}?
-  {%- case dateRanges -%}
-  {%- when '1d|1' -%}range=1d&interval=1m
-  {%- when '1m|30' -%}range=1mo&interval=30m
-  {%- when '3m|60' -%}range=3mo&interval=60m
-  {%- when '60m|1W' -%}range=5y&interval=1wk
-  {%- when 'all|1M' -%}range=max&interval=1mo
-  {%- else -%}range=1y&interval=1d
-  {%- endcase -%}
-  &includePrePost={% if extendedHours == 'show' or extendedHours == 'true' or extendedHours == 'yes' %}true{% else %}false{% endif %}
+strategy: static
+static_data: '{}'
 serverless_language: node
 refresh_interval: 15
 framework_version: 3.4.3
@@ -45,7 +21,7 @@ custom_fields:
     field_type: string
     name: Symbols
     default: NTNX
-    description: One Yahoo Finance symbol, or distinct symbols separated by commas to rotate each successful refresh.
+    description: One Yahoo Finance symbol, or distinct symbols separated by commas to rotate each refresh.
     help_text: 'Examples: NTNX, VWCE.DE, %5ESTOXX50E, BTC-USD, EURUSD=X. Enter NTNX,AAPL,NVDA to rotate. Plain symbols such as ^STOXX50E also work. <a href="https://finance.yahoo.com/" target="_blank">Find a symbol on Yahoo Finance</a>.'
     group: Market
   - keyname: currency

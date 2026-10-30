@@ -4,7 +4,7 @@ const path = require('node:path');
 const { createLiquid, loadPlugin } = require('./render-liquid.cjs');
 const { chromium } = require('playwright-core');
 const YAML = require('yaml');
-const { sample, NOW } = require('../TRMNL/fixtures/sample.cjs');
+const { sample, quotes, NOW } = require('../TRMNL/fixtures/sample.cjs');
 
 // Profiles from the pinned framework's db/data/framework_devices.yml.
 // Original monochrome OG is included alongside current 2-bit OG and OG B/W/R/Y.
@@ -38,16 +38,15 @@ async function main() {
   fs.mkdirSync(outputDir, { recursive: true });
   class Clock extends Date { static now() { return NOW; } }
   const plugin = fetch => loadPlugin({ fetch, Date: Clock });
-  const noFetch = () => { throw new Error('Unexpected Yahoo request during preview'); };
-  const fresh = await plugin(noFetch).run(sample());
-  const offline = plugin(noFetch);
+  const fresh = await plugin(quotes(sample())).run({});
+  const offline = plugin(async () => ({ ok: false, status: 429 }));
   const stale = await offline.run({ trmnl: { state: fresh.trmnl_state } });
   const unavailable = await offline.run({});
   stale.stonks.detail = 'SAMPLE · ' + stale.stonks.detail;
   const states = { fresh, stale, unavailable };
   async function scenario(fields, fixture = sample()) {
     const trmnl = { plugin_settings: { custom_fields_values: fields } };
-    const result = await plugin(noFetch).run({ ...fixture, trmnl });
+    const result = await plugin(quotes(fixture)).run({ trmnl });
     if (!result.stonks.has_data) throw new Error('Invalid preview scenario: ' + result.stonks.detail);
     result.trmnl = trmnl;
     return result;
@@ -77,7 +76,7 @@ async function main() {
   states.stale_large.stonks.detail = 'SAMPLE · ' + states.stale_large.stonks.detail;
   const fxMarket = sample({ interval: '1m', seconds: 60, count: 390 });
   const fxRates = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '1m', seconds: 60, count: 1440, startPrice: 0.8 });
-  states.converted_day = await plugin(async () => ({ ok: true, json: async () => fxRates })).run({ ...fxMarket,
+  states.converted_day = await plugin(quotes(fxMarket, fxRates)).run({
     trmnl: { plugin_settings: { custom_fields_values: { currency: 'EUR', dateRanges: '1d|1', locale: 'es' } } }
   });
   if (!states.converted_day.stonks.has_data) throw new Error(states.converted_day.stonks.detail);
