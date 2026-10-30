@@ -30,15 +30,24 @@ function symbolFor(value) {
   return text;
 }
 
+function symbolsFor(value) {
+  return String(value || 'NTNX').split(',').map(part => {
+    if (!part.trim()) throw new Error('Enter symbols separated by commas without empty entries');
+    return symbolFor(part);
+  });
+}
+
 function settings(input) {
   const f = input?.trmnl?.plugin_settings?.custom_fields_values || {};
-  const symbol = symbolFor(f.symbol);
+  const symbols = symbolsFor(f.symbol);
+  const last = symbols.indexOf(input?.trmnl?.state?.symbol);
+  const symbol = symbols[(last + 1) % symbols.length];
   const currency = String(f.currency || 'USD').trim().toUpperCase();
   if (!/^(NATIVE|[A-Z]{3})$/.test(currency)) throw new Error('Use a currency code, e.g. USD, EUR, BTC or NATIVE');
   const dateRanges = choose(f.dateRanges, Object.keys(RANGES), '12m|1D');
   const extended = ['show', 'true', 'yes'].includes(String(f.extendedHours));
   return {
-    symbol, currency, dateRanges, ...RANGES[dateRanges], extended,
+    symbol, symbols, currency, dateRanges, ...RANGES[dateRanges], extended,
     key: [symbol, currency, dateRanges, extended ? 'extended' : 'regular'].join('|'),
     chartType: choose(f.chartType, ['line', 'bars', 'candles'], 'line'),
     locale: choose(f.locale, Object.keys(LOCALES), 'en'),
@@ -325,7 +334,15 @@ async function run(input) {
   let config;
   try { config = settings(input); }
   catch (error) { return { stonks: display(null, true, error.message, settings({})) }; }
-  const previous = validState(input?.trmnl?.state, now, config) ? input.trmnl.state : null;
+  const cached = input?.trmnl?.state;
+  const previous = validState(cached, now, config) ? cached : null;
+  // Only one chart fits Saved State. During a rotating poll failure, show the
+  // last successful ticker explicitly, rather than mislabelling its old price.
+  const priorConfig = config.symbols.includes(cached?.symbol) ? {
+    ...config, symbol: cached.symbol,
+    key: [cached.symbol, config.currency, config.dateRanges, config.extended ? 'extended' : 'regular'].join('|')
+  } : null;
+  const fallback = priorConfig && validState(cached, now, priorConfig) ? cached : null;
   const controller = new AbortController();
   let timer;
   try {
@@ -356,6 +373,7 @@ async function run(input) {
     return { stonks: display(state, !!detail, detail, config), trmnl_state: state };
   } catch (error) {
     const detail = controller.signal.aborted ? 'Request timed out' : String(error?.message || 'Market data unavailable').slice(0, 160);
-    return { stonks: display(previous, true, detail, config), ...(previous ? { trmnl_state: previous } : {}) };
+    return { stonks: display(fallback, true, detail, fallback ? priorConfig : config),
+      ...(fallback ? { trmnl_state: fallback } : {}) };
   } finally { clearTimeout(timer); controller.abort(); }
 }
