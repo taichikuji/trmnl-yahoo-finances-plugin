@@ -1,4 +1,4 @@
-// TRMNL Node 20 Serverless. FX and recovery requests share a 3.8s deadline.
+// TRMNL Node 20 Serverless. FX requests share a 3.8s deadline; never retry a poll.
 // Liquid owns SVG drawing, layout and captions; keep data, chart math and Intl here.
 const REQUEST_TIMEOUT_MS = 3800;
 const DAY = 86400;
@@ -329,20 +329,23 @@ async function run(input) {
   const controller = new AbortController();
   let timer;
   try {
+    // Failed native polls arrive without chart or HTTP status. Never request
+    // the stock again, even on a fresh install without saved data.
+    if (input?.chart === undefined) throw new Error('Yahoo polling failed');
     const deadline = new Promise((_, reject) => {
       timer = setTimeout(() => { controller.abort(); reject(new Error('Request timed out')); }, REQUEST_TIMEOUT_MS);
     });
-    const request = async (symbol, c, fx = false) => {
+    const request = async (symbol, c) => {
       const response = await fetch(yahooURL(symbol, c), { signal: controller.signal, headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' } });
-      if (!response.ok) throw new Error(`${fx ? 'FX' : 'Provider'} HTTP ${response.status}`);
-      return parseYahoo(await readResponse(response), now, c, symbol, fx);
+      if (!response.ok) throw new Error(`FX HTTP ${response.status}`);
+      return parseYahoo(await readResponse(response), now, c, symbol, true);
     };
     const work = (async () => {
-      const data = input?.chart !== undefined ? parseYahoo(input, now, config) : await request(config.symbol, config);
+      const data = parseYahoo(input, now, config);
       const plan = conversionPlan(data.currency, config.currency);
       // A five-day FX window also covers gaps before the first intraday bar.
       const fxConfig = { ...config, range: config.range === '1d' ? '5d' : config.range, extended: false };
-      const rates = await Promise.all(plan.map(async p => ({ ...p, data: await request(p.symbol, fxConfig, true) })));
+      const rates = await Promise.all(plan.map(async p => ({ ...p, data: await request(p.symbol, fxConfig) })));
       return makeState(convert(data, rates, config), config, now);
     })();
     const state = await Promise.race([work, deadline]);

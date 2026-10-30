@@ -64,7 +64,7 @@ Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Some instrume
 - **half_horizontal.liquid:** short layout with a cap on the largest quote size.
 - **half_vertical.liquid:** stacked quote and return above the chart.
 - **quadrant.liquid:** compact typography for the smallest slot.
-- **transform.js:** Yahoo/FX requests, validation, conversion, saved-state recovery, chart coordinates and exact numeric/date formatting. No runtime packages or browser scripts.
+- **transform.js:** Yahoo response validation, FX requests, conversion, saved-state recovery, chart coordinates and exact numeric/date formatting. No runtime packages or browser scripts.
 
 OG and X use black arrows and hollow rising/filled falling candles. B/W/R/Y adds yellow gains and red losses; full-color palettes use green/red. The main price stays black. The return indicator follows the selected baseline, while each candle follows its own open-to-close move.
 
@@ -72,7 +72,11 @@ On OG full screen, the normal company name uses the native 21 px title and the p
 
 ## Data and saved state
 
-TRMNL polls Yahoo directly. Serverless validates and compacts the response, requests FX when needed, and handles recovery. FX and recovery requests share a 3.8-second deadline, with each response limited to 2 MiB. Failures and quote regressions retain the matching saved snapshot and original market timestamp, marked stale. A selection without a valid snapshot shows unavailable data. Source quotes older than seven days are also stale; this is not an exchange calendar.
+TRMNL polls Yahoo directly. Serverless validates and compacts the response and requests FX when needed. If a poll fails (including HTTP 429), TRMNL passes an empty payload to Serverless. A matching saved snapshot is displayed immediately with **STALE DATA** and **Yahoo polling failed**, retaining the original price, chart and market timestamp without another Yahoo request. The failed poll's HTTP status is not available in that payload; check TRMNL's logs for the specific error.
+
+Serverless never retries the stock request, even on a fresh installation. A selection without a valid snapshot shows unavailable data. Native-currency charts need only TRMNL's stock poll. Conversion adds one request per required FX pair (up to two for conversion from non-USD into BTC/ETH), with no retries and a shared 3.8-second deadline. Each FX response is limited to 2 MiB. FX failures (including HTTP 429), invalid responses and quote regressions also fall back to matching saved data. Source or FX quotes older than seven days are also stale; this is not an exchange calendar. A successful, current response clears the stale flag.
+
+Saved-state fallback does not suppress TRMNL's polling-health warnings or control its transport retries: [TRMNL can retry a timed-out poll, and repeated polling failures can stop refreshes](https://help.trmnl.com/en/articles/17434705-plugin-strategies). After Yahoo recovers, use **Reset Health** if TRMNL has stopped the plugin. Avoid repeated Force Refresh requests while rate-limited. Keep Saved State intact so the fallback remains available.
 
 Saved State is limited to 8,192 bytes. Long histories are grouped into OHLCV buckets; `×N` shows the grouping factor. Market timestamps retain their exact seconds. Changing symbol, currency, range or session prevents reuse of a different selection's chart. Display changes can redraw saved data during an outage. Do not clear Saved State routinely.
 

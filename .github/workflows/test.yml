@@ -33,3 +33,10 @@ jobs:
         run: node scripts/preview.cjs
         env:
           TRMNL_BROWSER: chromium
+      - name: Save preview screenshots and measurements
+        uses: actions/upload-artifact@v4
+        with:
+          name: stonks-previews
+          path: dist/preview/
+          retention-days: 7
+          if-no-files-found: error

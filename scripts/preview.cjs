@@ -38,15 +38,16 @@ async function main() {
   fs.mkdirSync(outputDir, { recursive: true });
   class Clock extends Date { static now() { return NOW; } }
   const plugin = fetch => loadPlugin({ fetch, Date: Clock });
-  const fresh = await plugin(async () => ({ ok: true, json: async () => sample() })).run({});
-  const offline = plugin(async () => ({ ok: false, status: 429 }));
+  const noFetch = () => { throw new Error('Unexpected Yahoo request during preview'); };
+  const fresh = await plugin(noFetch).run(sample());
+  const offline = plugin(noFetch);
   const stale = await offline.run({ trmnl: { state: fresh.trmnl_state } });
   const unavailable = await offline.run({});
-  stale.stonks.detail = 'SAMPLE · HTTP 429';
+  stale.stonks.detail = 'SAMPLE · ' + stale.stonks.detail;
   const states = { fresh, stale, unavailable };
   async function scenario(fields, fixture = sample()) {
     const trmnl = { plugin_settings: { custom_fields_values: fields } };
-    const result = await plugin(async () => ({ ok: true, json: async () => fixture })).run({ trmnl });
+    const result = await plugin(noFetch).run({ ...fixture, trmnl });
     if (!result.stonks.has_data) throw new Error('Invalid preview scenario: ' + result.stonks.detail);
     result.trmnl = trmnl;
     return result;
@@ -68,15 +69,15 @@ async function main() {
   states.etf = await scenario({ symbol: 'VWCE.DE', currency: 'NATIVE', locale: 'fr', fontSize: 12 }, etf);
   states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
   states.intraday = await scenario({ dateRanges: '1d|1', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
-  states.stale_large = await plugin(async () => ({ ok: false, status: 429 })).run({ trmnl: {
+  states.stale_large = await offline.run({ trmnl: {
     state: states.large.trmnl_state,
     plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } }
   } });
   states.stale_large.trmnl = { plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } } };
-  states.stale_large.stonks.detail = 'SAMPLE · HTTP 429';
+  states.stale_large.stonks.detail = 'SAMPLE · ' + states.stale_large.stonks.detail;
   const fxMarket = sample({ interval: '1m', seconds: 60, count: 390 });
   const fxRates = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '1m', seconds: 60, count: 1440, startPrice: 0.8 });
-  states.converted_day = await plugin(async url => ({ ok: true, json: async () => url.includes('USDEUR') ? fxRates : fxMarket })).run({
+  states.converted_day = await plugin(async () => ({ ok: true, json: async () => fxRates })).run({ ...fxMarket,
     trmnl: { plugin_settings: { custom_fields_values: { currency: 'EUR', dateRanges: '1d|1', locale: 'es' } } }
   });
   if (!states.converted_day.stonks.has_data) throw new Error(states.converted_day.stonks.detail);
