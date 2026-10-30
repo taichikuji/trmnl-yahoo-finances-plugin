@@ -10,7 +10,7 @@ Synthetic sample prices. [All layout previews](TRMNL/README.md#previews).
 
 ## Settings
 
-- **Symbol:** Yahoo Finance symbol, such as `NTNX`, `VWCE.DE`, `%5ESTOXX50E` or `BTC-USD`.
+- **Symbols:** One Yahoo Finance symbol, such as `NTNX` or `VWCE.DE`, or a rotation list such as `NTNX,AAPL,NVDA`.
 - **Currency:** native currency, available fiat pairs, BTC or ETH. Historical prices use historical exchange rates.
 - **Chart:** six date ranges, line style and width, grid, volume, return baseline, extended hours and price precision.
 - **Text:** six languages and adjustable heading and label sizes.

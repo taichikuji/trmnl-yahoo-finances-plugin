@@ -30,9 +30,11 @@ Synthetic sample prices rendered from the actual templates with Framework 3.4.3.
 
 ## Setup
 
-Create a Private Plugin with **Polling**, **Node** Serverless and Framework **3.4.3**. Use the polling URL and headers from [settings.yml](src/settings.yml), including the User-Agent header. Keep normal screen padding.
+Create a Private Plugin with **Static**, Static Data set to `{}`, **Node** Serverless and Framework **3.4.3**. Serverless fetches Yahoo on each eligible refresh. Keep normal screen padding.
 
 Copy the form and plugin settings from [settings.yml](src/settings.yml). Paste [shared.liquid](src/shared.liquid) into Shared, each layout into its matching markup tab, and the complete [transform.js](src/transform.js) into Serverless. Save, refresh and add the plugin to your playlist.
+
+When upgrading a Polling installation, change its strategy to Static and set Static Data to `{}` along with the new Serverless script. Existing saved charts remain usable; keep Saved State intact.
 
 Upload [media/icon.svg](media/icon.svg) in the plugin's icon field. MCP source imports do not upload icon assets.
 
@@ -55,7 +57,7 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 | Heading and label size | Small/normal/large heading; 8–16 px supporting text, default 12 px |
 | Decimal places | Automatic, 0, 2, 4 or 6 decimals |
 
-Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Enter `NTNX,AAPL,NVDA` to display one ticker per successful refresh, in order, then repeat. A failed poll keeps the previous ticker displayed as stale and retries the next ticker on the following refresh. Some instruments lack particular ranges, FX pairs, OHLC or volume.
+Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Enter `NTNX,AAPL,NVDA` to rotate in order, then repeat. If AAPL fails after NTNX loads, NTNX stays visible as **STALE DATA** and the next refresh tries NVDA. Entries must be distinct and nonempty. Some instruments lack particular ranges, FX pairs, OHLC or volume.
 
 ## Templates
 
@@ -64,7 +66,7 @@ Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Enter `NTNX,A
 - **half_horizontal.liquid:** short layout with a cap on the largest quote size.
 - **half_vertical.liquid:** stacked quote and return above the chart.
 - **quadrant.liquid:** compact typography for the smallest slot.
-- **transform.js:** Yahoo response validation, FX requests, conversion, saved-state recovery, chart coordinates and exact numeric/date formatting. No runtime packages or browser scripts.
+- **transform.js:** Yahoo requests and validation, rotation, FX conversion, saved-state recovery, chart coordinates and exact numeric/date formatting. No runtime packages or browser scripts.
 
 OG and X use black arrows and hollow rising/filled falling candles. B/W/R/Y adds yellow gains and red losses; full-color palettes use green/red. The main price stays black. The return indicator follows the selected baseline, while each candle follows its own open-to-close move.
 
@@ -72,13 +74,13 @@ On OG full screen, the normal company name uses the native 21 px title and the p
 
 ## Data and saved state
 
-TRMNL polls Yahoo directly. Serverless validates and compacts the response and requests FX when needed. If a poll fails (including HTTP 429), TRMNL passes an empty payload to Serverless. A matching saved snapshot is displayed immediately with **STALE DATA** and **Yahoo polling failed**, retaining the original price, chart and market timestamp without another Yahoo request. The failed poll's HTTP status is not available in that payload; check TRMNL's logs for the specific error.
+Serverless requests one selected ticker per refresh, validates the response and saves its chart. A failed request, including HTTP 429, displays the last compatible chart with **STALE DATA** and the error, retaining its ticker, price and market timestamp. Without a usable chart, it shows unavailable data. Rotation advances after either outcome, so an unavailable ticker cannot block the list.
 
-Serverless never retries the stock request, even on a fresh installation. A selection without a valid snapshot shows unavailable data. Native-currency charts need only TRMNL's stock poll. Conversion adds one request per required FX pair (up to two for conversion from non-USD into BTC/ETH), with no retries and a shared 3.8-second deadline. Each FX response is limited to 2 MiB. FX failures (including HTTP 429), invalid responses and quote regressions also fall back to matching saved data. Source or FX quotes older than seven days are also stale; this is not an exchange calendar. A successful, current response clears the stale flag.
+Requests are never retried, and another ticker is only attempted on the next refresh. Native-currency charts need one Yahoo request. Conversion adds one request per required FX pair (up to two for conversion from non-USD into BTC/ETH). All requests share a 3.8-second deadline and each response is limited to 2 MiB. FX failures, invalid responses and regressions against the saved chart also use stale fallback. Source or FX quotes older than seven days are stale; this is not an exchange calendar. A successful, current response clears the stale flag.
 
-Saved-state fallback does not suppress TRMNL's polling-health warnings or control its transport retries: [TRMNL can retry a timed-out poll, and repeated polling failures can stop refreshes](https://help.trmnl.com/en/articles/17434705-plugin-strategies). After Yahoo recovers, use **Reset Health** if TRMNL has stopped the plugin. Avoid repeated Force Refresh requests while rate-limited. Keep Saved State intact so the fallback remains available.
+The refresh interval is the minimum time between eligible updates; actual refreshes follow the device and playlist cadence. Avoid repeated Force Refresh requests while rate-limited.
 
-Saved State is limited to 8,192 bytes, so rotation keeps only the last successful chart, not one chart per ticker. The saved symbol determines which ticker TRMNL polls next; no scheduler or extra stock requests are needed. If the next ticker fails, the previous ticker remains visibly marked **STALE DATA**, never presented as the failed ticker's price. Long histories are grouped into OHLCV buckets; `×N` shows the grouping factor. Market timestamps retain their exact seconds. Removing a symbol from the list, or changing currency, range or session, prevents reuse of an incompatible chart. Display changes can redraw saved data during an outage. Do not clear Saved State routinely.
+Saved State holds the next ticker position and the last successful chart within 8,192 bytes. Changing the normalized ticker list restarts at its first entry; spacing, case and equivalent URL encoding preserve the position. Missing or invalid cursor metadata also starts at the first ticker. Very long lists are rejected to leave room for chart data. Long histories are grouped into OHLCV buckets; `×N` shows the grouping factor. Removing the cached symbol or changing currency, range or session prevents reuse of an incompatible chart. Display changes can redraw saved data during an outage. Do not clear Saved State routinely.
 
 Prices and returns use unadjusted closes, excluding reinvested dividends. Native-currency 1D returns use the previous close when available; other returns use the first close. Currency conversion aligns historical rates at or before each asset bar. Converted OHLC values are estimates, labelled **FX estimate**; converted 1D returns start at the first aligned bar, labelled **from first bar**. Unsupported or stale FX pairs are rejected. Market times use the exchange timezone.
 
