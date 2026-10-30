@@ -45,7 +45,7 @@ custom_fields:
     field_type: string
     name: Symbols
     default: NTNX
-    description: One Yahoo Finance symbol, or multiple separated by commas to rotate each successful refresh.
+    description: One Yahoo Finance symbol, or distinct symbols separated by commas to rotate each successful refresh.
     help_text: 'Examples: NTNX, VWCE.DE, %5ESTOXX50E, BTC-USD, EURUSD=X. Enter NTNX,AAPL,NVDA to rotate. Plain symbols such as ^STOXX50E also work. <a href="https://finance.yahoo.com/" target="_blank">Find a symbol on Yahoo Finance</a>.'
     group: Market
   - keyname: currency
