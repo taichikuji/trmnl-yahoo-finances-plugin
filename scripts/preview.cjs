@@ -47,7 +47,7 @@ async function main() {
   async function scenario(fields, fixture = sample()) {
     const trmnl = { plugin_settings: { custom_fields_values: fields } };
     const result = await plugin(noFetch).run({ ...fixture, trmnl });
-    if (!result.stonks.has_data) throw new Error('Invalid preview scenario: ' + result.stonks.detail);
+    if (!result.quote.has_data) throw new Error('Invalid preview scenario: ' + result.quote.detail);
     result.trmnl = trmnl;
     return result;
   }
@@ -98,7 +98,7 @@ async function main() {
   states.converted_day = await plugin(async () => ({ ok: true, json: async () => fxRates })).run({ ...fxMarket,
     trmnl: { plugin_settings: { custom_fields_values: { currency: 'EUR', dateRanges: '1d|1', locale: 'es' } } }
   });
-  if (!states.converted_day.stonks.has_data) throw new Error(states.converted_day.stonks.detail);
+  if (!states.converted_day.quote.has_data) throw new Error(states.converted_day.quote.detail);
   states.converted_day.trmnl = { plugin_settings: { custom_fields_values: { currency: 'EUR', dateRanges: '1d|1', locale: 'es' } } };
 
   const rotationFields = { symbol: 'NTNX,NVDA' };
@@ -117,7 +117,7 @@ async function main() {
     trmnl: { state: states.rotation.trmnl_state, plugin_settings: restartedSettings } });
   states.rotation_stale.trmnl = { plugin_settings: restartedSettings };
   for (const name of ['rotation', 'rotation_unavailable', 'rotation_stale']) {
-    if (states[name].stonks.has_data !== (name !== 'rotation_unavailable')) throw new Error('Invalid rotation preview: ' + name);
+    if (states[name].quote.has_data !== (name !== 'rotation_unavailable')) throw new Error('Invalid rotation preview: ' + name);
   }
 
   const shared = fs.readFileSync(path.join(root, 'TRMNL/src/shared.liquid'), 'utf8');
@@ -185,7 +185,7 @@ async function main() {
           if (!viewSource.trim()) throw new Error('TRMNL requires a nonempty view: ' + layout);
           for (const [state, model] of Object.entries(states)) {
             const id = [device, orientation, layout, state].join('-');
-            const markup = (await liquid.parseAndRender(shared + '\n' + viewSource, model)).replace(/(<span\b[^>]*data-stonks-status[^>]*>)/g, '$1SAMPLE · ');
+            const markup = (await liquid.parseAndRender(shared + '\n' + viewSource, model)).replace(/(<span\b[^>]*data-quote-status[^>]*>)/g, '$1SAMPLE · ');
             const view = '<div class="view view--' + layout + '">' + markup + '</div>';
             const surface = '<div class="' + classes + '">' +
               (mashup ? '<div class="mashup mashup--' + mashup + '">' + view + '</div>' : view) + '</div>';
@@ -200,9 +200,9 @@ async function main() {
               const main = document.querySelector('.view');
               const visible = selector => [...main.querySelectorAll(selector)].find(el => el.getClientRects().length);
               const layout = main.querySelector('.layout');
-              const chartArea = main.querySelector('[data-stonks-chart-area]');
-              const chart = [...main.querySelectorAll('[data-stonks-line], [data-stonks-ohlc] path')].find(el => el.getAttribute('d') && el.getClientRects().length);
-              const plot = visible('[data-stonks-plot]');
+              const chartArea = main.querySelector('[data-chart-area]');
+              const chart = [...main.querySelectorAll('[data-chart-line], [data-chart-ohlc] path')].find(el => el.getAttribute('d') && el.getClientRects().length);
+              const plot = visible('[data-price-plot]');
               const svg = plot?.getBoundingClientRect();
               const bounds = main.getBoundingClientRect();
               const outside = r => r.width && r.height &&
@@ -223,12 +223,12 @@ async function main() {
               }
               const textOverlaps = [];
               const overlaps = (a, b) => a.width && b.width && a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
-              const dates = [...main.querySelectorAll('[data-stonks-date]')].map(el => el.getBoundingClientRect()).filter(r => r.width);
+              const dates = [...main.querySelectorAll('[data-date-label]')].map(el => el.getBoundingClientRect()).filter(r => r.width);
               if (dates.some((r, i) => dates.slice(i + 1).some(next => overlaps(r, next)))) textOverlaps.push('date labels');
-              const heading = main.querySelector('[data-stonks-heading]');
+              const heading = main.querySelector('[data-quote-header]');
               if (heading && overlaps(...[...heading.children].map(el => el.getBoundingClientRect()))) textOverlaps.push('company name and ticker');
-              const price = main.querySelector('[data-stonks-price]');
-              const currency = main.querySelector('[data-stonks-currency]');
+              const price = main.querySelector('[data-quote-price]');
+              const currency = main.querySelector('[data-quote-currency]');
               if (price && currency) {
                 const a = document.createRange(), b = document.createRange();
                 a.selectNodeContents(price); b.selectNodeContents(currency);
@@ -240,20 +240,20 @@ async function main() {
                 const style = getComputedStyle(el);
                 return { color: style.color, background: style.backgroundColor, stroke: style.stroke, fill: style.fill };
               };
-              const returnBadge = main.querySelector('[data-stonks-return]');
-              const signals = { direction: returnBadge?.dataset.stonksReturn,
-                badge: paint('[data-stonks-return]'), price: paint('[data-stonks-price]'),
-                up: paint('[data-stonks-candle="up"]'), down: paint('[data-stonks-candle="down"]'),
-                flat: paint('[data-stonks-candle="flat"]'), above: paint('[data-stonks-above]'), below: paint('[data-stonks-below]') };
-              const marker = visible('[data-stonks-point]');
-              const axis = visible('[data-stonks-axis]')?.getBoundingClientRect();
+              const returnBadge = main.querySelector('[data-quote-return]');
+              const signals = { direction: returnBadge?.dataset.quoteReturn,
+                badge: paint('[data-quote-return]'), price: paint('[data-quote-price]'),
+                up: paint('[data-chart-candle="up"]'), down: paint('[data-chart-candle="down"]'),
+                flat: paint('[data-chart-candle="flat"]'), above: paint('[data-chart-above-baseline]'), below: paint('[data-chart-below-baseline]') };
+              const marker = visible('[data-last-price-marker]');
+              const axis = visible('[data-price-axis]')?.getBoundingClientRect();
               const glyphOverhang = bounds.width / main.offsetWidth;
-              const axisTicksFit = !axis || [...main.querySelectorAll('[data-stonks-tick]')].filter(el => el.getClientRects().length).every(el => {
+              const axisTicksFit = !axis || [...main.querySelectorAll('[data-price-tick]')].filter(el => el.getClientRects().length).every(el => {
                 const tick = el.getBoundingClientRect();
                 return tick.left >= axis.left - glyphOverhang && tick.right <= axis.right + glyphOverhang;
               });
               let markerError = null;
-              if (marker && chart?.hasAttribute('data-stonks-line')) {
+              if (marker && chart?.hasAttribute('data-chart-line')) {
                 const last = chart.getPointAtLength(chart.getTotalLength()).matrixTransform(chart.getScreenCTM());
                 const dot = marker.getBoundingClientRect();
                 markerError = Math.hypot(last.x - dot.left - dot.width / 2, last.y - dot.top - dot.height / 2);
@@ -265,7 +265,7 @@ async function main() {
                 time.closest('.instance').getBoundingClientRect().width + 1;
               const fonts = [...new Set([...document.fonts].filter(f => f.status === 'loaded').map(f => f.family))];
               const fontSize = selector => { const el = visible(selector); return el ? parseFloat(getComputedStyle(el).fontSize) : null; };
-              const typography = { heading: fontSize('[data-stonks] .title'), price: fontSize('[data-stonks-price]'), labels: fontSize('[data-stonks-date]') };
+              const typography = { heading: fontSize('[data-market-view] .title'), price: fontSize('[data-quote-price]'), labels: fontSize('[data-date-label]') };
               const nativeLabelSizes = Object.fromEntries(['description', 'description--large'].map(className => {
                 const probe = document.createElement('span');
                 probe.className = className;
@@ -276,9 +276,9 @@ async function main() {
               }));
               return { width: bounds.width, height: bounds.height,
                 svgWidth: svg?.width, svgHeight: svg?.height,
-                nativeStructure: layout.nextElementSibling?.classList.contains('title_bar'),
-                density: visible('[data-stonks-density]')?.dataset.stonksDensity || null,
-                densityCount: main.querySelectorAll('[data-stonks-density]').length ? [...main.querySelectorAll('[data-stonks-density]')].filter(el => el.getClientRects().length).length : 0,
+                nativeStructure: !!heading && layout.nextElementSibling?.classList.contains('title_bar'),
+                density: visible('[data-chart-density]')?.dataset.chartDensity || null,
+                densityCount: main.querySelectorAll('[data-chart-density]').length ? [...main.querySelectorAll('[data-chart-density]')].filter(el => el.getClientRects().length).length : 0,
                 chartAreaWidth: chartArea?.clientWidth,
                 chartAreaHeight: chartArea?.clientHeight,
                 timeFits, axisTicksFit, overflow, textOverflow, textOverlaps, fonts, typography, nativeLabelSizes, signals, markerError,
@@ -295,11 +295,11 @@ async function main() {
               errors.push('native slot dimensions');
             }
             if (!measurements.nativeStructure || !measurements.fonts.length) errors.push('native structure/fonts');
-            if (model.stonks.charts) {
+            if (model.quote.charts) {
               const expected = measurements.chartAreaWidth <= 460 || measurements.chartAreaHeight <= 160 ? 'compact' :
                 measurements.chartAreaWidth >= 900 && measurements.chartAreaHeight >= 400 ? 'detailed' : 'normal';
               if (measurements.densityCount !== 1 || measurements.density !== expected) errors.push('incorrect candle density for available space');
-              const geometry = model.stonks.charts[measurements.density] || model.stonks;
+              const geometry = model.quote.charts[measurements.density] || model.quote;
               measurements.candleCount = geometry.candles.length;
               if (geometry.candles.length > 1) {
                 const scale = measurements.svgWidth / 700 / profile.scale;
@@ -313,25 +313,25 @@ async function main() {
             const fontClass = fontSetting === 'description--large' || Number(fontSetting) > 12 ? 'description--large' : 'description';
             const expectedLabelSize = measurements.nativeLabelSizes[fontClass];
             if (measurements.frameworkErrors.length) errors.push('Framework runtime error');
-            if (model.stonks.has_data && Math.abs(measurements.typography.labels - expectedLabelSize) > 0.01) errors.push('chart label size differs from setting');
+            if (model.quote.has_data && Math.abs(measurements.typography.labels - expectedLabelSize) > 0.01) errors.push('chart label size differs from setting');
             if (layout === 'full' && model.trmnl?.plugin_settings?.custom_fields_values?.headerFontSize !== 'small' && measurements.typography.heading < 21) errors.push('full heading too small');
             if (measurements.overflow.length || measurements.textOverflow.length) errors.push('slot overflow');
             if (measurements.textOverlaps.length) errors.push('overlapping text');
             if (!measurements.timeFits) errors.push('market timestamp truncated');
             if (!measurements.axisTicksFit) errors.push('price labels clipped');
             if (measurements.markerError !== null && measurements.markerError > 1) errors.push('price marker misaligned');
-            if (model.stonks.has_data && (!(measurements.pathLength > 100) ||
+            if (model.quote.has_data && (!(measurements.pathLength > 100) ||
                 measurements.svgWidth < 80 * profile.scale || measurements.svgHeight < 40 * profile.scale)) {
               errors.push('chart too small');
             }
-            if (model.stonks.has_data) {
+            if (model.quote.has_data) {
               const signals = measurements.signals;
               const gray = value => { const c = value?.match(/^rgb\((\d+), (\d+), (\d+)\)$/); return c && c[1] === c[2] && c[2] === c[3]; };
               if (!gray(signals.price?.color)) errors.push('price contrast');
               if (device === 'bwry') {
                 if (signals.direction === 'up' && (signals.badge.background !== 'rgb(255, 255, 0)' || signals.badge.color !== 'rgb(0, 0, 0)')) errors.push('gain contrast on B/W/R/Y');
                 if (signals.direction === 'down' && signals.badge.color !== 'rgb(255, 0, 0)') errors.push('loss ink on B/W/R/Y');
-                if (signals.up && signals.up.fill !== (model.stonks.chart_type === 'candles' ? 'rgb(255, 255, 0)' : 'none')) errors.push('rising candle ink');
+                if (signals.up && signals.up.fill !== (model.quote.chart_type === 'candles' ? 'rgb(255, 255, 0)' : 'none')) errors.push('rising candle ink');
                 if (signals.down && signals.down.stroke !== 'rgb(255, 0, 0)') errors.push('falling candle ink');
                 if (signals.below && signals.below.stroke !== 'rgb(255, 0, 0)') errors.push('below-baseline ink');
               } else if ([signals.badge?.color, signals.up?.stroke, signals.down?.stroke, signals.above?.stroke, signals.below?.stroke].filter(Boolean).some(value => !gray(value))) errors.push('non-grayscale signal');
@@ -352,11 +352,11 @@ async function main() {
                 const screen = document.querySelector('.screen');
                 screen.classList.replace('screen--color-4bwry', 'screen--color-full');
                 const style = selector => { const el = document.querySelector(selector); return el ? getComputedStyle(el) : null; };
-                return { up: style('[data-stonks-candle="up"]')?.stroke,
-                  down: style('[data-stonks-candle="down"]')?.stroke,
-                  above: style('[data-stonks-above]')?.stroke,
-                  below: style('[data-stonks-below]')?.stroke,
-                  badge: style('[data-stonks-return]')?.color };
+                return { up: style('[data-chart-candle="up"]')?.stroke,
+                  down: style('[data-chart-candle="down"]')?.stroke,
+                  above: style('[data-chart-above-baseline]')?.stroke,
+                  below: style('[data-chart-below-baseline]')?.stroke,
+                  badge: style('[data-quote-return]')?.color };
               });
               const good = state === 'candles' ? reference.up === 'rgb(0, 136, 0)' && reference.down === 'rgb(170, 0, 0)' :
                 state === 'baseline' ? reference.above === 'rgb(0, 136, 0)' && reference.below === 'rgb(170, 0, 0)' : reference.badge === 'rgb(170, 0, 0)';

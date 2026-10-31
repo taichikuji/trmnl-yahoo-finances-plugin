@@ -397,7 +397,7 @@ async function run(input) {
   let config;
   try { config = settings(input, selected); }
   catch (error) {
-    return { stonks: display(null, true, error.message, { ...settings({}), symbol: selected.symbol.slice(0, 40) }),
+    return { quote: display(null, true, error.message, { ...settings({}), symbol: selected.symbol.slice(0, 40) }),
       ...(rotation ? { trmnl_state: rotateState(latest, rotation) } : {}) };
   }
   const previous = latest && validState(latest, now, config) ? latest : null;
@@ -428,10 +428,10 @@ async function run(input) {
     if (previous?.fx_at && state.fx_at && state.fx_at < previous.fx_at) throw new Error('Provider returned older exchange rate');
     const detail = now - state.market_at > MAX_MARKET_AGE ? 'Provider prices are over 7 days old' :
       state.fx_at && now - state.fx_at > MAX_MARKET_AGE ? 'Exchange rate is over 7 days old' : '';
-    return { stonks: display(state, !!detail, detail, config), trmnl_state: state };
+    return { quote: display(state, !!detail, detail, config), trmnl_state: state };
   } catch (error) {
     const detail = controller.signal.aborted ? 'Request timed out' : String(error?.message || 'Market data unavailable').slice(0, 160);
     const state = rotateState(rotation ? latest : previous, rotation);
-    return { stonks: display(previous, true, detail, config), ...(state ? { trmnl_state: state } : {}) };
+    return { quote: display(previous, true, detail, config), ...(state ? { trmnl_state: state } : {}) };
   } finally { clearTimeout(timer); controller.abort(); }
 }

@@ -1,13 +1,13 @@
-<div class="layout layout--col layout--top gap--small p--2" data-stonks data-stonks-font="{{ font_size }}">
-  {% render 'stonks_heading', stonks: stonks, header: header, size: 'title--small lg:title--base' %}
-  {% if stonks.has_data == true %}
+<div class="layout layout--col layout--top gap--small p--2" data-market-view data-label-class="{{ label_class }}">
+  {% render 'quote_header', quote: quote, heading_size: heading_size, size: 'title--small lg:title--base' %}
+  {% if quote.has_data == true %}
     <div class="flex flex--row flex--wrap flex--between flex--bottom gap--xsmall w--full no-shrink">
-      {% render 'stonks_price', stonks: stonks, header: header, size: 'value--base lg:landscape:value--large', large_size: 'value--base lg:value--large lg:landscape:value--xlarge' %}
-      {% render 'stonks_return', font_size: font_size, stonks: stonks, words: words, direction: direction, range_label: range_label %}
+      {% render 'quote_price', quote: quote, heading_size: heading_size, size: 'value--base lg:landscape:value--large', large_size: 'value--base lg:value--large lg:landscape:value--xlarge' %}
+      {% render 'quote_change', label_class: label_class, quote: quote, words: words, direction: direction, range_label: range_label %}
     </div>
-    {% render 'stonks_body', font_size: font_size, stonks: stonks, words: words, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
+    {% render 'chart_section', label_class: label_class, quote: quote, words: words, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
   {% else %}
-    {% render 'stonks_unavailable', font_size: font_size, stonks: stonks, words: words %}
+    {% render 'unavailable_message', label_class: label_class, quote: quote, words: words %}
   {% endif %}
 </div>
-{% render 'title_bar', stonks: stonks, words: words, range_label: range_label, svg_logo: svg_logo, title: trmnl.plugin_settings.instance_name %}
+{% render 'title_bar', quote: quote, words: words, range_label: range_label, svg_logo: svg_logo, title: trmnl.plugin_settings.instance_name %}
