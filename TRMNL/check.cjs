@@ -368,9 +368,9 @@ test('malformed market settings fail before fetching; Liquid clamps numeric disp
   const out = await load(async () => { calls++; }).run(input({ symbol: '<script>' }));
   assert.equal(calls, 0); assert.equal(out.stonks.has_data, false);
   const fresh = await load().run(sample());
-  assert.match(await render(fresh, { fontSize: 999, lineWidth: -1 }), /--stonks-font: 16px/);
+  assert.match(await render(fresh, { fontSize: 999, lineWidth: -1 }), /data-stonks-font="16"/);
   assert.match(await render(fresh, { fontSize: 999, lineWidth: -1 }), /stroke-width="1"/);
-  assert.match(await render(fresh, { fontSize: '' }), /--stonks-font: 12px/);
+  assert.match(await render(fresh, { fontSize: '' }), /data-stonks-font="12"/);
 });
 
 test('daily return uses first unadjusted close; 1D uses previous close', async () => {
@@ -753,7 +753,7 @@ test('all locales format prices and dates, and every registered view renders onc
       for (const name of layoutNames) {
         const view = fs.readFileSync(path.join(__dirname, 'src', name + '.liquid'), 'utf8'); assert.ok(view.trim());
         const html = await render(out, { locale, chartType }, name);
-        assert.equal((html.match(/data-stonks style=/g) || []).length, 1);
+        assert.equal((html.match(/data-stonks data-stonks-font=/g) || []).length, 1);
         assert.match(html, /class="title_bar"/); assert.match(html, /data-stonks-volume/);
         assert.equal(html.includes('data-stonks-ohlc'), chartType !== 'line');
         assert.doesNotMatch(html, /<script|<iframe|NaN|Infinity|{{|{%/);
@@ -1002,7 +1002,7 @@ test('Shared defines reusable components and only the selected view emits conten
   for (const name of layoutNames) {
     const html = await render(out, { headerFontSize: 'large', fontSize: 12, lineWidth: 4 }, name);
     assert.equal((html.match(/data-stonks-price/g) || []).length, 1);
-    assert.match(html, /--stonks-font: 12px/);
+    assert.match(html, /data-stonks-font="12"/);
     assert.match(html, /stroke-width="4"/);
   }
   // Match native render isolation: undeclared variables must not leak into a partial.

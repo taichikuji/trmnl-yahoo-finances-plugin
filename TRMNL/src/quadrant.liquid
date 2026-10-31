@@ -1,4 +1,4 @@
-<div class="layout layout--col layout--top gap--small p--2" data-stonks style="--stonks-font: {{ font_size }}px;">
+<div class="layout layout--col layout--top gap--small p--2" data-stonks data-stonks-font="{{ font_size }}">
   {% render 'stonks_heading', stonks: stonks, header: header, size: 'title--small' %}
   {% if stonks.has_data == true %}
     <div class="flex flex--row flex--wrap flex--between flex--bottom gap--xsmall w--full no-shrink">
