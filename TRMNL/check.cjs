@@ -937,6 +937,29 @@ test('falling and unchanged returns have distinct accessible indicators', async 
   assert.match(html, /aria-label="Unchanged 0.00%/);
 });
 
+test('title-bar logo follows the selected return, including stale fallback', async () => {
+  const rising = 'M18 42l12-12 10 7 14-20 M42 17h12v12';
+  const falling = 'M18 22l12 12 10-7 14 20 M42 47h12V35';
+  const logo = async (out, name = 'full') => {
+    const html = await render(out, {}, name);
+    const base64 = html.match(/src="data:image\/svg\+xml;base64,([^"]+)"/)?.[1];
+    assert.ok(base64);
+    return Buffer.from(base64, 'base64').toString('utf8');
+  };
+  for (const [data, expected] of [
+    [signalFixture(), rising],
+    [signalFixture({ price: 90 }), falling],
+    [signalFixture({ price: 100, flat: true }), rising]
+  ]) {
+    const out = await load().run(polled(data));
+    for (const name of layoutNames) assert.ok((await logo(out, name)).includes(expected));
+  }
+  const down = await load().run(polled(signalFixture({ price: 90 })));
+  const stale = await load(async () => ({ ok: false, status: 429 })).run(input({}, down.trmnl_state));
+  assert.equal(stale.stonks.stale, true);
+  assert.ok((await logo(stale)).includes(falling));
+});
+
 test('changes that round to zero do not show negative zero or a misleading direction', async () => {
   for (const price of [100 + 1e-7, 100 - 1e-7]) {
     const out = await load().run(signalFixture({ price, flat: true }));

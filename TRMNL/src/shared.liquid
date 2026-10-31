@@ -1,10 +1,4 @@
 {% comment %}Shared prepares UI values and defines the components used by each view.{% endcomment %}
-{%- capture svg_logo -%}
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <path fill="none" stroke="#000" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" d="M10 12v42h44 M18 42l12-12 10 7 14-20 M42 17h12v12"/>
-</svg>
-{%- endcapture -%}
-
 {% assign fields = trmnl.plugin_settings.custom_fields_values %}
 {% assign header = fields.headerFontSize | default: 'medium' %}
 {% assign font_size = fields.fontSize | default: 12 | plus: 0 | at_least: 8 | at_most: 16 %}
@@ -31,6 +25,11 @@
 {% elsif stonks.absolute_change_label contains '−' or stonks.percent_label contains '−' %}
   {% assign direction = 'down' %}
 {% endif %}
+{%- capture svg_logo -%}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <path fill="none" stroke="#000" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" d="{% if direction == 'down' %}M10 12v42h44 M18 22l12 12 10-7 14 20 M42 47h12V35{% else %}M10 12v42h44 M18 42l12-12 10 7 14-20 M42 17h12v12{% endif %}"/>
+</svg>
+{%- endcapture -%}
 <style>
   [data-stonks] .description, [data-stonks] .label--small { font-size: calc(var(--stonks-font) * var(--text-ui-scale, 1)); }
   /* Framework clamping needs JavaScript; keep the heading bounded without it. */
