@@ -63,12 +63,18 @@ async function main() {
   states.baseline_loss = await scenario({ showReference: 'show' }, pricesFixture(crossingCloses.map((p, i) => p - i * 0.08)));
   states.flat = await scenario({ showReference: 'show', chartType: 'candles' }, pricesFixture(Array(30).fill(100)));
   states.step = await scenario({ lineType: '1', headerFontSize: 'small', locale: 'pl' });
+  states.small = await scenario({ lineType: '0', lineWidth: 1, headerFontSize: 'small', fontSize: 8, precision: '0', locale: 'pl' });
+  states.thick = await scenario({ lineType: '0', lineWidth: 5, precision: '4' });
   states.large = await scenario({ headerFontSize: 'large', fontSize: 16, showVolume: 'show', chartType: 'candles', locale: 'de_DE' });
+  states.weekly = await scenario({ dateRanges: '60m|1W', fontSize: 16, locale: 'fr' }, sample({ interval: '1wk', seconds: 7 * 86400 }));
+  states.monthly = await scenario({ dateRanges: 'all|1M', precision: '2' }, sample({ interval: '1mo', seconds: 31 * 86400 }));
+  const longSymbol = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.ABC';
+  states.long_symbol = await scenario({ symbol: longSymbol, dateRanges: '3m|60', fontSize: 16 }, sample({ symbol: longSymbol, interval: '60m', seconds: 3600 }));
   const etf = sample({ symbol: 'VWCE.DE', currency: 'EUR' });
   etf.chart.result[0].meta.longName = 'Vanguard FTSE All-World UCITS ETF USD Accumulating';
   states.etf = await scenario({ symbol: 'VWCE.DE', locale: 'fr', fontSize: 12 }, etf);
   states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
-  states.intraday = await scenario({ dateRanges: '1d|1', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
+  states.intraday = await scenario({ dateRanges: '1d|1', extendedHours: 'show', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
   states.thirty_minute = await scenario({ dateRanges: '1m|30', chartType: 'candles', showVolume: 'show' }, sample({ interval: '15m', seconds: 900, count: 390 }));
   const agorot = sample({ symbol: 'TEVA.TA', currency: 'ILA', startPrice: 2000 });
   agorot.chart.result[0].meta.longName = 'Teva Pharmaceutical Industries · SAMPLE';
@@ -194,6 +200,8 @@ async function main() {
               while (walker.nextNode()) {
                 const node = walker.currentNode;
                 if (!node.textContent.trim() || node.parentElement.closest('svg')) continue;
+                const style = getComputedStyle(node.parentElement);
+                if (style.textOverflow === 'ellipsis' && style.overflowX === 'hidden') continue;
                 const range = document.createRange();
                 range.selectNodeContents(node);
                 if ([...range.getClientRects()].some(outside)) textOverflow.push(node.textContent.trim());
@@ -202,6 +210,8 @@ async function main() {
               const overlaps = (a, b) => a.width && b.width && a.left < b.right - 1 && a.right > b.left + 1 && a.top < b.bottom - 1 && a.bottom > b.top + 1;
               const dates = [...main.querySelectorAll('[data-stonks-date]')].map(el => el.getBoundingClientRect()).filter(r => r.width);
               if (dates.some((r, i) => dates.slice(i + 1).some(next => overlaps(r, next)))) textOverlaps.push('date labels');
+              const heading = main.querySelector('[data-stonks-heading]');
+              if (heading && overlaps(...[...heading.children].map(el => el.getBoundingClientRect()))) textOverlaps.push('company name and ticker');
               const price = main.querySelector('[data-stonks-price]');
               const currency = main.querySelector('[data-stonks-currency]');
               if (price && currency) {
@@ -235,10 +245,11 @@ async function main() {
               const fonts = [...new Set([...document.fonts].filter(f => f.status === 'loaded').map(f => f.family))];
               const fontSize = selector => { const el = main.querySelector(selector); return el ? parseFloat(getComputedStyle(el).fontSize) : null; };
               const typography = { heading: fontSize('[data-stonks] .title'), price: fontSize('[data-stonks-price]'), labels: fontSize('[data-stonks-date]') };
+              const labelScale = parseFloat(getComputedStyle(layout).getPropertyValue('--text-ui-scale')) || 1;
               return { width: bounds.width, height: bounds.height,
                 svgWidth: svg?.width, svgHeight: svg?.height,
                 nativeStructure: layout.nextElementSibling?.classList.contains('title_bar'),
-                timeFits, overflow, textOverflow, textOverlaps, fonts, typography, signals, markerError,
+                timeFits, overflow, textOverflow, textOverlaps, fonts, typography, labelScale, signals, markerError,
                 pathLength: chart?.getTotalLength() ?? null };
             });
             if (failedResources.length) throw new Error(failedResources.join('\n'));
@@ -251,7 +262,8 @@ async function main() {
               errors.push('native slot dimensions');
             }
             if (!measurements.nativeStructure || !measurements.fonts.length) errors.push('native structure/fonts');
-            if (model.stonks.has_data && measurements.typography.labels < 12) errors.push('chart labels too small');
+            const expectedLabelSize = Math.max(8, Math.min(16, Number(model.trmnl?.plugin_settings?.custom_fields_values?.fontSize) || 12)) * measurements.labelScale;
+            if (model.stonks.has_data && Math.abs(measurements.typography.labels - expectedLabelSize) > 0.01) errors.push('chart label size differs from setting');
             if (layout === 'full' && model.trmnl?.plugin_settings?.custom_fields_values?.headerFontSize !== 'small' && measurements.typography.heading < 21) errors.push('full heading too small');
             if (measurements.overflow.length || measurements.textOverflow.length) errors.push('slot overflow');
             if (measurements.textOverlaps.length) errors.push('overlapping text');

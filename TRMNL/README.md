@@ -105,7 +105,7 @@ TRMNL_BROWSER=chromium node scripts/preview.cjs
 
 These packages are development tools only. The test suite covers market data, FX, saved-state isolation, failures, chart geometry, locales and Liquid rendering. GitHub Actions runs the same checks on `main` pushes and pull requests.
 
-Open `dist/preview/index.html` for 704 sample previews: four device profiles, both orientations, all four layouts and twenty-two data/chart scenarios. The script uses the pinned framework and actual fonts, checks bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
+Open `dist/preview/index.html` for sample previews across four device profiles, both orientations, all four layouts and data/customization scenarios. The script uses the pinned framework and actual fonts, checks computed text sizes, bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
 
 The repository previews are lossless WebP exports of those PNGs. To update one, keep the sample label and existing media filenames:
 

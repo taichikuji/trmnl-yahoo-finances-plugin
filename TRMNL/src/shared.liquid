@@ -33,6 +33,8 @@
 {% endif %}
 <style>
   [data-stonks] .description, [data-stonks] .label--small { font-size: calc(var(--stonks-font) * var(--text-ui-scale, 1)); }
+  /* Framework clamping needs JavaScript; keep the heading bounded without it. */
+  [data-stonks-heading] > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   [data-stonks] {
     --stonks-paper: var(--framework-semantic-canvas-bg-color, #fff);
     --stonks-ink: var(--framework-semantic-text-primary-text-solid, #000);
@@ -69,9 +71,9 @@
 </style>
 
 {% template stonks_heading %}
-<div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
+<div class="flex flex--row flex--between gap--xsmall w--full no-shrink" data-stonks-heading>
   <span class="title {% if header == 'large' %}{{ large_size | default: 'title--base lg:title--large' }}{% elsif header == 'small' %}title--small{% else %}{{ size }}{% endif %} w--min-0" title="{{ stonks.name | default: stonks.symbol | escape }}">{{ stonks.name | default: stonks.symbol | escape }}</span>
-  <span class="label label--small no-shrink">{{ stonks.symbol | escape }}</span>
+  <span class="label label--small no-shrink w--max-[40cqw]" title="{{ stonks.symbol | escape }}">{{ stonks.symbol | escape }}</span>
 </div>
 {% endtemplate %}
 
