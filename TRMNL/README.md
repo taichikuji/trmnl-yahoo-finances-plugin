@@ -113,7 +113,7 @@ magick dist/preview/og-landscape-full-fresh.png -define webp:lossless=true TRMNL
 
 ## Provider limitations
 
-Yahoo's chart endpoint is undocumented and can fail or change. Instrument coverage, history and FX pairs vary. Review [Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) for your intended use.
+Yahoo's chart endpoint has community documentation and implementations; see the [API references in the project README](../README.md). The endpoint can fail or change, and instrument coverage, history and FX pairs vary. Review [Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) for your intended use.
 
 Stock logos are not included in the chart response used by STONKS. Yahoo exposes logo fields on a separate [quote endpoint](https://github.com/gadicc/yahoo-finance2/blob/634e594b30ce962d8b85f92fc1657d9a30a27398/src/modules/quote.ts); the plugin does not add a second request or authentication flow for logos.
 

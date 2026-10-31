@@ -32,4 +32,6 @@ The local configuration uses synthetic prices without contacting Yahoo. Template
 
 Data comes from Yahoo Finance's chart endpoint. Coverage and availability vary; quotes can be delayed. Failed requests retain the matching saved chart and mark it stale.
 
+Community API references: [yahoo-finance2 chart implementation](https://github.com/gadicc/yahoo-finance2/blob/dev/src/modules/chart.ts) · [yfinance history implementation](https://github.com/ranaroussi/yfinance/blob/main/yfinance/scrapers/history.py) · [yfinance repository](https://github.com/ranaroussi/yfinance) · [yfinance documentation](https://ranaroussi.github.io/yfinance/).
+
 [Questions or ideas?](https://github.com/taichikuji/trmnl-yahoo-finances-plugin/issues) · [License](LICENSE)
