@@ -121,29 +121,20 @@ custom_fields:
     description: Applies to line charts.
     group: Chart
   - keyname: showGridlines
-    field_type: select
+    field_type: boolean
     name: Grid lines
-    default: hide
-    options:
-      - Show: show
-      - Hide: hide
+    default: false
     group: Chart
   - keyname: showVolume
-    field_type: select
+    field_type: boolean
     name: Volume
-    default: hide
-    options:
-      - Show: show
-      - Hide: hide
+    default: false
     description: Trading volume below the chart, when available.
     group: Chart
   - keyname: showReference
-    field_type: select
+    field_type: boolean
     name: Return baseline
-    default: hide
-    options:
-      - Show: show
-      - Hide: hide
+    default: false
     description: Dashed line used to measure the return. Color screens highlight the line chart above and below it.
     help_text: Native-currency 1D uses the previous close when available. Converted 1D uses the first aligned bar; other ranges use the first close.
     group: Chart
@@ -170,10 +161,13 @@ custom_fields:
     description: Company name and price.
     group: Text
   - keyname: fontSize
-    field_type: number
+    field_type: select
     name: Label size
-    default: 12
-    description: Chart labels and supporting text, from 8 to 16 px. Default 12 px; scales with device density.
+    default: description
+    options:
+      - Normal: description
+      - Large: description--large
+    description: Chart labels and supporting text, using TRMNL's native sizes for your screen.
     group: Text
   - keyname: precision
     field_type: select

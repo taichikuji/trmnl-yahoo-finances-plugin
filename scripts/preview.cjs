@@ -53,8 +53,8 @@ async function main() {
   }
   const sourceCloses = sample().chart.result[0].indicators.quote[0].close;
   const mixed = pricesFixture(sourceCloses);
-  states.candles = await scenario({ chartType: 'candles', showVolume: 'show', showGridlines: 'show' }, mixed);
-  states.bars = await scenario({ chartType: 'bars', showVolume: 'show', showReference: 'show' }, mixed);
+  states.candles = await scenario({ chartType: 'candles', showVolume: true, showGridlines: true }, mixed);
+  states.bars = await scenario({ chartType: 'bars', showVolume: true, showReference: true }, mixed);
   const losses = pricesFixture(sourceCloses.map(p => 100 - p));
   states.loss = await scenario({}, losses);
   const crossingCloses = Array.from({ length: 90 }, (_, i) => +(100 + 8 * Math.sin(i / 7) + i * 0.025).toFixed(2));
@@ -64,7 +64,7 @@ async function main() {
   states.step = await scenario({ lineType: '1', headerFontSize: 'small', locale: 'pl' });
   states.small = await scenario({ lineType: '0', lineWidth: 1, headerFontSize: 'small', fontSize: 8, precision: '0', locale: 'pl' });
   states.thick = await scenario({ lineType: '0', lineWidth: 5, precision: '4' });
-  states.large = await scenario({ headerFontSize: 'large', fontSize: 16, showVolume: 'show', chartType: 'candles', locale: 'de_DE' });
+  states.large = await scenario({ headerFontSize: 'large', fontSize: 'description--large', showVolume: true, chartType: 'candles', locale: 'de_DE' });
   states.weekly = await scenario({ dateRanges: '60m|1W', fontSize: 16, locale: 'fr' }, sample({ interval: '1wk', seconds: 7 * 86400 }));
   states.monthly = await scenario({ dateRanges: 'all|1M', precision: '2' }, sample({ interval: '1mo', seconds: 31 * 86400 }));
   const longSymbol = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.ABC';
@@ -72,6 +72,9 @@ async function main() {
   const etf = sample({ symbol: 'VWCE.DE', currency: 'EUR' });
   etf.chart.result[0].meta.longName = 'Vanguard FTSE All-World UCITS ETF USD Accumulating';
   states.etf = await scenario({ symbol: 'VWCE.DE', locale: 'fr', fontSize: 12 }, etf);
+  const longName = sample();
+  longName.chart.result[0].meta.longName = 'A Very Long Company Name That Must Fit Without Overlapping the Ticker Symbol';
+  states.long_name = await scenario({ fontSize: 'description--large' }, longName);
   states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
   states.small_price = await scenario({ symbol: 'DOGE-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'DOGE-USD', startPrice: 0.1 }));
   states.intraday = await scenario({ dateRanges: '1d|1', extendedHours: 'show', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
@@ -117,10 +120,11 @@ async function main() {
   const shared = fs.readFileSync(path.join(root, 'TRMNL/src/shared.liquid'), 'utf8');
   const settings = YAML.parse(fs.readFileSync(path.join(root, 'TRMNL/src/settings.yml'), 'utf8'));
   const frameworkURL = 'https://trmnl.com/css/' + settings.framework_version + '/plugins.css';
+  const frameworkJSURL = 'https://trmnl.com/js/' + settings.framework_version + '/plugins.js';
   const cache = path.join(root, '.cache/framework', settings.framework_version);
   async function asset(url) {
     const parsed = new URL(url);
-    const name = url === frameworkURL ? 'css/plugins.css' :
+    const name = url === frameworkURL ? 'css/plugins.css' : url === frameworkJSURL ? 'js/plugins.js' :
       parsed.origin === 'https://trmnl.com' && /^\/fonts\/[\w.-]+$/.test(parsed.pathname) && !parsed.search ?
         parsed.pathname.slice(1) : null;
     if (!name) throw new Error('Unexpected preview resource: ' + url);
@@ -133,10 +137,11 @@ async function main() {
     }
     return fs.readFileSync(file);
   }
-  await asset(frameworkURL);
+  await Promise.all([asset(frameworkURL), asset(frameworkJSURL)]);
   const liquid = createLiquid();
   const head = '<!doctype html><html lang="en"><meta charset="utf-8">' +
     '<title>STONKS · sample preview</title><link rel="stylesheet" href="' + frameworkURL + '">' +
+    '<script defer src="' + frameworkJSURL + '"></script>' +
     '<style>html,body{margin:0;width:100vw;height:100vh;overflow:hidden}</style><body class="trmnl">';
   const browser = await chromium.launch({
     ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : { channel: process.env.TRMNL_BROWSER || 'chrome' }),
@@ -146,13 +151,14 @@ async function main() {
   const problems = [];
   const figures = [];
   try {
-    const page = await browser.newPage({ deviceScaleFactor: 1, javaScriptEnabled: false });
+    const page = await browser.newPage({ deviceScaleFactor: 1 });
     const failedResources = [];
+    page.on('pageerror', error => failedResources.push(error.message));
     await page.route('**/*', async route => {
       const url = route.request().url();
       try {
         await route.fulfill({ body: await asset(url),
-          contentType: url === frameworkURL ? 'text/css' :
+          contentType: url === frameworkURL ? 'text/css' : url === frameworkJSURL ? 'text/javascript' :
             url.endsWith('.woff2') ? 'font/woff2' : url.endsWith('.woff') ? 'font/woff' : 'font/ttf' });
       } catch (error) {
         failedResources.push(error.message);
@@ -161,6 +167,7 @@ async function main() {
     });
     // Keep the stylesheet loaded while testing each actual native wrapper.
     await page.setContent(head + '</body></html>');
+    await page.evaluate(() => window.terminalize());
     for (const [device, orientation] of surfaces) {
       const profile = devices[device];
         const portrait = orientation === 'portrait';
@@ -180,7 +187,10 @@ async function main() {
             const surface = '<div class="' + classes + '">' +
               (mashup ? '<div class="mashup mashup--' + mashup + '">' + view + '</div>' : view) + '</div>';
             fs.writeFileSync(path.join(outputDir, id + '.html'), head + surface + '</body></html>');
-            await page.evaluate(surface => { document.body.innerHTML = surface; }, surface);
+            await page.evaluate(async surface => {
+              document.body.innerHTML = surface;
+              await window.terminalize();
+            }, surface);
             const measurements = await page.evaluate(async () => {
               document.body.getBoundingClientRect(); // Resolve styles before waiting for fonts.
               await document.fonts.ready;
@@ -250,11 +260,19 @@ async function main() {
               const fonts = [...new Set([...document.fonts].filter(f => f.status === 'loaded').map(f => f.family))];
               const fontSize = selector => { const el = main.querySelector(selector); return el ? parseFloat(getComputedStyle(el).fontSize) : null; };
               const typography = { heading: fontSize('[data-stonks] .title'), price: fontSize('[data-stonks-price]'), labels: fontSize('[data-stonks-date]') };
-              const labelScale = parseFloat(getComputedStyle(layout).getPropertyValue('--text-ui-scale')) || 1;
+              const nativeLabelSizes = Object.fromEntries(['description', 'description--large'].map(className => {
+                const probe = document.createElement('span');
+                probe.className = className;
+                layout.appendChild(probe);
+                const size = parseFloat(getComputedStyle(probe).fontSize);
+                probe.remove();
+                return [className, size];
+              }));
               return { width: bounds.width, height: bounds.height,
                 svgWidth: svg?.width, svgHeight: svg?.height,
                 nativeStructure: layout.nextElementSibling?.classList.contains('title_bar'),
-                timeFits, axisTicksFit, overflow, textOverflow, textOverlaps, fonts, typography, labelScale, signals, markerError,
+                timeFits, axisTicksFit, overflow, textOverflow, textOverlaps, fonts, typography, nativeLabelSizes, signals, markerError,
+                frameworkErrors: window.__TRMNL_LAST_STATS__?.errors || [],
                 pathLength: chart?.getTotalLength() ?? null };
             });
             if (failedResources.length) throw new Error(failedResources.join('\n'));
@@ -267,7 +285,10 @@ async function main() {
               errors.push('native slot dimensions');
             }
             if (!measurements.nativeStructure || !measurements.fonts.length) errors.push('native structure/fonts');
-            const expectedLabelSize = Math.max(8, Math.min(16, Number(model.trmnl?.plugin_settings?.custom_fields_values?.fontSize) || 12)) * measurements.labelScale;
+            const fontSetting = model.trmnl?.plugin_settings?.custom_fields_values?.fontSize;
+            const fontClass = fontSetting === 'description--large' || Number(fontSetting) > 12 ? 'description--large' : 'description';
+            const expectedLabelSize = measurements.nativeLabelSizes[fontClass];
+            if (measurements.frameworkErrors.length) errors.push('Framework runtime error');
             if (model.stonks.has_data && Math.abs(measurements.typography.labels - expectedLabelSize) > 0.01) errors.push('chart label size differs from setting');
             if (layout === 'full' && model.trmnl?.plugin_settings?.custom_fields_values?.headerFontSize !== 'small' && measurements.typography.heading < 21) errors.push('full heading too small');
             if (measurements.overflow.length || measurements.textOverflow.length) errors.push('slot overflow');

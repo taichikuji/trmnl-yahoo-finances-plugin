@@ -363,14 +363,46 @@ test('encoded Yahoo symbols share saved state with plain symbols without another
   }
 });
 
-test('malformed market settings fail before fetching; Liquid clamps numeric display controls', async () => {
+test('malformed market settings fail before fetching; Liquid bounds display controls', async () => {
   let calls = 0;
   const out = await load(async () => { calls++; }).run(input({ symbol: '<script>' }));
   assert.equal(calls, 0); assert.equal(out.stonks.has_data, false);
   const fresh = await load().run(sample());
-  assert.match(await render(fresh, { fontSize: 999, lineWidth: -1 }), /data-stonks-font="16"/);
+  assert.match(await render(fresh, { fontSize: 999, lineWidth: -1 }), /data-stonks-font="description description--large"/);
   assert.match(await render(fresh, { fontSize: 999, lineWidth: -1 }), /stroke-width="1"/);
-  assert.match(await render(fresh, { fontSize: '' }), /data-stonks-font="12"/);
+  assert.match(await render(fresh, { fontSize: '' }), /data-stonks-font="description"/);
+});
+
+test('native label presets and saved numeric sizes render in every view', async () => {
+  const out = await load().run(sample());
+  for (const name of layoutNames) {
+    for (const [value, expected] of [['description', 'description'], ['description--large', 'description description--large'], [8, 'description'], ['12', 'description'], [16, 'description description--large'], ['invalid', 'description']]) {
+      const html = await render(out, { fontSize: value }, name);
+      assert.match(html, new RegExp('data-stonks-font="' + expected + '"'));
+      assert.match(html, new RegExp('<text class="' + expected + '" data-stonks-tick'));
+      assert.doesNotMatch(html, /--description-font-size:|--label-small-font-size:/);
+    }
+  }
+});
+
+test('boolean chart controls retain saved Show/Hide behavior in data and all views', async () => {
+  for (const value of [true, 'true', 'show', false, 'false', 'hide', '', undefined]) {
+    const enabled = [true, 'true', 'show'].includes(value);
+    const fields = { showGridlines: value, showVolume: value, showReference: value };
+    const out = await load().run(polled(sample(), fields));
+    assert.equal(out.stonks.has_volume, enabled);
+    for (const name of layoutNames) {
+      const html = await render(out, fields, name);
+      assert.equal(html.includes('stroke-dasharray="1 6"'), enabled, 'grid lines: ' + value);
+      assert.equal(html.includes('stroke-dasharray="6 4"'), enabled, 'return baseline: ' + value);
+      assert.equal(html.includes('data-stonks-above'), enabled, 'baseline colors: ' + value);
+      assert.equal(html.includes('data-stonks-volume'), enabled, 'volume: ' + value);
+    }
+    if (enabled) {
+      const legacy = await load().run(polled(sample(), { showVolume: 'show', showReference: 'show' }));
+      assert.deepEqual(plain(out.stonks), plain(legacy.stonks));
+    }
+  }
 });
 
 test('daily return uses first unadjusted close; 1D uses previous close', async () => {
@@ -773,6 +805,13 @@ test('form offers all recipe controls, with values matching runtime and native p
   const fields = Object.fromEntries(s.custom_fields.map(f => [f.keyname, f]));
   for (const key of ['symbol', 'currency', 'chartType', 'locale', 'dateRanges', 'lineWidth', 'lineType', 'showGridlines', 'showVolume', 'headerFontSize', 'fontSize']) assert.ok(fields[key]);
   assert.equal(fields.dateRanges.options.length, 6); assert.equal(fields.locale.options.length, 6);
+  for (const key of ['showGridlines', 'showVolume', 'showReference']) {
+    assert.equal(fields[key].field_type, 'boolean');
+    assert.equal(fields[key].default, false);
+  }
+  assert.equal(fields.fontSize.field_type, 'select');
+  assert.equal(fields.fontSize.default, 'description');
+  assert.deepEqual(fields.fontSize.options, [{ Normal: 'description' }, { Large: 'description--large' }]);
 });
 
 test('converted 1D returns start at the first aligned price and label that baseline', async () => {
@@ -1002,7 +1041,7 @@ test('Shared defines reusable components and only the selected view emits conten
   for (const name of layoutNames) {
     const html = await render(out, { headerFontSize: 'large', fontSize: 12, lineWidth: 4 }, name);
     assert.equal((html.match(/data-stonks-price/g) || []).length, 1);
-    assert.match(html, /data-stonks-font="12"/);
+    assert.match(html, /data-stonks-font="description"/);
     assert.match(html, /stroke-width="4"/);
   }
   // Match native render isolation: undeclared variables must not leak into a partial.

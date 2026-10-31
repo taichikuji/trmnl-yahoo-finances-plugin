@@ -3,12 +3,12 @@
   {% if stonks.has_data == true %}
     <div class="flex flex--row flex--wrap flex--between flex--bottom gap--xsmall w--full no-shrink">
       {% render 'stonks_price', stonks: stonks, header: header, size: 'value--small lg:value--base', large_size: 'value--base lg:value--large' %}
-      {% render 'stonks_return', stonks: stonks, words: words, direction: direction, range_label: range_label %}
+      {% render 'stonks_return', font_size: font_size, stonks: stonks, words: words, direction: direction, range_label: range_label %}
     </div>
-    {% render 'stonks_status', stonks: stonks, words: words %}
-    {% render 'stonks_chart', stonks: stonks, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
+    {% render 'stonks_status', font_size: font_size, stonks: stonks, words: words %}
+    {% render 'stonks_chart', font_size: font_size, stonks: stonks, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
   {% else %}
-    {% render 'stonks_unavailable', stonks: stonks, words: words %}
+    {% render 'stonks_unavailable', font_size: font_size, stonks: stonks, words: words %}
   {% endif %}
 </div>
 {% render 'title_bar', stonks: stonks, words: words, range_label: range_label, svg_logo: svg_logo, title: trmnl.plugin_settings.instance_name %}

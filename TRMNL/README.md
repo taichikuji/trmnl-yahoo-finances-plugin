@@ -49,11 +49,13 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 | Date range | 1D/minute, 1M/30 minutes, 3M/hour, 1Y/day, 5Y/week, all time/month |
 | Chart type | Line, OHLC bars or candles |
 | Line style and width | Straight, stepped or smooth; 1–5 px strokes |
-| Grid, volume, baseline | Show/hide; volume requires provider data |
+| Grid, volume, baseline | On/off checkboxes; volume requires provider data |
 | Extended hours | Available intraday pre/post-market bars |
 | Language | English, German, French, Spanish, Italian or Polish |
-| Heading and label size | Small/normal/large heading; 8–16 px supporting text, default 12 px |
+| Heading and label size | Small/normal/large heading; native Normal/Large supporting text |
 | Decimal places | Automatic, 0, 2, 4 or 6 decimals |
+
+Existing settings retain their keys. Saved Show/Hide choices remain supported alongside boolean values. Saved numeric label sizes of 12 or below use Normal; larger values use Large. Choose a preset in settings to save the new value. Tickers, currency badges and stale badges use their native label sizes.
 
 Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Some instruments lack particular ranges, FX pairs, OHLC or volume.
 
@@ -105,7 +107,7 @@ TRMNL_BROWSER=chromium node scripts/preview.cjs
 
 These packages are development tools only. The test suite covers market data, FX, saved-state isolation, failures, chart geometry, locales and Liquid rendering. GitHub Actions runs the same checks on `main` pushes and pull requests.
 
-Open `dist/preview/index.html` for sample previews across four device profiles, both orientations, all four layouts and data/customization scenarios. The script uses the pinned framework and actual fonts, checks computed text sizes, bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
+Open `dist/preview/index.html` for sample previews across four device profiles, both orientations, all four layouts and data/customization scenarios. The script runs the pinned Framework JavaScript, including native clamping, with actual fonts, checks computed text sizes, bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
 
 The repository previews are lossless WebP exports of those PNGs. To update one, keep the sample label and existing media filenames:
 
@@ -117,7 +119,7 @@ magick dist/preview/og-landscape-full-fresh.png -define webp:lossless=true TRMNL
 
 The publishing page also shows automated advisory hints. Each layout contains one native `layout` and renders the shared `title_bar` after it. Shared holds reusable components and CSS, so a layout-presence hint on Shared can be reviewed against the rendered views.
 
-Chart positions use SVG coordinates; the templates contain no inline `style` attributes. The scoped stylesheet supplies chart palette tokens, the adjustable label size and text fitting for narrow slots. Layout, spacing and text elements use Framework classes.
+Chart positions use SVG coordinates; the templates contain no inline `style` attributes. The scoped stylesheet supplies chart palette tokens and title-bar fitting for narrow slots. Company names and tickers use native `data-clamp="1"`; chart labels and supporting text use native `description` size classes. Layout, spacing and text elements use Framework classes.
 
 Stock data is already fetched through the polling URL. Serverless fetches only the exchange-rate pairs required for optional currency conversion; those pairs depend on the currency returned in the stock response. Native-currency charts make no Serverless network requests. FX requests share a 3.8-second deadline, have no retries and preserve a matching saved chart if they fail. TRMNL's [Serverless documentation](https://help.trmnl.com/en/articles/14130649-serverless) permits network requests within its five-second runtime.
 

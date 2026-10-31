@@ -62,8 +62,8 @@ function settings(input, selected = selection(input)) {
     chartType: choose(f.chartType, ['line', 'bars', 'candles'], 'line'),
     locale: choose(f.locale, Object.keys(LOCALES), 'en'),
     lineType: choose(f.lineType, ['0', '1', '2'], '2'),
-    volume: f.showVolume === 'show',
-    reference: f.showReference === 'show',
+    volume: f.showVolume === true || f.showVolume === 'true' || f.showVolume === 'show',
+    reference: f.showReference === true || f.showReference === 'true' || f.showReference === 'show',
     precision: choose(f.precision, ['auto', '0', '2', '4', '6'], 'auto')
   };
 }

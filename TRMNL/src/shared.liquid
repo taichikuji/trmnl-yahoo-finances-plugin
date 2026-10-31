@@ -1,7 +1,9 @@
 {% comment %}Shared prepares UI values and defines the components used by each view.{% endcomment %}
 {% assign fields = trmnl.plugin_settings.custom_fields_values %}
 {% assign header = fields.headerFontSize | default: 'medium' %}
-{% assign font_size = fields.fontSize | default: 12 | plus: 0 | at_least: 8 | at_most: 16 %}
+{% assign font_size = 'description' %}
+{% assign legacy_font_size = fields.fontSize | plus: 0 %}
+{% if fields.fontSize == 'description--large' or legacy_font_size > 12 %}{% assign font_size = 'description description--large' %}{% endif %}
 {% assign line_width = fields.lineWidth | default: 2 | plus: 0 | at_least: 1 | at_most: 5 %}
 {% case fields.locale %}
   {% when 'de_DE' %}{% assign words = 'KEINE DATEN|ALTE DATEN|Erneuter Versuch beim nächsten Update.|Marktdaten|FX-Schätzung|Erweitert|Regulär|Keine gespeicherten Kurse für diese Auswahl|ab erstem Kurs|Gestiegen|Gefallen|Unverändert' | split: '|' %}
@@ -31,12 +33,7 @@
 </svg>
 {%- endcapture -%}
 <style>
-  [data-stonks-font="{{ font_size }}"] {
-    --description-font-size: calc({{ font_size }}px * var(--text-ui-scale, 1));
-    --label-small-font-size: var(--description-font-size);
-  }
-  /* Framework clamping needs JavaScript; keep the heading bounded without it. */
-  [data-stonks-heading] > span, .title_bar[data-stonks-footer] > .title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .title_bar[data-stonks-footer] > .title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .title_bar[data-stonks-footer] { container-type: inline-size; }
   .title_bar[data-stonks-footer] > .title { flex-shrink: 1; min-width: 0; }
   .title_bar[data-stonks-footer] > .instance { flex-shrink: 0; }
@@ -79,8 +76,10 @@
 
 {% template stonks_heading %}
 <div class="flex flex--row flex--between gap--xsmall w--full no-shrink" data-stonks-heading>
-  <span class="title {% if header == 'large' %}{{ large_size | default: 'title--base lg:title--large' }}{% elsif header == 'small' %}title--small{% else %}{{ size }}{% endif %} w--min-0" title="{{ stonks.name | default: stonks.symbol | escape }}">{{ stonks.name | default: stonks.symbol | escape }}</span>
-  <span class="label label--small no-shrink w--max-[40cqw]" title="{{ stonks.symbol | escape }}">{{ stonks.symbol | escape }}</span>
+  <span class="title {% if header == 'large' %}{{ large_size | default: 'title--base lg:title--large' }}{% elsif header == 'small' %}title--small{% else %}{{ size }}{% endif %} w--min-0" data-clamp="1" title="{{ stonks.name | default: stonks.symbol | escape }}">{{ stonks.name | default: stonks.symbol | escape }}</span>
+  <span class="no-shrink w--max-[40cqw]">
+    <span class="label label--small block" data-clamp="1" title="{{ stonks.symbol | escape }}">{{ stonks.symbol | escape }}</span>
+  </span>
 </div>
 {% endtemplate %}
 
@@ -103,18 +102,20 @@
       <span>{{ stonks.percent_label | escape }}%</span>
     </span>
   </div>
-  <span class="description text--black" data-stonks-change="{{ direction | escape }}">{{ stonks.absolute_change_label | escape }} {{ stonks.currency | escape }} · {{ range_label | escape }}</span>
+  <span class="{{ font_size }} text--black" data-stonks-change="{{ direction | escape }}">{{ stonks.absolute_change_label | escape }} {{ stonks.currency | escape }} · {{ range_label | escape }}</span>
 </div>
 {% endtemplate %}
 
 {% template stonks_status %}
 <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
-  <span class="description w--min-0" data-stonks-status title="{{ stonks.detail | escape }}{% if stonks.fx_iso != '' %} FX: {{ stonks.fx_iso | escape }}{% endif %}">{% if stonks.stale == true %}{{ stonks.detail | escape }}{% else %}{{ stonks.interval | escape }}{% if stonks.group > 1 %} ×{{ stonks.group }}{% endif %} · {% if stonks.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}{% if stonks.chart_type != 'line' and stonks.has_ohlc != true %} · OHLC unavailable · line shown{% endif %}{% endif %}{% if stonks.fx_iso != '' %} · {{ stonks.native_currency | escape }}→{{ stonks.currency | escape }} · {{ words[4] }}{% endif %}{% if stonks.range == '1d' and stonks.return_basis == 'first_close' %} · {{ words[8] }}{% endif %}</span>
+  <span class="{{ font_size }} w--min-0" data-stonks-status title="{{ stonks.detail | escape }}{% if stonks.fx_iso != '' %} FX: {{ stonks.fx_iso | escape }}{% endif %}">{% if stonks.stale == true %}{{ stonks.detail | escape }}{% else %}{{ stonks.interval | escape }}{% if stonks.group > 1 %} ×{{ stonks.group }}{% endif %} · {% if stonks.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}{% if stonks.chart_type != 'line' and stonks.has_ohlc != true %} · OHLC unavailable · line shown{% endif %}{% endif %}{% if stonks.fx_iso != '' %} · {{ stonks.native_currency | escape }}→{{ stonks.currency | escape }} · {{ words[4] }}{% endif %}{% if stonks.range == '1d' and stonks.return_basis == 'first_close' %} · {{ words[8] }}{% endif %}</span>
   {% if stonks.stale == true %}<span class="label label--small label--filled no-shrink">{{ words[1] | escape }}</span>{% endif %}
 </div>
 {% endtemplate %}
 
 {% template stonks_chart %}
+{%- assign show_gridlines = fields.showGridlines | append: '' -%}
+{%- assign show_reference = fields.showReference | append: '' -%}
 {%- assign line_type = fields.lineType | default: '2' | append: '' -%}
 {%- capture line_path -%}
   {%- for point in stonks.points -%}
@@ -155,14 +156,14 @@
     <div class="stretch relative w--full">
       <svg class="block" data-stonks-plot xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none" role="img" aria-label="{{ stonks.name | escape }} · {{ range_label | escape }} · {{ stonks.currency | escape }}">
         <title>{{ stonks.symbol | escape }} · {{ stonks.price_label | escape }} {{ stonks.currency | escape }} · {{ stonks.market_label | escape }}</title>
-        {% if fields.showGridlines == 'show' %}
+        {% if show_gridlines == 'true' or show_gridlines == 'show' %}
           {% for tick in stonks.ticks %}<path d="M4,{{ tick.y }}H696" fill="none" stroke="currentColor" stroke-dasharray="1 6" stroke-width="0.5" vector-effect="non-scaling-stroke" />{% endfor %}
           {% for date in stonks.dates %}<path d="M{{ date.x }},12V274" fill="none" stroke="currentColor" stroke-dasharray="1 6" stroke-width="0.5" vector-effect="non-scaling-stroke" />{% endfor %}
         {% endif %}
-        {% if fields.showReference == 'show' %}<path d="M4,{{ stonks.reference_y }}H696" fill="none" stroke="currentColor" stroke-dasharray="6 4" stroke-width="1" vector-effect="non-scaling-stroke" />{% endif %}
+        {% if show_reference == 'true' or show_reference == 'show' %}<path d="M4,{{ stonks.reference_y }}H696" fill="none" stroke="currentColor" stroke-dasharray="6 4" stroke-width="1" vector-effect="non-scaling-stroke" />{% endif %}
         {% if line_path != empty %}
           <g stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round">
-            {% if fields.showReference == 'show' %}
+            {% if show_reference == 'true' or show_reference == 'show' %}
               {% assign clip_id = 'stonks-' | append_random %}
               {% assign below_height = 286 | minus: stonks.reference_y %}
               <defs>
@@ -190,19 +191,19 @@
       {% endif %}
     </div>
     <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
-      {% for date in stonks.dates %}<span class="description no-shrink" data-stonks-date{% if forloop.index == 2 %} data-stonks-mid-date{% endif %}>{{ date.label | escape }}</span>{% endfor %}
+      {% for date in stonks.dates %}<span class="{{ font_size }} no-shrink" data-stonks-date{% if forloop.index == 2 %} data-stonks-mid-date{% endif %}>{{ date.label | escape }}</span>{% endfor %}
     </div>
   </div>
   <div class="flex flex--col gap--xsmall h--full no-shrink">
     <div class="stretch relative w--full">
       <svg class="absolute top--0 left--0 w--full h--full" overflow="visible" data-stonks-axis>
         {% for tick in stonks.ticks %}
-          <text class="description" data-stonks-tick x="100%" y="{{ tick.y | times: 100.0 | divided_by: 286.0 }}%" text-anchor="end" dominant-baseline="central" fill="currentColor">{{ tick.label | escape }}</text>
+          <text class="{{ font_size }}" data-stonks-tick x="100%" y="{{ tick.y | times: 100.0 | divided_by: 286.0 }}%" text-anchor="end" dominant-baseline="central" fill="currentColor">{{ tick.label | escape }}</text>
         {% endfor %}
       </svg>
-      <span class="description" data-stonks-axis-spacer aria-hidden="true">{% for tick in stonks.ticks %}{{ tick.label | escape }}<br />{% endfor %}</span>
+      <span class="{{ font_size }}" data-stonks-axis-spacer aria-hidden="true">{% for tick in stonks.ticks %}{{ tick.label | escape }}<br />{% endfor %}</span>
     </div>
-    <span class="description text--right no-shrink">{{ stonks.currency | escape }}</span>
+    <span class="{{ font_size }} text--right no-shrink">{{ stonks.currency | escape }}</span>
   </div>
 </div>
 {% endtemplate %}
@@ -210,8 +211,8 @@
 {% template stonks_unavailable %}
 <div class="stretch flex flex--col flex--center gap--small text--center w--full">
   <span class="title title--small">{{ words[0] | escape }}</span>
-  <span class="description w--full">{{ stonks.detail | escape }}</span>
-  <span class="description w--full">{{ words[7] | escape }}.<br />{{ words[2] | escape }}</span>
+  <span class="{{ font_size }} w--full">{{ stonks.detail | escape }}</span>
+  <span class="{{ font_size }} w--full">{{ words[7] | escape }}.<br />{{ words[2] | escape }}</span>
 </div>
 {% endtemplate %}
 
