@@ -1048,6 +1048,51 @@ test('Shared defines reusable components and only the selected view emits conten
   assert.equal(await liquid.parseAndRender("{% assign secret = 'outer' %}{% template isolated %}{{ secret }}{{ value }}{% endtemplate %}{% render 'isolated', value: 'passed' %}"), 'passed');
 });
 
+test('compact OHLC charts group complete candles and volume without changing the saved history', async () => {
+  const data = sample();
+  const line = await load().run(data);
+  for (const chartType of ['candles', 'bars']) {
+    const fields = { chartType, showVolume: true };
+    const out = await load().run(polled(data, fields));
+    assert.deepEqual(plain(out.trmnl_state), plain(line.trmnl_state));
+    assert.ok(out.stonks.candles.length <= 96);
+    assert.ok(out.stonks.charts.compact?.candles.length <= 32);
+    const factor = Math.ceil(out.trmnl_state.bars.length / 32);
+    const grouped = [];
+    for (let i = 0; i < out.trmnl_state.bars.length; i += factor) {
+      const rows = out.trmnl_state.bars.slice(i, i + factor);
+      grouped.push([rows[0][0], rows[0][1], Math.max(...rows.map(b => b[2])),
+        Math.min(...rows.map(b => b[3])), rows.at(-1)[4], rows.reduce((sum, b) => sum + b[5], 0)]);
+    }
+    const expected = structuredClone(data);
+    const result = expected.chart.result[0];
+    result.timestamp = grouped.map(b => b[0]);
+    result.indicators.quote[0] = Object.fromEntries(['open', 'high', 'low', 'close', 'volume'].map((key, i) => [key, grouped.map(b => b[i + 1])]));
+    const manual = await load().run(polled(expected, fields));
+    for (const key of ['candles', 'volumes', 'ticks', 'dates', 'body_width']) assert.deepEqual(plain(out.stonks.charts.compact[key]), plain(manual.stonks[key]), key);
+    assert.equal(out.stonks.charts.compact.group, out.trmnl_state.group * factor);
+    assert.equal(out.stonks.charts.compact.price_label, out.stonks.price_label);
+    assert.equal(out.stonks.charts.compact.percent_label, out.stonks.percent_label);
+    const cached = await load().run(input(fields, out.trmnl_state));
+    assert.equal(cached.stonks.stale, true);
+    assert.deepEqual(plain(cached.stonks.charts.compact.candles), plain(out.stonks.charts.compact.candles));
+    for (const view of layoutNames) {
+      const html = await render(out, fields, view);
+      const geometry = out.stonks.charts.compact;
+      assert.match(html, new RegExp('1d ×' + geometry.group));
+      assert.match(html, /data-stonks-ohlc stroke="currentColor" stroke-width="1"/);
+    }
+  }
+  const dense = sample({ count: 390, startPrice: 100 });
+  const quote = dense.chart.result[0].indicators.quote[0];
+  quote.open.fill(100); quote.close.fill(100); quote.high.fill(101); quote.low.fill(99); quote.volume.fill(1);
+  dense.chart.result[0].meta.regularMarketPrice = 100;
+  const out = await load().run(polled(dense, { chartType: 'candles' }));
+  assert.ok(out.stonks.charts.compact.candles.length < out.stonks.candles.length);
+  assert.ok(out.stonks.candles.length < out.stonks.charts.detailed.candles.length);
+  assert.ok(out.stonks.charts.detailed.candles.length <= 192);
+});
+
 test('the transform returns numeric geometry and Liquid draws it without changing saved data', async () => {
   const line = await load().run(sample());
   const candles = await load().run(polled(sample(), { chartType: 'candles' }));

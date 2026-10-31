@@ -48,7 +48,7 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 | Currency | `NATIVE`, available fiat pairs, BTC or ETH |
 | Date range | 1D/minute, 1M/30 minutes, 3M/hour, 1Y/day, 5Y/week, all time/month |
 | Chart type | Line, OHLC bars or candles |
-| Line style and width | Straight, stepped or smooth; 1–5 px strokes |
+| Line style and width | Straight, stepped or smooth; 1–5 px line strokes |
 | Grid, volume, baseline | On/off checkboxes; volume requires provider data |
 | Extended hours | Available intraday pre/post-market bars |
 | Language | English, German, French, Spanish, Italian or Polish |
@@ -62,6 +62,10 @@ Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Some instrume
 For rotation, enter a list such as `NTNX,AAPL,NVDA`. Each data refresh polls one symbol, in order, wrapping to the first after the last. Spaces around entries, empty entries and repeated entries are ignored. One symbol retains the existing behavior. There is no plugin-imposed ticker count limit; normal TRMNL form and runtime limits still apply. Currency, range and chart settings apply to every symbol.
 
 Changing the list or clearing Saved State restarts at the first entry. Rotation follows data refreshes, rather than every playlist appearance or layout render. The refresh interval is the minimum time between eligible updates; actual updates follow TRMNL's device/playlist cadence.
+
+Candles and OHLC bars adapt to the space left after the heading and quote. Chart areas at most 460 CSS px wide or 160 CSS px high use up to 32 bars; other areas use up to 96, rising to 192 when at least 900 × 400 CSS px are available. These are rendered chart-area dimensions, not device names or physical panel pixels. Larger X slots retain more detail while narrow portrait slots can still use the compact chart.
+
+Grouping keeps the whole date range: first open, highest high, lowest low, last close and summed volume. The visible `×N` label reports the grouping actually drawn. Saved history, latest price and return stay unchanged. Candle outlines and OHLC strokes are 1 px; the Line width setting applies to line charts.
 
 ## Templates
 
@@ -107,7 +111,7 @@ TRMNL_BROWSER=chromium node scripts/preview.cjs
 
 These packages are development tools only. The test suite covers market data, FX, saved-state isolation, failures, chart geometry, locales and Liquid rendering. GitHub Actions runs the same checks on `main` pushes and pull requests.
 
-Open `dist/preview/index.html` for sample previews across four device profiles, both orientations, all four layouts and data/customization scenarios. The script runs the pinned Framework JavaScript, including native clamping, with actual fonts, checks computed text sizes, bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
+Open `dist/preview/index.html` for sample previews across four device profiles, both orientations, all four layouts and data/customization scenarios. The script runs the pinned Framework JavaScript, including native clamping, with actual fonts, checks chart density, computed text sizes, bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
 
 The repository previews are lossless WebP exports of those PNGs. To update one, keep the sample label and existing media filenames:
 
@@ -119,7 +123,7 @@ magick dist/preview/og-landscape-full-fresh.png -define webp:lossless=true TRMNL
 
 The publishing page also shows automated advisory hints. Each layout contains one native `layout` and renders the shared `title_bar` after it. Shared holds reusable components and CSS, so a layout-presence hint on Shared can be reviewed against the rendered views.
 
-Chart positions use SVG coordinates; the templates contain no inline `style` attributes. The scoped stylesheet supplies chart palette tokens and title-bar fitting for narrow slots. Company names and tickers use native `data-clamp="1"`; chart labels and supporting text use native `description` size classes. Layout, spacing and text elements use Framework classes.
+Chart positions use SVG coordinates; the templates contain no inline `style` attributes. The scoped stylesheet supplies chart palette tokens, size-based chart density and title-bar fitting for narrow slots. Company names and tickers use native `data-clamp="1"`; chart labels and supporting text use native `description` size classes. Layout, spacing and text elements use Framework classes.
 
 Stock data is already fetched through the polling URL. Serverless fetches only the exchange-rate pairs required for optional currency conversion; those pairs depend on the currency returned in the stock response. Native-currency charts make no Serverless network requests. FX requests share a 3.8-second deadline, have no retries and preserve a matching saved chart if they fail. TRMNL's [Serverless documentation](https://help.trmnl.com/en/articles/14130649-serverless) permits network requests within its five-second runtime.
 

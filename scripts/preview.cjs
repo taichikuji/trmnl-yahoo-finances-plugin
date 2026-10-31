@@ -65,6 +65,9 @@ async function main() {
   states.small = await scenario({ lineType: '0', lineWidth: 1, headerFontSize: 'small', fontSize: 8, precision: '0', locale: 'pl' });
   states.thick = await scenario({ lineType: '0', lineWidth: 5, precision: '4' });
   states.large = await scenario({ headerFontSize: 'large', fontSize: 'description--large', showVolume: true, chartType: 'candles', locale: 'de_DE' });
+  const denseCandles = pricesFixture(Array(390).fill(100));
+  denseCandles.chart.result[0].indicators.quote[0].volume.fill(1);
+  states.dense_candles = await scenario({ chartType: 'candles', showVolume: true }, denseCandles);
   states.weekly = await scenario({ dateRanges: '60m|1W', fontSize: 16, locale: 'fr' }, sample({ interval: '1wk', seconds: 7 * 86400 }));
   states.monthly = await scenario({ dateRanges: 'all|1M', precision: '2' }, sample({ interval: '1mo', seconds: 31 * 86400 }));
   const longSymbol = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.ABC';
@@ -182,7 +185,7 @@ async function main() {
           if (!viewSource.trim()) throw new Error('TRMNL requires a nonempty view: ' + layout);
           for (const [state, model] of Object.entries(states)) {
             const id = [device, orientation, layout, state].join('-');
-            const markup = (await liquid.parseAndRender(shared + '\n' + viewSource, model)).replace(/(<span\b[^>]*data-stonks-status[^>]*>)/, '$1SAMPLE · ');
+            const markup = (await liquid.parseAndRender(shared + '\n' + viewSource, model)).replace(/(<span\b[^>]*data-stonks-status[^>]*>)/g, '$1SAMPLE · ');
             const view = '<div class="view view--' + layout + '">' + markup + '</div>';
             const surface = '<div class="' + classes + '">' +
               (mashup ? '<div class="mashup mashup--' + mashup + '">' + view + '</div>' : view) + '</div>';
@@ -195,9 +198,12 @@ async function main() {
               document.body.getBoundingClientRect(); // Resolve styles before waiting for fonts.
               await document.fonts.ready;
               const main = document.querySelector('.view');
+              const visible = selector => [...main.querySelectorAll(selector)].find(el => el.getClientRects().length);
               const layout = main.querySelector('.layout');
-              const chart = [...main.querySelectorAll('[data-stonks-line], [data-stonks-ohlc] path')].find(el => el.getAttribute('d'));
-              const svg = main.querySelector('[data-stonks-plot]')?.getBoundingClientRect();
+              const chartArea = main.querySelector('[data-stonks-chart-area]');
+              const chart = [...main.querySelectorAll('[data-stonks-line], [data-stonks-ohlc] path')].find(el => el.getAttribute('d') && el.getClientRects().length);
+              const plot = visible('[data-stonks-plot]');
+              const svg = plot?.getBoundingClientRect();
               const bounds = main.getBoundingClientRect();
               const outside = r => r.width && r.height &&
                 (r.left < bounds.left - 2 || r.top < bounds.top - 2 ||
@@ -229,7 +235,7 @@ async function main() {
                 if (overlaps(a.getBoundingClientRect(), b.getBoundingClientRect())) textOverlaps.push('price and currency');
               }
               const paint = selector => {
-                const el = main.querySelector(selector);
+                const el = visible(selector);
                 if (!el) return null;
                 const style = getComputedStyle(el);
                 return { color: style.color, background: style.backgroundColor, stroke: style.stroke, fill: style.fill };
@@ -239,10 +245,10 @@ async function main() {
                 badge: paint('[data-stonks-return]'), price: paint('[data-stonks-price]'),
                 up: paint('[data-stonks-candle="up"]'), down: paint('[data-stonks-candle="down"]'),
                 flat: paint('[data-stonks-candle="flat"]'), above: paint('[data-stonks-above]'), below: paint('[data-stonks-below]') };
-              const marker = main.querySelector('[data-stonks-point]');
-              const axis = main.querySelector('[data-stonks-axis]')?.getBoundingClientRect();
+              const marker = visible('[data-stonks-point]');
+              const axis = visible('[data-stonks-axis]')?.getBoundingClientRect();
               const glyphOverhang = bounds.width / main.offsetWidth;
-              const axisTicksFit = !axis || [...main.querySelectorAll('[data-stonks-tick]')].every(el => {
+              const axisTicksFit = !axis || [...main.querySelectorAll('[data-stonks-tick]')].filter(el => el.getClientRects().length).every(el => {
                 const tick = el.getBoundingClientRect();
                 return tick.left >= axis.left - glyphOverhang && tick.right <= axis.right + glyphOverhang;
               });
@@ -258,7 +264,7 @@ async function main() {
               const timeFits = !time || timeRange.getBoundingClientRect().width <=
                 time.closest('.instance').getBoundingClientRect().width + 1;
               const fonts = [...new Set([...document.fonts].filter(f => f.status === 'loaded').map(f => f.family))];
-              const fontSize = selector => { const el = main.querySelector(selector); return el ? parseFloat(getComputedStyle(el).fontSize) : null; };
+              const fontSize = selector => { const el = visible(selector); return el ? parseFloat(getComputedStyle(el).fontSize) : null; };
               const typography = { heading: fontSize('[data-stonks] .title'), price: fontSize('[data-stonks-price]'), labels: fontSize('[data-stonks-date]') };
               const nativeLabelSizes = Object.fromEntries(['description', 'description--large'].map(className => {
                 const probe = document.createElement('span');
@@ -271,6 +277,10 @@ async function main() {
               return { width: bounds.width, height: bounds.height,
                 svgWidth: svg?.width, svgHeight: svg?.height,
                 nativeStructure: layout.nextElementSibling?.classList.contains('title_bar'),
+                density: visible('[data-stonks-density]')?.dataset.stonksDensity || null,
+                densityCount: main.querySelectorAll('[data-stonks-density]').length ? [...main.querySelectorAll('[data-stonks-density]')].filter(el => el.getClientRects().length).length : 0,
+                chartAreaWidth: chartArea?.clientWidth,
+                chartAreaHeight: chartArea?.clientHeight,
                 timeFits, axisTicksFit, overflow, textOverflow, textOverlaps, fonts, typography, nativeLabelSizes, signals, markerError,
                 frameworkErrors: window.__TRMNL_LAST_STATS__?.errors || [],
                 pathLength: chart?.getTotalLength() ?? null };
@@ -285,6 +295,20 @@ async function main() {
               errors.push('native slot dimensions');
             }
             if (!measurements.nativeStructure || !measurements.fonts.length) errors.push('native structure/fonts');
+            if (model.stonks.charts) {
+              const expected = measurements.chartAreaWidth <= 460 || measurements.chartAreaHeight <= 160 ? 'compact' :
+                measurements.chartAreaWidth >= 900 && measurements.chartAreaHeight >= 400 ? 'detailed' : 'normal';
+              if (measurements.densityCount !== 1 || measurements.density !== expected) errors.push('incorrect candle density for available space');
+              const geometry = model.stonks.charts[measurements.density] || model.stonks;
+              measurements.candleCount = geometry.candles.length;
+              if (geometry.candles.length > 1) {
+                const scale = measurements.svgWidth / 700 / profile.scale;
+                measurements.candleBodyWidth = geometry.body_width * scale;
+                measurements.candleGap = (700 - 2 * Math.max(4, geometry.body_width / 2 + 1)) /
+                  (geometry.candles.length - 1) * scale - measurements.candleBodyWidth - 1;
+                if (measurements.candleBodyWidth < 2.5 || measurements.candleGap < 0) errors.push('candle bodies too narrow or overlapping');
+              }
+            }
             const fontSetting = model.trmnl?.plugin_settings?.custom_fields_values?.fontSize;
             const fontClass = fontSetting === 'description--large' || Number(fontSetting) > 12 ? 'description--large' : 'description';
             const expectedLabelSize = measurements.nativeLabelSizes[fontClass];

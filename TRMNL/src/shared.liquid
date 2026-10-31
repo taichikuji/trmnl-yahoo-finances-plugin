@@ -67,6 +67,18 @@
   [data-stonks-change="up"] { --theme-text-black-color: var(--stonks-rise); }
   [data-stonks-return="down"], [data-stonks-change="down"] { --theme-text-black-color: var(--stonks-fall); }
   [data-stonks-axis-spacer] { visibility: hidden; }
+  [data-stonks-chart-area] { container-type: size; }
+  [data-stonks] [data-stonks-density] { display: none; }
+  [data-stonks] [data-stonks-density="normal"] { display: flex; }
+  /* Measure the area left after the heading and quote, not a device name. */
+  @container (max-width: 460px) or (max-height: 160px) {
+    [data-stonks] [data-stonks-density="normal"] { display: none; }
+    [data-stonks] [data-stonks-density="compact"] { display: flex; }
+  }
+  @container (min-width: 900px) and (min-height: 400px) {
+    [data-stonks] [data-stonks-density="normal"] { display: none; }
+    [data-stonks] [data-stonks-density="detailed"] { display: flex; }
+  }
   /* Framework breakpoints follow devices; this query follows the actual slot. */
   @container (max-width: 360px) {
     [data-stonks-mid-date], [data-stonks-full-time] { display: none; }
@@ -177,7 +189,7 @@
             {% endif %}
           </g>
         {% else %}
-          <g data-stonks-ohlc stroke="currentColor" stroke-width="{{ line_width }}" stroke-linejoin="miter">
+          <g data-stonks-ohlc stroke="currentColor" stroke-width="1" stroke-linejoin="miter">
             <path data-stonks-candle="up" d="{{ up_path | escape }}" stroke="var(--stonks-rise)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-rise-fill){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
             <path data-stonks-candle="down" d="{{ down_path | escape }}" stroke="var(--stonks-fall)" fill="{% if stonks.chart_type == 'candles' %}var(--stonks-fall){% else %}none{% endif %}" vector-effect="non-scaling-stroke" />
             <path data-stonks-candle="flat" d="{{ flat_path | escape }}" fill="var(--stonks-paper)" vector-effect="non-scaling-stroke" />
@@ -206,6 +218,24 @@
     <span class="{{ font_size }} text--right no-shrink">{{ stonks.currency | escape }}</span>
   </div>
 </div>
+{% endtemplate %}
+
+{% template stonks_body %}
+{% if stonks.charts %}
+<div class="stretch flex flex--col w--full w--min-0" data-stonks-chart-area>
+  {% assign densities = 'normal,compact,detailed' | split: ',' %}
+  {% for density in densities %}
+    {% assign model = stonks.charts[density] | default: stonks %}
+    <div class="stretch flex flex--col gap--small w--full w--min-0" data-stonks-density="{{ density }}">
+      {% render 'stonks_status', font_size: font_size, stonks: model, words: words %}
+      {% render 'stonks_chart', font_size: font_size, stonks: model, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
+    </div>
+  {% endfor %}
+</div>
+{% else %}
+  {% render 'stonks_status', font_size: font_size, stonks: stonks, words: words %}
+  {% render 'stonks_chart', font_size: font_size, stonks: stonks, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
+{% endif %}
 {% endtemplate %}
 
 {% template stonks_unavailable %}

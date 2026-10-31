@@ -286,7 +286,13 @@ function curveSegments(points) {
   return segments;
 }
 
-function chart(state, config, formatNumber) {
+function chart(state, config, formatNumber, limit = 96) {
+  const factor = config.chartType !== 'line' && state.bars.some(b => b[1] !== null) ? Math.max(1, Math.ceil(state.bars.length / limit)) : 1;
+  if (factor > 1) {
+    const bars = [];
+    for (let i = 0; i < state.bars.length; i += factor) bars.push(combine(state.bars.slice(i, i + factor)));
+    state = { ...state, bars, group: state.group * factor };
+  }
   const hasOHLC = state.bars.some(b => b[1] !== null);
   const candles = config.chartType !== 'line' && hasOHLC;
   const values = state.bars.flatMap(b => candles && b[1] !== null ? [b[2], b[3]] : [b[4]]);
@@ -298,8 +304,9 @@ function chart(state, config, formatNumber) {
   const bottom = hasVolume ? 216 : PLOT.bottom;
   const y = p => bottom - (p - min) / (max - min) * (bottom - PLOT.top);
   // Session spacing removes overnight/weekend voids, as a market chart should.
-  const x = i => PLOT.left + i / (state.bars.length - 1) * (PLOT.right - PLOT.left);
-  const width = Math.max(0.8, Math.min(9, 500 / state.bars.length));
+  const width = Math.max(0.8, Math.min(candles ? 18 : 9, 500 / state.bars.length));
+  const inset = candles ? Math.max(PLOT.left, width / 2 + 1) : PLOT.left;
+  const x = i => inset + i / (state.bars.length - 1) * (700 - 2 * inset);
   const points = state.bars.map((b, i) => ({ x: x(i), y: y(b[4]) }));
   const f = n => +n.toFixed(1);
   // Candle coordinates: center, left, right, open, high, low, close, height, change.
@@ -321,7 +328,7 @@ function chart(state, config, formatNumber) {
     body_width: f(width), volume_width: width,
     reference_y: y(state.baseline), last_y: points.at(-1).y,
     ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: formatNumber(max - r * (max - min)) })), dates,
-    has_ohlc: hasOHLC, has_volume: hasVolume };
+    has_ohlc: hasOHLC, has_volume: hasVolume, group: state.group };
 }
 
 function display(state, stale, detail, config) {
@@ -339,14 +346,19 @@ function display(state, stale, detail, config) {
     timeZone: state.timezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', ...options });
   const change = state.price - state.baseline;
   const percent = change / state.baseline * 100;
-  return { ...base, ...chart(state, config, formatter.format), has_data: true, stale, detail, name: state.name, currency: state.currency,
+  const result = { ...base, ...chart(state, config, formatter.format), has_data: true, stale, detail, name: state.name, currency: state.currency,
     price: state.price, change, percent, digits,
     price_label: formatter.format(state.price),
     percent_label: signed(percent, 2),
     absolute_change_label: signed(change, digits),
     market_at: state.market_at, market_iso: date.toISOString(), market_label: marketLabel({ year: 'numeric', timeZoneName: 'short' }), market_label_compact: marketLabel(),
-    native_currency: state.native_currency, return_basis: state.return_basis, group: state.group,
+    native_currency: state.native_currency, return_basis: state.return_basis,
     fx_iso: state.fx_at ? new Date(state.fx_at * 1000).toISOString() : '' };
+  if (config.chartType !== 'line' && result.has_ohlc) result.charts = {
+    compact: { ...result, ...chart(state, config, formatter.format, 32) },
+    detailed: { ...result, ...chart(state, config, formatter.format, 192) }
+  };
+  return result;
 }
 
 // Limit each body before JSON parsing so a provider error page or unexpectedly

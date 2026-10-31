@@ -108,7 +108,7 @@ custom_fields:
     field_type: number
     name: Line width
     default: 2
-    description: 'Stroke width for lines, bars and candle outlines: 1–5 px.'
+    description: 'Stroke width for line charts: 1–5 px. Bars and candles use thin outlines to keep their details readable.'
     group: Chart
   - keyname: lineType
     field_type: select

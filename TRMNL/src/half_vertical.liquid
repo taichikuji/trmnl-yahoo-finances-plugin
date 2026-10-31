@@ -5,8 +5,7 @@
       {% render 'stonks_price', stonks: stonks, header: header, size: 'value--base lg:landscape:value--large', large_size: 'value--base lg:value--large lg:landscape:value--xlarge' %}
       {% render 'stonks_return', font_size: font_size, stonks: stonks, words: words, direction: direction, range_label: range_label %}
     </div>
-    {% render 'stonks_status', font_size: font_size, stonks: stonks, words: words %}
-    {% render 'stonks_chart', font_size: font_size, stonks: stonks, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
+    {% render 'stonks_body', font_size: font_size, stonks: stonks, words: words, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
   {% else %}
     {% render 'stonks_unavailable', font_size: font_size, stonks: stonks, words: words %}
   {% endif %}
