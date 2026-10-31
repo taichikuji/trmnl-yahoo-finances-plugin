@@ -71,7 +71,7 @@ Grouping keeps the whole date range: first open, highest high, lowest low, last 
 
 `quote` holds the prepared quote and chart data. Shared components use role names such as `quote_header`, `quote_price`, `quote_change`, `price_chart` and `chart_section`. The `data-market-view` root scopes local styles inside mashups; `label_class` holds the native typography class.
 
-Shared accepts the former `stonks` data key for cached payloads until the next refresh. New transforms emit `quote`. Saved State and form-field keys retain their existing schema.
+Transforms emit `quote`. Saved State and form-field keys retain their existing schema.
 
 - **shared.liquid:** shared UI preparation, palette styles and reusable heading, quote, status, chart and footer components.
 - **full.liquid:** prominent price and a full-size chart.

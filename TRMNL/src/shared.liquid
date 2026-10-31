@@ -1,6 +1,4 @@
 {% comment %}Shared prepares UI values and defines the components used by each view.{% endcomment %}
-{% comment %}Accept cached data from before the quote-key rename until the next refresh.{% endcomment %}
-{% assign quote = quote | default: stonks %}
 {% assign fields = trmnl.plugin_settings.custom_fields_values %}
 {% assign heading_size = fields.headerFontSize | default: 'medium' %}
 {% assign label_class = 'description' %}

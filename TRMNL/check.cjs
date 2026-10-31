@@ -1034,17 +1034,6 @@ test('direction formatting retains Intl rounding at fractional currency boundari
   assert.match(await render(out), /data-quote-return="up"/);
 });
 
-test('cached data from the former key renders until the next refresh; current quotes take precedence', async () => {
-  const fresh = await load().run(sample());
-  assert.equal(Object.hasOwn(fresh, 'stonks'), false);
-  const legacy = { stonks: fresh.quote };
-  const unavailable = await load().run({});
-  for (const view of layoutNames) {
-    assert.equal(await render(legacy, {}, view), await render(fresh, {}, view));
-    assert.equal(await render({ ...legacy, ...unavailable }, {}, view), await render(unavailable, {}, view));
-  }
-});
-
 test('Shared defines reusable components and only the selected view emits content', async () => {
   const out = await load().run(sample());
   const definitions = await liquid.parseAndRender(shared, out);
