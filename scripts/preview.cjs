@@ -230,6 +230,12 @@ async function main() {
                 up: paint('[data-stonks-candle="up"]'), down: paint('[data-stonks-candle="down"]'),
                 flat: paint('[data-stonks-candle="flat"]'), above: paint('[data-stonks-above]'), below: paint('[data-stonks-below]') };
               const marker = main.querySelector('[data-stonks-point]');
+              const axis = main.querySelector('[data-stonks-axis]')?.getBoundingClientRect();
+              const glyphOverhang = bounds.width / main.offsetWidth;
+              const axisTicksFit = !axis || [...main.querySelectorAll('[data-stonks-tick]')].every(el => {
+                const tick = el.getBoundingClientRect();
+                return tick.left >= axis.left - glyphOverhang && tick.right <= axis.right + glyphOverhang;
+              });
               let markerError = null;
               if (marker && chart?.hasAttribute('data-stonks-line')) {
                 const last = chart.getPointAtLength(chart.getTotalLength()).matrixTransform(chart.getScreenCTM());
@@ -248,7 +254,7 @@ async function main() {
               return { width: bounds.width, height: bounds.height,
                 svgWidth: svg?.width, svgHeight: svg?.height,
                 nativeStructure: layout.nextElementSibling?.classList.contains('title_bar'),
-                timeFits, overflow, textOverflow, textOverlaps, fonts, typography, labelScale, signals, markerError,
+                timeFits, axisTicksFit, overflow, textOverflow, textOverlaps, fonts, typography, labelScale, signals, markerError,
                 pathLength: chart?.getTotalLength() ?? null };
             });
             if (failedResources.length) throw new Error(failedResources.join('\n'));
@@ -267,6 +273,7 @@ async function main() {
             if (measurements.overflow.length || measurements.textOverflow.length) errors.push('slot overflow');
             if (measurements.textOverlaps.length) errors.push('overlapping text');
             if (!measurements.timeFits) errors.push('market timestamp truncated');
+            if (!measurements.axisTicksFit) errors.push('price labels clipped');
             if (measurements.markerError !== null && measurements.markerError > 1) errors.push('price marker misaligned');
             if (model.stonks.has_data && (!(measurements.pathLength > 100) ||
                 measurements.svgWidth < 80 * profile.scale || measurements.svgHeight < 40 * profile.scale)) {

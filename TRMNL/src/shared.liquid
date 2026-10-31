@@ -69,8 +69,6 @@
   [data-stonks-return="up"] { --theme-bg-white-color: var(--stonks-gain-accent); --theme-bg-white-ink: var(--stonks-rise); }
   [data-stonks-change="up"] { --theme-text-black-color: var(--stonks-rise); }
   [data-stonks-return="down"], [data-stonks-change="down"] { --theme-text-black-color: var(--stonks-fall); }
-  [data-stonks-point] { left: 99.428571%; transform: translate(-50%, -50%); }
-  [data-stonks-tick] { transform: translateY(-50%); }
   [data-stonks-axis-spacer] { visibility: hidden; }
   /* Framework breakpoints follow devices; this query follows the actual slot. */
   @container (max-width: 360px) {
@@ -188,7 +186,7 @@
         {% if stonks.has_volume == true %}<path data-stonks-volume d="{% for point in stonks.volumes %}M{{ point[0] }},274V{{ point[1] }}{% endfor %}" fill="none" stroke="currentColor" stroke-width="{{ stonks.volume_width }}" />{% endif %}
       </svg>
       {% if line_path != empty %}
-        <svg class="absolute w--2 h--2" data-stonks-point="{{ direction | escape }}" viewBox="0 0 8 8" aria-hidden="true" style="top: {{ stonks.last_y | times: 100.0 | divided_by: 286.0 }}%;"><circle cx="4" cy="4" r="4" fill="{% if direction == 'up' %}var(--stonks-rise){% elsif direction == 'down' %}var(--stonks-fall){% else %}currentColor{% endif %}" /></svg>
+        <svg class="absolute top--0 left--0 w--full h--full" overflow="visible" aria-hidden="true"><circle data-stonks-point="{{ direction | escape }}" cx="99.428571%" cy="{{ stonks.last_y | times: 100.0 | divided_by: 286.0 }}%" r="4" fill="{% if direction == 'up' %}var(--stonks-rise){% elsif direction == 'down' %}var(--stonks-fall){% else %}currentColor{% endif %}" /></svg>
       {% endif %}
     </div>
     <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
@@ -197,9 +195,11 @@
   </div>
   <div class="flex flex--col gap--xsmall h--full no-shrink">
     <div class="stretch relative w--full">
-      {% for tick in stonks.ticks %}
-        <span class="description absolute right--0" data-stonks-tick style="top: {{ tick.y | times: 100.0 | divided_by: 286.0 }}%;">{{ tick.label | escape }}</span>
-      {% endfor %}
+      <svg class="absolute top--0 left--0 w--full h--full" overflow="visible" data-stonks-axis>
+        {% for tick in stonks.ticks %}
+          <text class="description" data-stonks-tick x="100%" y="{{ tick.y | times: 100.0 | divided_by: 286.0 }}%" text-anchor="end" dominant-baseline="central" fill="currentColor">{{ tick.label | escape }}</text>
+        {% endfor %}
+      </svg>
       <span class="description" data-stonks-axis-spacer aria-hidden="true">{% for tick in stonks.ticks %}{{ tick.label | escape }}<br />{% endfor %}</span>
     </div>
     <span class="description text--right no-shrink">{{ stonks.currency | escape }}</span>
@@ -215,7 +215,7 @@
 </div>
 {% endtemplate %}
 
-{% template stonks_footer %}
+{% template title_bar %}
 <div class="title_bar" data-stonks-footer>
   <img class="image image--adaptive w--7 h--7" src="data:image/svg+xml;base64,{{ svg_logo | base64_encode }}" alt="STONKS logo">
   <span class="title">{{ title | default: 'STONKS' | escape }}</span>

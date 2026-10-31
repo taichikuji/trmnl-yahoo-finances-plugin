@@ -113,6 +113,14 @@ The repository previews are lossless WebP exports of those PNGs. To update one, 
 magick dist/preview/og-landscape-full-fresh.png -define webp:lossless=true TRMNL/media/preview_full.webp
 ```
 
+## Publishing review notes
+
+The publishing page also shows automated advisory hints. Each layout contains one native `layout` and renders the shared `title_bar` after it. Shared holds reusable components and CSS, so a layout-presence hint on Shared can be reviewed against the rendered views.
+
+Chart positions use SVG coordinates; the templates contain no inline `style` attributes. The scoped stylesheet supplies chart palette tokens, the adjustable label size and text fitting for narrow slots. Layout, spacing and text elements use Framework classes.
+
+Stock data is already fetched through the polling URL. Serverless fetches only the exchange-rate pairs required for optional currency conversion; those pairs depend on the currency returned in the stock response. Native-currency charts make no Serverless network requests. FX requests share a 3.8-second deadline, have no retries and preserve a matching saved chart if they fail. TRMNL's [Serverless documentation](https://help.trmnl.com/en/articles/14130649-serverless) permits network requests within its five-second runtime.
+
 ## Provider limitations
 
 Yahoo's chart endpoint has community documentation and implementations; see the [API references in the project README](../README.md). The endpoint can fail or change, and instrument coverage, history and FX pairs vary. Review [Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html) for your intended use.
