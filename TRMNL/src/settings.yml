@@ -54,7 +54,11 @@ custom_fields:
     category: finance
     github_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin
     learn_more_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin/tree/main/TRMNL#setup
-    description: Made by Ivan Perez. Yahoo Finance prices and charts for stocks, ETFs, indices, forex and crypto.
+    description: >-
+      Made by Ivan Perez. Yahoo Finance charts for stocks, ETFs, indices, forex and crypto.
+      Rotate symbols, choose line, OHLC bar or candle charts, and convert historical prices into another currency.<br/>
+      No market-data API key needed. Quotes can be delayed; coverage and availability vary.<br/>
+      <a href="https://github.com/taichikuji/trmnl-yahoo-finances-plugin/issues" target="_blank">Support and feedback</a>.
   - keyname: symbol
     field_type: string
     name: Symbols

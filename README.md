@@ -1,8 +1,8 @@
 # STONKS
 
-A TRMNL Yahoo Finances plugin to display ETFs, Stocks and even Crypto!
+watch line go up
 
-Yahoo Finance prices and charts for your TRMNL. Track stocks, ETFs, indices, forex and crypto with lines, OHLC bars or candles. No market-data API key needed.
+Yahoo Finance prices and charts for your TRMNL. Rotate stocks, ETFs, indices, forex and crypto with line, OHLC bar or candle charts and historical currency conversion. No market-data API key needed.
 
 ![STONKS sample stock chart on TRMNL OG](TRMNL/media/preview_full.webp)
 
@@ -10,7 +10,7 @@ Synthetic sample prices. [All layout previews](TRMNL/README.md#previews).
 
 ## Settings
 
-- **Symbol:** Yahoo Finance symbol, such as `NTNX`, `VWCE.DE`, `%5ESTOXX50E` or `BTC-USD`.
+- **Symbols:** one or more comma-separated Yahoo Finance symbols, such as `NTNX`, `VWCE.DE`, `%5ESTOXX50E` or `BTC-USD`. Lists rotate one symbol per data refresh.
 - **Currency:** native currency, available fiat pairs, BTC or ETH. Historical prices use historical exchange rates.
 - **Chart:** six date ranges, line style and width, grid, volume, return baseline, extended hours and price precision.
 - **Text:** six languages and adjustable heading and label sizes.
