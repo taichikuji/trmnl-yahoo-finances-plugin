@@ -69,8 +69,10 @@ function settings(input, selected = selection(input)) {
 }
 
 function yahooURL(symbol, config) {
+  // yfinance's 30m workaround: request 15m once, then aggregate locally.
+  const interval = config.interval === '30m' ? '15m' : config.interval;
   return 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(symbol) +
-    '?range=' + config.range + '&interval=' + config.interval + '&includePrePost=' + config.extended;
+    '?range=' + config.range + '&interval=' + interval + '&includePrePost=' + config.extended;
 }
 function localDay(t, zone) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t * 1000));
@@ -80,9 +82,24 @@ function validZone(zone) {
   catch { return 'UTC'; }
 }
 
+function sameBar(start, time, config, timezone) {
+  if (['1d', '1wk', '1mo'].includes(config.interval)) {
+    const a = localDay(start, timezone), b = localDay(time, timezone);
+    if (config.interval === '1mo') return a.slice(0, 7) === b.slice(0, 7);
+    // Compare exchange calendar days so a DST change does not shorten a week.
+    if (config.interval === '1wk') return Date.parse(b) - Date.parse(a) < 7 * DAY * 1000;
+    return a === b;
+  }
+  return time - start < config.seconds;
+}
+
 // Each candle is [time, open, high, low, close, volume]. Never invent OHLC/volume.
 function parseYahoo(payload, now, config, expectedSymbol = config.symbol, fx = false) {
   const results = payload?.chart?.result;
+  const reason = payload?.chart?.error?.description;
+  if (payload?.chart?.error && typeof reason === 'string' && reason.trim()) {
+    throw new Error(`${fx ? 'FX' : 'Yahoo'}: ${reason.trim().replace(/\s+/g, ' ').slice(0, 140)}`);
+  }
   if (payload?.chart?.error || !Array.isArray(results) || results.length !== 1) throw new Error('Symbol or range unavailable from Yahoo');
   const { meta: m, timestamp: times, indicators } = results[0] || {};
   const q = indicators?.quote?.[0];
@@ -93,12 +110,13 @@ function parseYahoo(payload, now, config, expectedSymbol = config.symbol, fx = f
   if (!Array.isArray(times) || !Array.isArray(q?.close) || times.length !== q.close.length || times.length > 30000) throw new Error('Invalid provider price series');
   if (typeof m.currency !== 'string' || !/^[A-Za-z]{3}$/.test(m.currency)) throw new Error('Provider currency unavailable');
   const timezone = validZone(m.exchangeTimezoneName || 'UTC');
-  const unit = ['GBp', 'GBX', 'ZAc'].includes(m.currency) ? 0.01 : 1;
-  const currency = ['GBp', 'GBX'].includes(m.currency) ? 'GBP' : m.currency === 'ZAc' ? 'ZAR' : m.currency.toUpperCase();
+  const major = { GBp: 'GBP', GBX: 'GBP', ZAc: 'ZAR', ILA: 'ILS' }[m.currency];
+  const unit = major ? 0.01 : 1;
+  const currency = major || m.currency.toUpperCase();
   const bars = [];
   for (let i = 0; i < times.length; i++) {
     const t = times[i];
-    if (!barStamp(t) || t > now + 300 || (i && t <= times[i - 1])) throw new Error('Invalid market timestamps');
+    if (!barStamp(t) || t > now + 300 || (i && (t < times[i - 1] || (t === times[i - 1] && i !== times.length - 1)))) throw new Error('Invalid market timestamps');
     if (!positive(q.close[i])) continue;
     const c = q.close[i] * unit;
     const o = positive(q.open?.[i]) ? q.open[i] * unit : null;
@@ -108,6 +126,15 @@ function parseYahoo(payload, now, config, expectedSymbol = config.symbol, fx = f
     bars.push([t, ohlc ? o : null, ohlc ? Math.max(h, o, c) : null, ohlc ? Math.min(l, o, c) : null, c,
       Number.isFinite(q.volume?.[i]) && q.volume[i] >= 0 ? q.volume[i] : null]);
   }
+  const historyTime = bars.at(-1)?.[0];
+  // Yahoo can append a separate live row for the current day/week/month.
+  // Daily/identical-time rows are revised snapshots; longer candles accumulate.
+  if (bars.length > 1) {
+    const a = bars.at(-2), b = bars.at(-1);
+    if (a[0] === b[0] || (config.seconds >= DAY && sameBar(a[0], b[0], config, timezone))) {
+      bars.splice(-2, 2, a[0] === b[0] || config.interval === '1d' ? b : combine([a, b]));
+    }
+  }
   if (bars.length < 2) throw new Error('Not enough prices for this range');
   const price = m.regularMarketPrice * unit;
   const quoteTime = m.regularMarketTime;
@@ -116,19 +143,16 @@ function parseYahoo(payload, now, config, expectedSymbol = config.symbol, fx = f
   // bars and quote their last close with its own timestamp; never rewind the path.
   let market_at = quoteTime;
   let latest = price;
-  if (config.extended && last[0] > quoteTime) { latest = last[4]; market_at = last[0]; }
+  if (config.extended && historyTime > quoteTime) { latest = last[4]; market_at = historyTime; }
   else {
-    if (last[0] > quoteTime || quoteTime - last[0] > Math.max(MAX_MARKET_AGE, config.seconds * 2)) throw new Error('Quote and history are out of sync');
-    const same = config.interval === '1d' ? localDay(last[0], timezone) === localDay(quoteTime, timezone) :
-      config.interval === '1mo' ? localDay(last[0], timezone).slice(0, 7) === localDay(quoteTime, timezone).slice(0, 7) :
-      quoteTime - last[0] < config.seconds;
-    if (same) {
+    if (historyTime > quoteTime || quoteTime - historyTime > Math.max(MAX_MARKET_AGE, config.seconds * 2)) throw new Error('Quote and history are out of sync');
+    if (sameBar(last[0], quoteTime, config, timezone)) {
       last[4] = price;
       if (last[1] !== null) { last[2] = Math.max(last[2], price); last[3] = Math.min(last[3], price); }
     } else bars.push([quoteTime, null, null, null, price, null]);
   }
-  // Yahoo occasionally answers 30m with 15m bars. Aggregate rather than relabel.
-  const normalized = !fx && config.interval === '30m' && m.dataGranularity === '15m' ? aggregateByTime(bars, 1800) : bars;
+  // Both asset and FX requests use 15m bars for the displayed 30m interval.
+  const normalized = config.interval === '30m' && m.dataGranularity === '15m' ? aggregateByTime(bars, 1800) : bars;
   const previous = positive(m.chartPreviousClose) ? m.chartPreviousClose : m.previousClose;
   return { bars: normalized, symbol: expectedSymbol, name: String(m.longName || m.shortName || expectedSymbol).slice(0, 140),
     currency, native_currency: currency, timezone, price: latest, market_at,

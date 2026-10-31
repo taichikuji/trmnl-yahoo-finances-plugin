@@ -69,6 +69,13 @@ async function main() {
   states.etf = await scenario({ symbol: 'VWCE.DE', currency: 'NATIVE', locale: 'fr', fontSize: 12 }, etf);
   states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
   states.intraday = await scenario({ dateRanges: '1d|1', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
+  states.thirty_minute = await scenario({ dateRanges: '1m|30', chartType: 'candles', showVolume: 'show' }, sample({ interval: '15m', seconds: 900, count: 390 }));
+  const agorot = sample({ symbol: 'TEVA.TA', currency: 'ILA', startPrice: 2000 });
+  agorot.chart.result[0].meta.longName = 'Teva Pharmaceutical Industries · SAMPLE';
+  states.agorot = await scenario({ symbol: 'TEVA.TA', currency: 'NATIVE' }, agorot);
+  states.provider_error = await offline.run({ chart: { result: null, error: {
+    description: 'Requested range must be within the last 60 days. Check the selected interval.'
+  } } });
   states.stale_large = await offline.run({ trmnl: {
     state: states.large.trmnl_state,
     plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } }

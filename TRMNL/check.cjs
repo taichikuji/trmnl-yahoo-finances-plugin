@@ -226,8 +226,9 @@ test('native polling URLs preserve Yahoo symbols, ranges and session choices', a
       const fields = { symbol, dateRanges, extendedHours };
       const url = await liquid.parseAndRender(source, fields);
       const expected = config(fields);
+      const interval = expected.interval === '30m' ? '15m' : expected.interval;
       assert.equal(url, 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(expected.symbol) +
-        '?range=' + expected.range + '&interval=' + expected.interval + '&includePrePost=' + expected.extended);
+        '?range=' + expected.range + '&interval=' + interval + '&includePrePost=' + expected.extended);
     }
   }
 });
@@ -410,6 +411,167 @@ test('15m provider data is aggregated into actual 30m OHLCV bars', () => {
   assert.equal(parsed.bars.reduce((n, b) => n + b[5], 0), data.chart.result[0].indicators.quote[0].volume.reduce((a, b) => a + b, 0));
 });
 
+test('30-minute native polling requests 15-minute bars and keeps the displayed interval', async () => {
+  const fields = { symbol: 'NTNX,AAPL', dateRanges: '1m|30', currency: 'NATIVE' };
+  const data = sample({ interval: '15m', seconds: 900, count: 6 });
+  const r = data.chart.result[0];
+  r.timestamp = Array.from({ length: 6 }, (_, i) => Date.parse('2026-10-28T18:30Z') / 1000 + i * 900);
+  const url = new URL(await pollURL(fields));
+  assert.equal(url.searchParams.get('interval'), '15m');
+  assert.equal(url.searchParams.get('range'), '1mo');
+  const out = await load().run(polled(data, fields));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.stonks.interval, '30m');
+  assert.equal(out.trmnl_state.source_count, 3);
+  assert.equal(out.trmnl_state.bars[0][1], +r.indicators.quote[0].open[0].toPrecision(9));
+  assert.equal(out.trmnl_state.bars[0][4], +r.indicators.quote[0].close[1].toPrecision(9));
+  assert.equal(out.trmnl_state.bars[0][5], r.indicators.quote[0].volume[0] + r.indicators.quote[0].volume[1]);
+  const next = new URL(await pollURL(fields, plain(out.trmnl_state)));
+  assert.match(next.pathname, /\/AAPL$/);
+  assert.equal(next.searchParams.get('interval'), '15m');
+});
+
+test('30-minute conversion requests and aggregates the FX series at the same resolution', async () => {
+  const fields = { dateRanges: '1m|30', currency: 'EUR' };
+  const market = sample({ interval: '30m', seconds: 1800, count: 3 });
+  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '15m', seconds: 900, count: 6, startPrice: 0.8 });
+  const start = Date.parse('2026-10-28T18:30Z') / 1000;
+  market.chart.result[0].timestamp = [start, start + 1800, start + 3600];
+  fx.chart.result[0].timestamp = Array.from({ length: 6 }, (_, i) => start + i * 900);
+  let calls = 0;
+  const out = await load(async url => {
+    calls++;
+    assert.equal(new URL(url).searchParams.get('interval'), '15m');
+    return { ok: true, json: async () => fx };
+  }).run(polled(market, fields));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(calls, 1);
+  const expected = market.chart.result[0].indicators.quote[0].close[0] * fx.chart.result[0].indicators.quote[0].close[1];
+  assert.equal(out.trmnl_state.baseline, expected);
+  assert.equal(out.trmnl_state.source_count, 3);
+});
+
+test('Yahoo interval errors retain the matching chart and expose the reason without another stock request', async () => {
+  const fields = { dateRanges: '1m|30' };
+  const saved = plain((await load().run(polled(sample({ interval: '30m', seconds: 1800 }), fields))).trmnl_state);
+  const chart = { result: null, error: { code: 'Bad Request', description: '  Requested range\n  must be within the last 60 days.  ' } };
+  const out = await load().run({ chart, ...input(fields, saved) });
+  assert.equal(out.stonks.detail, 'Yahoo: Requested range must be within the last 60 days.');
+  assert.equal(out.stonks.stale, true);
+  assert.deepEqual(plain(out.trmnl_state), saved);
+});
+
+test('Yahoo error descriptions remain bounded, escaped text in every layout', async () => {
+  const chart = { error: { description: '<script>unsafe</script> & ' + 'x'.repeat(250) }, result: null };
+  const out = await load().run({ chart, ...input() });
+  assert.match(out.stonks.detail, /^Yahoo: /);
+  assert.ok(out.stonks.detail.length <= 160);
+  for (const name of layoutNames) {
+    const html = await render(out, {}, name);
+    assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /&lt;script&gt;unsafe&lt;\/script&gt; &amp;/);
+  }
+});
+
+test('schema-valid empty Yahoo histories use fallback without inventing prices or fetching again', async () => {
+  const saved = plain((await load().run(sample())).trmnl_state);
+  for (const timestamp of [undefined, []]) {
+    const data = sample();
+    data.chart.result[0].timestamp = timestamp;
+    data.chart.result[0].indicators.quote = [{}];
+    for (const state of [undefined, saved]) {
+      const out = await load().run(polled(data, {}, state));
+      assert.equal(out.stonks.has_data, !!state);
+      assert.equal(out.stonks.stale, true);
+      if (state) assert.deepEqual(plain(out.trmnl_state), saved);
+    }
+  }
+});
+
+test('a separate live daily row replaces the earlier daily snapshot without double-counting volume', async () => {
+  const data = sample({ count: 4 });
+  const r = data.chart.result[0];
+  r.timestamp[2] = Date.parse('2026-10-28T13:30Z') / 1000;
+  const out = await load().run(data);
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.trmnl_state.source_count, 3);
+  assert.equal(out.trmnl_state.bars.at(-1)[5], r.indicators.quote[0].volume[3]);
+  assert.equal(out.trmnl_state.bars.at(-1)[1], +r.indicators.quote[0].open[3].toPrecision(9));
+});
+
+for (const [dateRanges, interval, dates] of [
+  ['60m|1W', '1wk', ['2026-10-12T13:30Z', '2026-10-19T13:30Z', '2026-10-26T13:30Z', '2026-10-28T19:55Z']],
+  ['all|1M', '1mo', ['2026-08-03T13:30Z', '2026-09-01T13:30Z', '2026-10-01T13:30Z', '2026-10-28T19:55Z']]
+]) test(`${interval} merges Yahoo's separate live row into its existing candle`, async () => {
+  const data = sample({ count: 4, interval });
+  const r = data.chart.result[0];
+  r.timestamp = dates.map(s => Date.parse(s) / 1000);
+  const out = await load().run(polled(data, { dateRanges }));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.trmnl_state.source_count, 3);
+  const last = out.trmnl_state.bars.at(-1);
+  const q = r.indicators.quote[0];
+  assert.equal(last[0], r.timestamp[2]);
+  assert.equal(last[1], +q.open[2].toPrecision(9));
+  assert.equal(last[2], +Math.max(q.high[2], q.high[3]).toPrecision(9));
+  assert.equal(last[3], +Math.min(q.low[2], q.low[3]).toPrecision(9));
+  assert.equal(last[4], +r.meta.regularMarketPrice.toPrecision(9));
+  assert.equal(last[5], q.volume[2] + q.volume[3]);
+  assert.equal(out.stonks.market_at, r.meta.regularMarketTime);
+});
+
+test('an exact duplicate tail row is replaced while unordered history remains invalid', async () => {
+  const data = sample({ count: 4 });
+  const r = data.chart.result[0];
+  r.timestamp[2] = r.timestamp[3];
+  const out = await load().run(data);
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.trmnl_state.source_count, 3);
+  assert.equal(out.trmnl_state.bars.at(-1)[5], r.indicators.quote[0].volume[3]);
+  assert.equal(load().validState(out.trmnl_state, NOW / 1000, config({})), true);
+});
+
+test('weekly quote alignment uses exchange calendar days across daylight saving changes', async () => {
+  const data = sample({ interval: '1wk', count: 3 });
+  const r = data.chart.result[0];
+  r.timestamp = ['2026-02-16T14:30Z', '2026-02-23T14:30Z', '2026-03-02T14:30Z'].map(s => Date.parse(s) / 1000);
+  r.meta.regularMarketTime = Date.parse('2026-03-09T13:30Z') / 1000;
+  r.meta.regularMarketPrice = 123;
+  const out = await load().run(polled(data, { dateRanges: '60m|1W' }));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.trmnl_state.source_count, 4);
+  assert.equal(out.trmnl_state.bars.at(-1)[0], r.meta.regularMarketTime);
+  assert.equal(out.trmnl_state.bars.at(-1)[1], null);
+  assert.equal(out.trmnl_state.bars.at(-2)[4], +r.indicators.quote[0].close.at(-1).toPrecision(9));
+});
+
+test('hourly quotes stay anchored to the exchange bar rather than a whole UTC hour', async () => {
+  for (const [time, count] of [['2026-10-28T07:10Z', 4], ['2026-10-28T07:45Z', 5]]) {
+    const data = sample({ symbol: '^NSEI', interval: '60m', count: 4, timezone: 'Asia/Kolkata' });
+    const r = data.chart.result[0];
+    r.timestamp = ['2026-10-28T03:45Z', '2026-10-28T04:45Z', '2026-10-28T05:45Z', '2026-10-28T06:45Z'].map(s => Date.parse(s) / 1000);
+    r.meta.regularMarketTime = Date.parse(time) / 1000;
+    const out = await load().run(polled(data, { symbol: '^NSEI', dateRanges: '3m|60', currency: 'NATIVE' }));
+    assert.equal(out.stonks.has_data, true, out.stonks.detail);
+    assert.equal(out.trmnl_state.source_count, count);
+    assert.equal(out.trmnl_state.bars.at(-1)[0], count === 4 ? r.timestamp.at(-1) : r.meta.regularMarketTime);
+  }
+});
+
+test('merging a live candle retains its actual timestamp and cannot hide an out-of-sync quote', async () => {
+  const data = sample({ count: 4, interval: '1wk' });
+  const r = data.chart.result[0];
+  r.timestamp = ['2026-10-12T13:30Z', '2026-10-19T13:30Z', '2026-10-26T13:30Z', '2026-10-28T19:55Z'].map(s => Date.parse(s) / 1000);
+  r.meta.regularMarketTime -= 3600;
+  const rejected = await load().run(polled(data, { dateRanges: '60m|1W' }));
+  assert.equal(rejected.stonks.has_data, false);
+  assert.equal(rejected.stonks.detail, 'Quote and history are out of sync');
+  const extended = await load().run(polled(data, { dateRanges: '60m|1W', extendedHours: 'show' }));
+  assert.equal(extended.stonks.has_data, true, extended.stonks.detail);
+  assert.equal(extended.stonks.market_at, r.timestamp.at(-1));
+  assert.equal(extended.trmnl_state.bars.at(-1)[0], r.timestamp[2]);
+});
+
 test('null closes are skipped and absent OHLC/volume are never synthesized', async () => {
   const data = sample(); const q = data.chart.result[0].indicators.quote[0];
   q.close[0] = null; delete q.open; delete q.high; delete q.low; delete q.volume;
@@ -507,6 +669,34 @@ test('pence are converted to pounds before display and FX', async () => {
   const data = sample({ symbol: 'VWRP.L', currency: 'GBp', startPrice: 10000 });
   const out = await load().run(polled(data, { symbol: 'VWRP.L', currency: 'NATIVE' }));
   assert.equal(out.stonks.currency, 'GBP'); assert.equal(out.stonks.price, data.chart.result[0].meta.regularMarketPrice / 100);
+});
+
+test('Israeli agorot normalize to shekels before quote, OHLC and previous-close formatting', async () => {
+  const fields = { symbol: 'TEVA.TA', currency: 'NATIVE', dateRanges: '1d|1' };
+  const data = sample({ symbol: 'TEVA.TA', currency: 'ILA', startPrice: 2000, interval: '1m', seconds: 60, count: 8 });
+  const r = data.chart.result[0];
+  const out = await load().run(polled(data, fields));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.stonks.currency, 'ILS');
+  assert.equal(out.stonks.price, r.meta.regularMarketPrice * 0.01);
+  assert.equal(out.trmnl_state.baseline, r.meta.chartPreviousClose * 0.01);
+  assert.equal(out.trmnl_state.bars[0][1], +(r.indicators.quote[0].open[0] * 0.01).toPrecision(9));
+  assert.equal(out.trmnl_state.bars[0][5], r.indicators.quote[0].volume[0]);
+});
+
+test('agorot use the ILS exchange-rate pair rather than a fabricated ILA pair', async () => {
+  const data = sample({ symbol: 'TEVA.TA', currency: 'ILA', startPrice: 2000 });
+  const fx = sample({ symbol: 'ILSUSD=X', currency: 'USD', startPrice: 0.27 });
+  let calls = 0;
+  const out = await load(async url => {
+    calls++;
+    assert.match(new URL(url).pathname, /\/ILSUSD%3DX$/);
+    return { ok: true, json: async () => fx };
+  }).run(polled(data, { symbol: 'TEVA.TA' }));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(calls, 1);
+  assert.equal(out.stonks.native_currency, 'ILS');
+  assert.equal(out.stonks.price, data.chart.result[0].meta.regularMarketPrice * 0.01 * fx.chart.result[0].meta.regularMarketPrice);
 });
 
 test('extended-hours bars keep their latest price and timestamp', async () => {

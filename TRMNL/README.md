@@ -86,6 +86,8 @@ Rotation keeps only the latest successful chart plus a small cursor in Saved Sta
 
 Saved State is limited to 8,192 bytes. Long histories are grouped into OHLCV buckets; `×N` shows the grouping factor. Market timestamps retain their exact seconds. Changing symbol, currency, range or session prevents reuse of a different selection's chart. Display changes can redraw saved data during an outage. Do not clear Saved State routinely.
 
+30-minute charts request 15-minute data and aggregate OHLCV locally, including FX series, to avoid Yahoo's unreliable 30-minute interval. A separate live daily row replaces the earlier snapshot; separate weekly/monthly live rows are folded into their candle. Yahoo error descriptions are shown when available.
+
 Prices and returns use unadjusted closes, excluding reinvested dividends. Native-currency 1D returns use the previous close when available; other returns use the first close. Currency conversion aligns historical rates at or before each asset bar. Converted OHLC values are estimates, labelled **FX estimate**; converted 1D returns start at the first aligned bar, labelled **from first bar**. Unsupported or stale FX pairs are rejected. Market times use the exchange timezone.
 
 ## Development
@@ -103,7 +105,7 @@ TRMNL_BROWSER=chromium node scripts/preview.cjs
 
 These packages are development tools only. The test suite covers market data, FX, saved-state isolation, failures, chart geometry, locales and Liquid rendering. GitHub Actions runs the same checks on `main` pushes and pull requests.
 
-Open `dist/preview/index.html` for 608 sample previews: four device profiles, both orientations, all four layouts and nineteen data/chart scenarios. The script uses the pinned framework and actual fonts, checks bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
+Open `dist/preview/index.html` for 704 sample previews: four device profiles, both orientations, all four layouts and twenty-two data/chart scenarios. The script uses the pinned framework and actual fonts, checks bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
 
 The repository previews are lossless WebP exports of those PNGs. To update one, keep the sample label and existing media filenames:
 

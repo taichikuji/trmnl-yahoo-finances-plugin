@@ -35,7 +35,7 @@ polling_url: >-
   https://query1.finance.yahoo.com/v8/finance/chart/{{ entries[index] | url_decode | upcase | url_encode }}?
   {%- case dateRanges -%}
   {%- when '1d|1' -%}range=1d&interval=1m
-  {%- when '1m|30' -%}range=1mo&interval=30m
+  {%- when '1m|30' -%}range=1mo&interval=15m
   {%- when '3m|60' -%}range=3mo&interval=60m
   {%- when '60m|1W' -%}range=5y&interval=1wk
   {%- when 'all|1M' -%}range=max&interval=1mo
