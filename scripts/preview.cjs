@@ -72,7 +72,8 @@ async function main() {
   const etf = sample({ symbol: 'VWCE.DE', currency: 'EUR' });
   etf.chart.result[0].meta.longName = 'Vanguard FTSE All-World UCITS ETF USD Accumulating';
   states.etf = await scenario({ symbol: 'VWCE.DE', locale: 'fr', fontSize: 12 }, etf);
-  states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
+  states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
+  states.small_price = await scenario({ symbol: 'DOGE-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'DOGE-USD', startPrice: 0.1 }));
   states.intraday = await scenario({ dateRanges: '1d|1', extendedHours: 'show', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
   states.thirty_minute = await scenario({ dateRanges: '1m|30', chartType: 'candles', showVolume: 'show' }, sample({ interval: '15m', seconds: 900, count: 390 }));
   const agorot = sample({ symbol: 'TEVA.TA', currency: 'ILA', startPrice: 2000 });
