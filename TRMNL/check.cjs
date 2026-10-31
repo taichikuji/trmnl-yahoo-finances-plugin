@@ -234,14 +234,18 @@ test('native polling URLs preserve Yahoo symbols, ranges and session choices', a
 });
 
 test('Serverless enriches a native polling response without requesting the stock twice', async () => {
-  const data = sample();
-  let requests = 0;
-  const out = await load(async () => { requests++; throw Error('Unexpected provider request'); }).run(data);
-  assert.equal(requests, 0);
-  assert.equal(out.stonks.has_data, true, out.stonks.detail);
-  assert.equal(out.chart, undefined);
-  assert.ok(load().bytes(out) < load().bytes(data));
-  assert.deepEqual(plain(out.trmnl_state), plain((await load().run(sample())).trmnl_state));
+  for (const currency of ['USD', 'EUR', 'JPY']) for (const unset of [undefined, null, '', '   ']) {
+    const data = sample({ currency });
+    let requests = 0;
+    const out = await load(async () => { requests++; throw Error('Unexpected provider request'); })
+      .run(polled(data, { currency: unset }));
+    assert.equal(requests, 0);
+    assert.equal(out.stonks.has_data, true, out.stonks.detail);
+    assert.equal(out.stonks.currency, currency);
+    assert.equal(out.chart, undefined);
+    assert.ok(load().bytes(out) < load().bytes(data));
+    assert.deepEqual(plain(out.trmnl_state), plain((await load().run(polled(data, { currency: 'NATIVE' }))).trmnl_state));
+  }
 });
 
 test('malformed native responses retain the matching snapshot without another stock request', async () => {
@@ -692,7 +696,7 @@ test('agorot use the ILS exchange-rate pair rather than a fabricated ILA pair', 
     calls++;
     assert.match(new URL(url).pathname, /\/ILSUSD%3DX$/);
     return { ok: true, json: async () => fx };
-  }).run(polled(data, { symbol: 'TEVA.TA' }));
+  }).run(polled(data, { symbol: 'TEVA.TA', currency: 'USD' }));
   assert.equal(out.stonks.has_data, true, out.stonks.detail);
   assert.equal(calls, 1);
   assert.equal(out.stonks.native_currency, 'ILS');
