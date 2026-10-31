@@ -83,6 +83,25 @@ async function main() {
   if (!states.converted_day.stonks.has_data) throw new Error(states.converted_day.stonks.detail);
   states.converted_day.trmnl = { plugin_settings: { custom_fields_values: { currency: 'EUR', dateRanges: '1d|1', locale: 'es' } } };
 
+  const rotationFields = { symbol: 'NTNX,NVDA' };
+  const rotationSettings = { custom_fields_values: rotationFields };
+  const first = await plugin(noFetch).run({ ...sample(), trmnl: { plugin_settings: rotationSettings } });
+  const rotatedSample = sample({ symbol: 'NVDA' });
+  rotatedSample.chart.result[0].meta.longName = 'NVIDIA Corp. · SAMPLE';
+  states.rotation = await plugin(noFetch).run({ ...rotatedSample,
+    trmnl: { state: first.trmnl_state, plugin_settings: rotationSettings } });
+  states.rotation.trmnl = { plugin_settings: rotationSettings };
+  states.rotation_unavailable = await plugin(noFetch).run({
+    trmnl: { state: states.rotation.trmnl_state, plugin_settings: rotationSettings } });
+  states.rotation_unavailable.trmnl = { plugin_settings: rotationSettings };
+  const restartedSettings = { custom_fields_values: { symbol: 'NVDA,NTNX' } };
+  states.rotation_stale = await plugin(noFetch).run({
+    trmnl: { state: states.rotation.trmnl_state, plugin_settings: restartedSettings } });
+  states.rotation_stale.trmnl = { plugin_settings: restartedSettings };
+  for (const name of ['rotation', 'rotation_unavailable', 'rotation_stale']) {
+    if (states[name].stonks.has_data !== (name !== 'rotation_unavailable')) throw new Error('Invalid rotation preview: ' + name);
+  }
+
   const shared = fs.readFileSync(path.join(root, 'TRMNL/src/shared.liquid'), 'utf8');
   const settings = YAML.parse(fs.readFileSync(path.join(root, 'TRMNL/src/settings.yml'), 'utf8'));
   const frameworkURL = 'https://trmnl.com/css/' + settings.framework_version + '/plugins.css';
@@ -225,17 +244,17 @@ async function main() {
               errors.push('native slot dimensions');
             }
             if (!measurements.nativeStructure || !measurements.fonts.length) errors.push('native structure/fonts');
-            if (state !== 'unavailable' && measurements.typography.labels < 12) errors.push('chart labels too small');
+            if (model.stonks.has_data && measurements.typography.labels < 12) errors.push('chart labels too small');
             if (layout === 'full' && model.trmnl?.plugin_settings?.custom_fields_values?.headerFontSize !== 'small' && measurements.typography.heading < 21) errors.push('full heading too small');
             if (measurements.overflow.length || measurements.textOverflow.length) errors.push('slot overflow');
             if (measurements.textOverlaps.length) errors.push('overlapping text');
             if (!measurements.timeFits) errors.push('market timestamp truncated');
             if (measurements.markerError !== null && measurements.markerError > 1) errors.push('price marker misaligned');
-            if (state !== 'unavailable' && (!(measurements.pathLength > 100) ||
+            if (model.stonks.has_data && (!(measurements.pathLength > 100) ||
                 measurements.svgWidth < 80 * profile.scale || measurements.svgHeight < 40 * profile.scale)) {
               errors.push('chart too small');
             }
-            if (state !== 'unavailable') {
+            if (model.stonks.has_data) {
               const signals = measurements.signals;
               const gray = value => { const c = value?.match(/^rgb\((\d+), (\d+), (\d+)\)$/); return c && c[1] === c[2] && c[2] === c[3]; };
               if (!gray(signals.price?.color)) errors.push('price contrast');
@@ -288,7 +307,7 @@ async function main() {
       'repeat(auto-fit,minmax(300px,1fr));gap:20px}figure{margin:0}img{display:block;max-width:100%;' +
       'max-height:400px;background:white}figcaption{padding:8px 0}</style>' +
       '<h1>STONKS · ' + report.length + ' local previews</h1><p>Synthetic sample prices. Four native device profiles, ' +
-      'both orientations, four views, and sixteen data/customization scenarios. Click a preview to open its markup.</p><main>' +
+      'both orientations, four views, and ' + Object.keys(states).length + ' data/customization scenarios. Click a preview to open its markup.</p><main>' +
       figures.join('\n') + '</main></html>');
     if (problems.length) throw new Error(problems.length + ' preview failures:\n' + JSON.stringify(problems.slice(0, 8), null, 2));
     console.log('All ' + report.length + ' cases passed. Gallery: ' + path.join(outputDir, 'index.html'));

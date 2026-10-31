@@ -44,7 +44,7 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 
 | Control | Options |
 | --- | --- |
-| Symbol | Yahoo Finance symbol, plain or URL-encoded |
+| Symbols | One or more comma-separated Yahoo Finance symbols, plain or URL-encoded |
 | Currency | `NATIVE`, available fiat pairs, BTC or ETH |
 | Date range | 1D/minute, 1M/30 minutes, 3M/hour, 1Y/day, 5Y/week, all time/month |
 | Chart type | Line, OHLC bars or candles |
@@ -56,6 +56,10 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 | Decimal places | Automatic, 0, 2, 4 or 6 decimals |
 
 Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Some instruments lack particular ranges, FX pairs, OHLC or volume.
+
+For rotation, enter a list such as `NTNX,AAPL,NVDA`. Each data refresh polls one symbol, in order, wrapping to the first after the last. Spaces around entries, empty entries and repeated entries are ignored. One symbol retains the existing behavior. There is no plugin-imposed ticker count limit; normal TRMNL form and runtime limits still apply. Currency, range and chart settings apply to every symbol.
+
+Changing the list or clearing Saved State restarts at the first entry. Rotation follows data refreshes, rather than every playlist appearance or layout render. The refresh interval is the minimum time between eligible updates; actual updates follow TRMNL's device/playlist cadence.
 
 ## Templates
 
@@ -78,6 +82,8 @@ Serverless never retries the stock request, even on a fresh installation. A sele
 
 Saved-state fallback does not suppress TRMNL's polling-health warnings or control its transport retries: [TRMNL can retry a timed-out poll, and repeated polling failures can stop refreshes](https://help.trmnl.com/en/articles/17434705-plugin-strategies). After Yahoo recovers, use **Reset Health** if TRMNL has stopped the plugin. Avoid repeated Force Refresh requests while rate-limited. Keep Saved State intact so the fallback remains available.
 
+Rotation keeps only the latest successful chart plus a small cursor in Saved State, not a chart for every ticker or a copy of the list. A failed selection can reuse that chart only when its symbol, currency, range and session match. Otherwise it shows unavailable data, retaining the latest good chart for possible later reuse. A successful HTTP response advances rotation even if its chart is invalid or conversion fails. An empty response holds the position. TRMNL skips state writes after failed polls, so HTTP errors such as 429 or an invalid symbol's 404 keep the same ticker until polling succeeds or the list changes. Serverless never tries another stock to bypass a failure; existing FX requests remain available for conversion.
+
 Saved State is limited to 8,192 bytes. Long histories are grouped into OHLCV buckets; `×N` shows the grouping factor. Market timestamps retain their exact seconds. Changing symbol, currency, range or session prevents reuse of a different selection's chart. Display changes can redraw saved data during an outage. Do not clear Saved State routinely.
 
 Prices and returns use unadjusted closes, excluding reinvested dividends. Native-currency 1D returns use the previous close when available; other returns use the first close. Currency conversion aligns historical rates at or before each asset bar. Converted OHLC values are estimates, labelled **FX estimate**; converted 1D returns start at the first aligned bar, labelled **from first bar**. Unsupported or stale FX pairs are rejected. Market times use the exchange timezone.
@@ -97,7 +103,7 @@ TRMNL_BROWSER=chromium node scripts/preview.cjs
 
 These packages are development tools only. The test suite covers market data, FX, saved-state isolation, failures, chart geometry, locales and Liquid rendering. GitHub Actions runs the same checks on `main` pushes and pull requests.
 
-Open `dist/preview/index.html` for 512 sample previews: four device profiles, both orientations, all four layouts and sixteen data/chart scenarios. The script uses the pinned framework and actual fonts, checks bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
+Open `dist/preview/index.html` for 608 sample previews: four device profiles, both orientations, all four layouts and nineteen data/chart scenarios. The script uses the pinned framework and actual fonts, checks bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
 
 The repository previews are lossless WebP exports of those PNGs. To update one, keep the sample label and existing media filenames:
 

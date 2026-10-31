@@ -30,9 +30,28 @@ function symbolFor(value) {
   return text;
 }
 
-function settings(input) {
+// Match polling_url using core Liquid filters only. Keep the list out of Saved
+// State: a small checksum and cursor leave room for the latest successful chart.
+function selection(input) {
+  const value = input?.trmnl?.plugin_settings?.custom_fields_values?.symbol;
+  const symbols = [...new Set(String(value || 'NTNX').toUpperCase().split(',').map(s => s.trim()).filter(Boolean))];
+  if (!symbols.length) symbols.push('NTNX');
+  const list = symbols.join(',');
+  const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ^.=+&-%,';
+  let checksum = 0;
+  for (const char of list) {
+    const code = alphabet.indexOf(char);
+    checksum = (checksum * 131 + (code < 0 ? alphabet.length : code)) % 2147483647;
+  }
+  const key = list.length + ':' + checksum;
+  const saved = input?.trmnl?.state?.rotation;
+  const index = saved?.key === key && Number.isSafeInteger(saved.next) && saved.next >= 0 && saved.next < symbols.length ? saved.next : 0;
+  return { symbol: symbols[index], index, rotation: symbols.length > 1 ? { key, next: (index + 1) % symbols.length } : null };
+}
+
+function settings(input, selected = selection(input)) {
   const f = input?.trmnl?.plugin_settings?.custom_fields_values || {};
-  const symbol = symbolFor(f.symbol);
+  const symbol = symbolFor(selected.symbol);
   const currency = String(f.currency || 'USD').trim().toUpperCase();
   if (!/^(NATIVE|[A-Z]{3})$/.test(currency)) throw new Error('Use a currency code, e.g. USD, EUR, BTC or NATIVE');
   const dateRanges = choose(f.dateRanges, Object.keys(RANGES), '12m|1D');
@@ -134,7 +153,7 @@ function aggregateByTime(bars, seconds) {
   return groups.map(g => combine(g.rows));
 }
 
-function makeState(data, config, now) {
+function makeState(data, config, now, rotation = null) {
   const baseline = config.range === '1d' && positive(data.previous_close) ? data.previous_close : data.bars[0][4];
   let group = Math.max(1, Math.ceil(data.bars.length / 360));
   let state;
@@ -146,11 +165,24 @@ function makeState(data, config, now) {
       native_currency: data.native_currency, timezone: data.timezone, market_at: data.market_at, fetched_at: now,
       price: data.price, baseline,
       return_basis: config.range === '1d' && positive(data.previous_close) ? 'previous_close' : 'first_close', fx_at: data.fx_at || null, fx_rate: data.fx_rate || null,
-      group, source_count: data.bars.length, bars };
+      group, source_count: data.bars.length, bars, ...(rotation ? { rotation } : {}) };
     group++;
   } while ((state.bars.length > 360 || bytes(state) > STATE_LIMIT) && group < data.bars.length);
   if (!validState(state, now, config)) throw new Error('Saved chart could not be validated');
   return state;
+}
+
+function rotateState(latest, rotation) {
+  if (!rotation) return latest;
+  const state = { ...latest, rotation };
+  // An old single-ticker snapshot may already occupy all 8 KB. Group it just
+  // enough to fit the cursor, without accumulating charts or losing OHLCV.
+  for (let factor = 2; bytes(state) > STATE_LIMIT && factor < latest?.bars.length; factor++) {
+    state.bars = [];
+    for (let i = 0; i < latest.bars.length; i += factor) state.bars.push(combine(latest.bars.slice(i, i + factor)));
+    state.group = latest.group * factor;
+  }
+  return bytes(state) <= STATE_LIMIT ? state : { rotation };
 }
 
 function validState(s, now, config) {
@@ -322,10 +354,17 @@ async function readResponse(response) {
 
 async function run(input) {
   const now = Math.floor(Date.now() / 1000);
+  const selected = selection(input);
+  // Native failed polls have no payload, and TRMNL skips their state writes.
+  const rotation = selected.rotation && { ...selected.rotation, next: input?.chart === undefined ? selected.index : selected.rotation.next };
+  const latest = validState(input?.trmnl?.state, now) ? input.trmnl.state : null;
   let config;
-  try { config = settings(input); }
-  catch (error) { return { stonks: display(null, true, error.message, settings({})) }; }
-  const previous = validState(input?.trmnl?.state, now, config) ? input.trmnl.state : null;
+  try { config = settings(input, selected); }
+  catch (error) {
+    return { stonks: display(null, true, error.message, { ...settings({}), symbol: selected.symbol.slice(0, 40) }),
+      ...(rotation ? { trmnl_state: rotateState(latest, rotation) } : {}) };
+  }
+  const previous = latest && validState(latest, now, config) ? latest : null;
   const controller = new AbortController();
   let timer;
   try {
@@ -346,7 +385,7 @@ async function run(input) {
       // A five-day FX window also covers gaps before the first intraday bar.
       const fxConfig = { ...config, range: config.range === '1d' ? '5d' : config.range, extended: false };
       const rates = await Promise.all(plan.map(async p => ({ ...p, data: await request(p.symbol, fxConfig) })));
-      return makeState(convert(data, rates, config), config, now);
+      return makeState(convert(data, rates, config), config, now, rotation);
     })();
     const state = await Promise.race([work, deadline]);
     if (previous && state.market_at < previous.market_at) throw new Error('Provider returned older data');
@@ -356,6 +395,7 @@ async function run(input) {
     return { stonks: display(state, !!detail, detail, config), trmnl_state: state };
   } catch (error) {
     const detail = controller.signal.aborted ? 'Request timed out' : String(error?.message || 'Market data unavailable').slice(0, 160);
-    return { stonks: display(previous, true, detail, config), ...(previous ? { trmnl_state: previous } : {}) };
+    const state = rotateState(rotation ? latest : previous, rotation);
+    return { stonks: display(previous, true, detail, config), ...(state ? { trmnl_state: state } : {}) };
   } finally { clearTimeout(timer); controller.abort(); }
 }
