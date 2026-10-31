@@ -33,7 +33,11 @@
 <style>
   [data-stonks] .description, [data-stonks] .label--small { font-size: calc(var(--stonks-font) * var(--text-ui-scale, 1)); }
   /* Framework clamping needs JavaScript; keep the heading bounded without it. */
-  [data-stonks-heading] > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-stonks-heading] > span, .title_bar[data-stonks-footer] > .title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .title_bar[data-stonks-footer] { container-type: inline-size; }
+  .title_bar[data-stonks-footer] > .title { flex-shrink: 1; min-width: 0; }
+  .title_bar[data-stonks-footer] > .instance { flex-shrink: 0; }
+  [data-stonks-compact-time] { display: none; }
   [data-stonks] {
     --stonks-paper: var(--framework-semantic-canvas-bg-color, #fff);
     --stonks-ink: var(--framework-semantic-text-primary-text-solid, #000);
@@ -66,7 +70,10 @@
   [data-stonks] [data-stonks-point="up"] { background-color: var(--stonks-rise); }
   [data-stonks] [data-stonks-point="down"] { background-color: var(--stonks-fall); }
   /* Framework breakpoints follow devices; this query follows the actual slot. */
-  @container (max-width: 360px) { [data-stonks-mid-date] { display: none; } }
+  @container (max-width: 360px) {
+    [data-stonks-mid-date], [data-stonks-full-time] { display: none; }
+    [data-stonks-compact-time] { display: inline; }
+  }
 </style>
 
 {% template stonks_heading %}
@@ -206,9 +213,9 @@
 {% endtemplate %}
 
 {% template stonks_footer %}
-<div class="title_bar">
+<div class="title_bar" data-stonks-footer>
   <img class="image image--adaptive w--7 h--7" src="data:image/svg+xml;base64,{{ svg_logo | base64_encode }}" alt="STONKS logo">
-  <span class="title">STONKS</span>
-  <span class="instance">{% if stonks.has_data == true %}<time class="description" datetime="{{ stonks.market_iso | escape }}" title="{{ words[3] | escape }}: {{ stonks.market_label | escape }}" aria-label="{{ words[3] | escape }}: {{ stonks.market_label | escape }}">{{ stonks.market_label_compact | escape }}</time>{% else %}{{ stonks.symbol | escape }} · {{ range_label | escape }}{% endif %}</span>
+  <span class="title">{{ title | default: 'STONKS' | escape }}</span>
+  <span class="instance">{% if stonks.has_data == true %}<time datetime="{{ stonks.market_iso | escape }}" title="{{ words[3] | escape }}: {{ stonks.market_label | escape }}" aria-label="{{ words[3] | escape }}: {{ stonks.market_label | escape }}"><span data-stonks-full-time>{{ stonks.market_label_compact | escape }}</span><span data-stonks-compact-time>{{ stonks.market_label_compact | slice: -5, 5 | escape }}</span></time>{% else %}{{ stonks.symbol | escape }} · {{ range_label | escape }}{% endif %}</span>
 </div>
 {% endtemplate %}
