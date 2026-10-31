@@ -17,6 +17,206 @@ const render = (out, fields = {}, name = 'full') => liquid.parseAndRender(
   shared + '\n' + fs.readFileSync(path.join(__dirname, 'src', name + '.liquid'), 'utf8'), { ...out, ...input(fields) });
 const layoutNames = ['full', 'half_horizontal', 'half_vertical', 'quadrant'];
 const config = fields => load().settings(input(fields));
+const pollingURL = YAML.parse(fs.readFileSync(path.join(__dirname, 'src/settings.yml'), 'utf8')).polling_url;
+const pollURL = (fields, state) => liquid.parseAndRender(pollingURL, { ...fields, ...input(fields, state) });
+
+test('rotation persists across native polls and fresh Serverless instances, then wraps', async () => {
+  const fields = { symbol: 'NTNX,AAPL,NVDA', currency: 'NATIVE' };
+  let state;
+  for (const symbol of ['NTNX', 'AAPL', 'NVDA', 'NTNX', 'AAPL', 'NVDA']) {
+    const url = await pollURL(fields, state);
+    assert.equal(url, 'https://query1.finance.yahoo.com/v8/finance/chart/' + symbol + '?range=1y&interval=1d&includePrePost=false');
+    const out = await load().run(polled(sample({ symbol }), fields, state));
+    assert.equal(out.stonks.has_data, true, out.stonks.detail);
+    assert.equal(out.stonks.symbol, symbol);
+    state = plain(out.trmnl_state);
+    assert.equal(state.symbol, symbol);
+    assert.ok(load().bytes(state) <= 8192);
+    assert.deepEqual(Object.keys(state).filter(k => /charts|history|symbols/.test(k)), []);
+  }
+});
+
+test('lists trim spaces, ignore empty entries and deduplicate without changing Yahoo notation', async () => {
+  const fields = { symbol: ' ntnx, ,%5estoXX50e, ntnx, M%26M.NS, BTC-USD, EURUSD=X, ' };
+  let state;
+  for (const symbol of ['NTNX', '^STOXX50E', 'M&M.NS', 'BTC-USD', 'EURUSD=X', 'NTNX']) {
+    assert.equal(new URL(await pollURL(fields, state)).pathname.split('/').at(-1), encodeURIComponent(symbol));
+    const out = await load().run(polled(sample({ symbol }), fields, state));
+    assert.equal(out.stonks.has_data, true, out.stonks.detail);
+    assert.equal(out.stonks.symbol, symbol);
+    state = plain(out.trmnl_state);
+  }
+});
+
+test('empty or effectively single-symbol lists preserve single-ticker snapshots and URLs', async () => {
+  const expected = plain((await load().run(sample())).trmnl_state);
+  for (const symbol of [undefined, '', '  ', ', ,', 'NTNX', ' ntnx,NTNX, ']) {
+    const fields = { symbol };
+    assert.equal(await pollURL(fields), await pollURL({ symbol: 'NTNX' }));
+    const out = await load().run(polled(sample(), fields));
+    assert.deepEqual(plain(out.trmnl_state), expected);
+    assert.equal(out.trmnl_state.rotation, undefined);
+  }
+});
+
+test('list edits restart at the first symbol, including changes after the current position', async () => {
+  const original = { symbol: 'NTNX,AAPL,NVDA' };
+  const state = plain((await load().run(polled(sample(), original))).trmnl_state);
+  assert.match(await pollURL(original, state), /\/AAPL\?/);
+  for (const symbol of ['NVDA,NTNX,AAPL', 'NTNX,AAPL,MSFT', 'NTNX,AAPL,NVDA,MSFT', 'NTNX,NVDA']) {
+    const fields = { symbol };
+    const first = symbol.split(',')[0];
+    assert.match(await pollURL(fields, state), new RegExp('/' + first + '\\?'));
+    const out = await load().run(polled(sample({ symbol: first }), fields, state));
+    assert.equal(out.stonks.has_data, true, out.stonks.detail);
+    assert.equal(out.trmnl_state.rotation.next, 1);
+  }
+  assert.match(await pollURL({ symbol: ' ntnx, aapl, ntnx, nvda, ' }, state), /\/AAPL\?/);
+});
+
+test('missing, legacy and damaged rotation state start safely at the first ticker', async () => {
+  const fields = { symbol: 'NTNX,AAPL,NVDA' };
+  const legacy = plain((await load().run(sample())).trmnl_state);
+  const good = plain((await load().run(polled(sample(), fields))).trmnl_state);
+  for (const state of [undefined, {}, legacy, { rotation: null },
+    ...[undefined, null, -1, 1.5, '1', true, {}, 3, Number.MAX_SAFE_INTEGER].map(next => ({ ...good, rotation: { ...good.rotation, next } }))]) {
+    assert.match(await pollURL(fields, state), /\/NTNX\?/);
+    const out = await load().run(polled(sample(), fields, state));
+    assert.equal(out.stonks.has_data, true, out.stonks.detail);
+    assert.equal(out.trmnl_state.rotation.next, 1);
+  }
+});
+
+test('successful HTTP responses advance past provider errors while retaining only the latest good chart', async () => {
+  const fields = { symbol: 'NTNX,AAPL,NVDA' };
+  const good = plain((await load().run(polled(sample(), fields))).trmnl_state);
+  for (const chart of [null, {}, { result: null, error: { code: 'Not Found' } }]) {
+    const failed = await load().run({ chart, ...input(fields, good) });
+    assert.equal(failed.stonks.symbol, 'AAPL');
+    assert.equal(failed.stonks.has_data, false);
+    assert.equal(failed.trmnl_state.symbol, 'NTNX');
+    assert.deepEqual(plain(failed.trmnl_state.bars), good.bars);
+    assert.match(await pollURL(fields, plain(failed.trmnl_state)), /\/NVDA\?/);
+    const recovered = await load().run(polled(sample({ symbol: 'NVDA' }), fields, plain(failed.trmnl_state)));
+    assert.equal(recovered.stonks.has_data, true, recovered.stonks.detail);
+    assert.equal(recovered.trmnl_state.symbol, 'NVDA');
+    assert.equal(recovered.trmnl_state.rotation.next, 0);
+  }
+});
+
+test('a rejected first response saves a cursor without inventing a successful chart', async () => {
+  const fields = { symbol: 'NTNX,AAPL' };
+  const failed = await load().run({ chart: { error: { code: 'Not Found' } }, ...input(fields) });
+  assert.equal(failed.stonks.has_data, false);
+  assert.deepEqual(Object.keys(failed.trmnl_state), ['rotation']);
+  assert.match(await pollURL(fields, plain(failed.trmnl_state)), /\/AAPL\?/);
+  const recovered = await load().run(polled(sample({ symbol: 'AAPL' }), fields, plain(failed.trmnl_state)));
+  assert.equal(recovered.stonks.has_data, true, recovered.stonks.detail);
+});
+
+test('invalid entry syntax does not erase the latest chart or trigger Serverless requests', async () => {
+  for (const bad of ['NASDAQ:AAPL', '%broken', '<script>']) {
+    const fields = { symbol: 'NTNX,' + bad + ',NVDA' };
+    const saved = plain((await load().run(polled(sample(), fields))).trmnl_state);
+    const failed = await load().run({ chart: { error: { code: 'Not Found' } }, ...input(fields, saved) });
+    assert.equal(failed.stonks.has_data, false);
+    assert.match(failed.stonks.detail, /Yahoo Finance symbol/);
+    assert.equal(failed.trmnl_state.symbol, 'NTNX');
+    assert.match(await pollURL(fields, plain(failed.trmnl_state)), /\/NVDA\?/);
+  }
+});
+
+test('empty failed native polls hold their position with no stock or FX retry, including 429', async () => {
+  const fields = { symbol: 'NTNX,AAPL', currency: 'EUR' };
+  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
+  const saved = plain((await load(ok(fx)).run(polled(sample(), fields))).trmnl_state);
+  // TRMNL strips failed HTTP responses (including 429) and skips state writes.
+  for (const state of [undefined, saved]) {
+    const before = await pollURL(fields, state);
+    for (let i = 0; i < 3; i++) {
+      const failed = await load().run(input(fields, state));
+      assert.equal(failed.stonks.has_data, false);
+      assert.equal(failed.stonks.detail, 'Yahoo polling failed');
+      assert.equal(await pollURL(fields, plain(failed.trmnl_state)), before);
+      if (state) assert.deepEqual(plain(failed.trmnl_state), state);
+    }
+  }
+});
+
+test('rotation fallback only displays a matching ticker, currency, range and session', async () => {
+  const original = { symbol: 'NTNX,AAPL', currency: 'NATIVE' };
+  const saved = plain((await load().run(polled(sample(), original))).trmnl_state);
+  for (const fields of [original, { ...original, symbol: 'NTNX,NVDA', currency: 'EUR' },
+    { ...original, symbol: 'NTNX,NVDA', dateRanges: '1d|1' }, { ...original, symbol: 'NTNX,NVDA', extendedHours: 'show' }]) {
+    const failed = await load().run(input(fields, saved));
+    assert.equal(failed.stonks.has_data, false);
+    assert.equal(failed.trmnl_state.symbol, 'NTNX');
+  }
+  // Editing the list restarts at NTNX; the latest matching snapshot can be used.
+  const restarted = await load().run(input({ ...original, symbol: 'NTNX,NVDA' }, saved));
+  assert.equal(restarted.stonks.has_data, true);
+  assert.equal(restarted.stonks.stale, true);
+  assert.equal(restarted.stonks.symbol, 'NTNX');
+});
+
+test('rotation retains Currency conversion and FX failures advance without retrying the stock', async () => {
+  const fields = { symbol: 'NTNX,AAPL', currency: 'EUR' };
+  const requested = [];
+  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', startPrice: 0.8 });
+  const saved = plain((await load(async url => { requested.push(url); return { ok: true, json: async () => fx }; })
+    .run(polled(sample(), fields))).trmnl_state);
+  assert.equal(saved.currency, 'EUR');
+  assert.equal(requested.length, 1);
+  assert.match(requested[0], /\/USDEUR%3DX\?/);
+  const failed = await load(async url => { requested.push(url); return { ok: false, status: 429 }; })
+    .run(polled(sample({ symbol: 'AAPL' }), fields, saved));
+  assert.equal(failed.stonks.has_data, false);
+  assert.equal(failed.stonks.detail, 'FX HTTP 429');
+  assert.equal(requested.length, 2);
+  assert.equal(failed.trmnl_state.symbol, 'NTNX');
+  assert.match(await pollURL(fields, plain(failed.trmnl_state)), /\/NTNX\?/);
+});
+
+test('long lists keep a bounded cursor and one chart instead of storing the configuration', async () => {
+  const symbols = Array.from({ length: 2000 }, (_, i) => 'T' + String(i).padStart(4, '0'));
+  const fields = { symbol: symbols.join(',') };
+  assert.ok(fields.symbol.length > 8192);
+  const first = await load().run(polled(sample({ symbol: symbols[0] }), fields));
+  const state = plain(first.trmnl_state);
+  state.rotation.next = symbols.length - 1;
+  assert.match(await pollURL(fields, state), /\/T1999\?/);
+  const last = await load().run(polled(sample({ symbol: symbols.at(-1) }), fields, state));
+  assert.equal(last.stonks.has_data, true, last.stonks.detail);
+  assert.equal(last.trmnl_state.symbol, symbols.at(-1));
+  assert.equal(last.trmnl_state.rotation.next, 0);
+  assert.ok(load().bytes(last.trmnl_state) <= 8192);
+  assert.ok(JSON.stringify(last.trmnl_state.rotation).length < 100);
+});
+
+test('a nearly full legacy snapshot makes room for rotation without losing its quote or OHLCV', async () => {
+  const saved = plain((await load().run(sample({ count: 124 }))).trmnl_state);
+  assert.ok(load().bytes(saved) > 8150);
+  const fields = { symbol: 'NTNX,AAPL' };
+  const out = await load().run({ chart: {}, ...input(fields, saved) });
+  const state = plain(out.trmnl_state);
+  assert.equal(out.stonks.has_data, true);
+  assert.equal(out.stonks.stale, true);
+  assert.ok(load().bytes(state) <= 8192);
+  assert.equal(load().validState(state, NOW / 1000, config(fields)), true);
+  for (const key of ['price', 'baseline', 'market_at', 'fetched_at', 'source_count']) assert.equal(state[key], saved[key]);
+  assert.equal(state.bars.at(-1)[4], saved.bars.at(-1)[4]);
+  assert.equal(state.bars.reduce((sum, b) => sum + b[5], 0), saved.bars.reduce((sum, b) => sum + b[5], 0));
+  assert.match(await pollURL(fields, state), /\/AAPL\?/);
+});
+
+test('unexpected saved metadata cannot cause an oversized write or unbounded compaction', async () => {
+  const saved = plain((await load().run(sample({ count: 2 }))).trmnl_state);
+  saved.unexpected = 'x'.repeat(8192 - load().bytes(saved) - 18);
+  assert.equal(load().validState(saved, NOW / 1000), true);
+  const out = await load().run({ chart: {}, ...input({ symbol: 'NTNX,AAPL' }, saved) });
+  assert.ok(load().bytes(out.trmnl_state) <= 8192);
+  assert.deepEqual(Object.keys(out.trmnl_state), ['rotation']);
+});
 
 test('native polling URLs preserve Yahoo symbols, ranges and session choices', async () => {
   const source = YAML.parse(fs.readFileSync(path.join(__dirname, 'src/settings.yml'), 'utf8')).polling_url;
@@ -26,8 +226,9 @@ test('native polling URLs preserve Yahoo symbols, ranges and session choices', a
       const fields = { symbol, dateRanges, extendedHours };
       const url = await liquid.parseAndRender(source, fields);
       const expected = config(fields);
+      const interval = expected.interval === '30m' ? '15m' : expected.interval;
       assert.equal(url, 'https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(expected.symbol) +
-        '?range=' + expected.range + '&interval=' + expected.interval + '&includePrePost=' + expected.extended);
+        '?range=' + expected.range + '&interval=' + interval + '&includePrePost=' + expected.extended);
     }
   }
 });
@@ -210,6 +411,167 @@ test('15m provider data is aggregated into actual 30m OHLCV bars', () => {
   assert.equal(parsed.bars.reduce((n, b) => n + b[5], 0), data.chart.result[0].indicators.quote[0].volume.reduce((a, b) => a + b, 0));
 });
 
+test('30-minute native polling requests 15-minute bars and keeps the displayed interval', async () => {
+  const fields = { symbol: 'NTNX,AAPL', dateRanges: '1m|30', currency: 'NATIVE' };
+  const data = sample({ interval: '15m', seconds: 900, count: 6 });
+  const r = data.chart.result[0];
+  r.timestamp = Array.from({ length: 6 }, (_, i) => Date.parse('2026-10-28T18:30Z') / 1000 + i * 900);
+  const url = new URL(await pollURL(fields));
+  assert.equal(url.searchParams.get('interval'), '15m');
+  assert.equal(url.searchParams.get('range'), '1mo');
+  const out = await load().run(polled(data, fields));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.stonks.interval, '30m');
+  assert.equal(out.trmnl_state.source_count, 3);
+  assert.equal(out.trmnl_state.bars[0][1], +r.indicators.quote[0].open[0].toPrecision(9));
+  assert.equal(out.trmnl_state.bars[0][4], +r.indicators.quote[0].close[1].toPrecision(9));
+  assert.equal(out.trmnl_state.bars[0][5], r.indicators.quote[0].volume[0] + r.indicators.quote[0].volume[1]);
+  const next = new URL(await pollURL(fields, plain(out.trmnl_state)));
+  assert.match(next.pathname, /\/AAPL$/);
+  assert.equal(next.searchParams.get('interval'), '15m');
+});
+
+test('30-minute conversion requests and aggregates the FX series at the same resolution', async () => {
+  const fields = { dateRanges: '1m|30', currency: 'EUR' };
+  const market = sample({ interval: '30m', seconds: 1800, count: 3 });
+  const fx = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '15m', seconds: 900, count: 6, startPrice: 0.8 });
+  const start = Date.parse('2026-10-28T18:30Z') / 1000;
+  market.chart.result[0].timestamp = [start, start + 1800, start + 3600];
+  fx.chart.result[0].timestamp = Array.from({ length: 6 }, (_, i) => start + i * 900);
+  let calls = 0;
+  const out = await load(async url => {
+    calls++;
+    assert.equal(new URL(url).searchParams.get('interval'), '15m');
+    return { ok: true, json: async () => fx };
+  }).run(polled(market, fields));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(calls, 1);
+  const expected = market.chart.result[0].indicators.quote[0].close[0] * fx.chart.result[0].indicators.quote[0].close[1];
+  assert.equal(out.trmnl_state.baseline, expected);
+  assert.equal(out.trmnl_state.source_count, 3);
+});
+
+test('Yahoo interval errors retain the matching chart and expose the reason without another stock request', async () => {
+  const fields = { dateRanges: '1m|30' };
+  const saved = plain((await load().run(polled(sample({ interval: '30m', seconds: 1800 }), fields))).trmnl_state);
+  const chart = { result: null, error: { code: 'Bad Request', description: '  Requested range\n  must be within the last 60 days.  ' } };
+  const out = await load().run({ chart, ...input(fields, saved) });
+  assert.equal(out.stonks.detail, 'Yahoo: Requested range must be within the last 60 days.');
+  assert.equal(out.stonks.stale, true);
+  assert.deepEqual(plain(out.trmnl_state), saved);
+});
+
+test('Yahoo error descriptions remain bounded, escaped text in every layout', async () => {
+  const chart = { error: { description: '<script>unsafe</script> & ' + 'x'.repeat(250) }, result: null };
+  const out = await load().run({ chart, ...input() });
+  assert.match(out.stonks.detail, /^Yahoo: /);
+  assert.ok(out.stonks.detail.length <= 160);
+  for (const name of layoutNames) {
+    const html = await render(out, {}, name);
+    assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /&lt;script&gt;unsafe&lt;\/script&gt; &amp;/);
+  }
+});
+
+test('schema-valid empty Yahoo histories use fallback without inventing prices or fetching again', async () => {
+  const saved = plain((await load().run(sample())).trmnl_state);
+  for (const timestamp of [undefined, []]) {
+    const data = sample();
+    data.chart.result[0].timestamp = timestamp;
+    data.chart.result[0].indicators.quote = [{}];
+    for (const state of [undefined, saved]) {
+      const out = await load().run(polled(data, {}, state));
+      assert.equal(out.stonks.has_data, !!state);
+      assert.equal(out.stonks.stale, true);
+      if (state) assert.deepEqual(plain(out.trmnl_state), saved);
+    }
+  }
+});
+
+test('a separate live daily row replaces the earlier daily snapshot without double-counting volume', async () => {
+  const data = sample({ count: 4 });
+  const r = data.chart.result[0];
+  r.timestamp[2] = Date.parse('2026-10-28T13:30Z') / 1000;
+  const out = await load().run(data);
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.trmnl_state.source_count, 3);
+  assert.equal(out.trmnl_state.bars.at(-1)[5], r.indicators.quote[0].volume[3]);
+  assert.equal(out.trmnl_state.bars.at(-1)[1], +r.indicators.quote[0].open[3].toPrecision(9));
+});
+
+for (const [dateRanges, interval, dates] of [
+  ['60m|1W', '1wk', ['2026-10-12T13:30Z', '2026-10-19T13:30Z', '2026-10-26T13:30Z', '2026-10-28T19:55Z']],
+  ['all|1M', '1mo', ['2026-08-03T13:30Z', '2026-09-01T13:30Z', '2026-10-01T13:30Z', '2026-10-28T19:55Z']]
+]) test(`${interval} merges Yahoo's separate live row into its existing candle`, async () => {
+  const data = sample({ count: 4, interval });
+  const r = data.chart.result[0];
+  r.timestamp = dates.map(s => Date.parse(s) / 1000);
+  const out = await load().run(polled(data, { dateRanges }));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.trmnl_state.source_count, 3);
+  const last = out.trmnl_state.bars.at(-1);
+  const q = r.indicators.quote[0];
+  assert.equal(last[0], r.timestamp[2]);
+  assert.equal(last[1], +q.open[2].toPrecision(9));
+  assert.equal(last[2], +Math.max(q.high[2], q.high[3]).toPrecision(9));
+  assert.equal(last[3], +Math.min(q.low[2], q.low[3]).toPrecision(9));
+  assert.equal(last[4], +r.meta.regularMarketPrice.toPrecision(9));
+  assert.equal(last[5], q.volume[2] + q.volume[3]);
+  assert.equal(out.stonks.market_at, r.meta.regularMarketTime);
+});
+
+test('an exact duplicate tail row is replaced while unordered history remains invalid', async () => {
+  const data = sample({ count: 4 });
+  const r = data.chart.result[0];
+  r.timestamp[2] = r.timestamp[3];
+  const out = await load().run(data);
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.trmnl_state.source_count, 3);
+  assert.equal(out.trmnl_state.bars.at(-1)[5], r.indicators.quote[0].volume[3]);
+  assert.equal(load().validState(out.trmnl_state, NOW / 1000, config({})), true);
+});
+
+test('weekly quote alignment uses exchange calendar days across daylight saving changes', async () => {
+  const data = sample({ interval: '1wk', count: 3 });
+  const r = data.chart.result[0];
+  r.timestamp = ['2026-02-16T14:30Z', '2026-02-23T14:30Z', '2026-03-02T14:30Z'].map(s => Date.parse(s) / 1000);
+  r.meta.regularMarketTime = Date.parse('2026-03-09T13:30Z') / 1000;
+  r.meta.regularMarketPrice = 123;
+  const out = await load().run(polled(data, { dateRanges: '60m|1W' }));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.trmnl_state.source_count, 4);
+  assert.equal(out.trmnl_state.bars.at(-1)[0], r.meta.regularMarketTime);
+  assert.equal(out.trmnl_state.bars.at(-1)[1], null);
+  assert.equal(out.trmnl_state.bars.at(-2)[4], +r.indicators.quote[0].close.at(-1).toPrecision(9));
+});
+
+test('hourly quotes stay anchored to the exchange bar rather than a whole UTC hour', async () => {
+  for (const [time, count] of [['2026-10-28T07:10Z', 4], ['2026-10-28T07:45Z', 5]]) {
+    const data = sample({ symbol: '^NSEI', interval: '60m', count: 4, timezone: 'Asia/Kolkata' });
+    const r = data.chart.result[0];
+    r.timestamp = ['2026-10-28T03:45Z', '2026-10-28T04:45Z', '2026-10-28T05:45Z', '2026-10-28T06:45Z'].map(s => Date.parse(s) / 1000);
+    r.meta.regularMarketTime = Date.parse(time) / 1000;
+    const out = await load().run(polled(data, { symbol: '^NSEI', dateRanges: '3m|60', currency: 'NATIVE' }));
+    assert.equal(out.stonks.has_data, true, out.stonks.detail);
+    assert.equal(out.trmnl_state.source_count, count);
+    assert.equal(out.trmnl_state.bars.at(-1)[0], count === 4 ? r.timestamp.at(-1) : r.meta.regularMarketTime);
+  }
+});
+
+test('merging a live candle retains its actual timestamp and cannot hide an out-of-sync quote', async () => {
+  const data = sample({ count: 4, interval: '1wk' });
+  const r = data.chart.result[0];
+  r.timestamp = ['2026-10-12T13:30Z', '2026-10-19T13:30Z', '2026-10-26T13:30Z', '2026-10-28T19:55Z'].map(s => Date.parse(s) / 1000);
+  r.meta.regularMarketTime -= 3600;
+  const rejected = await load().run(polled(data, { dateRanges: '60m|1W' }));
+  assert.equal(rejected.stonks.has_data, false);
+  assert.equal(rejected.stonks.detail, 'Quote and history are out of sync');
+  const extended = await load().run(polled(data, { dateRanges: '60m|1W', extendedHours: 'show' }));
+  assert.equal(extended.stonks.has_data, true, extended.stonks.detail);
+  assert.equal(extended.stonks.market_at, r.timestamp.at(-1));
+  assert.equal(extended.trmnl_state.bars.at(-1)[0], r.timestamp[2]);
+});
+
 test('null closes are skipped and absent OHLC/volume are never synthesized', async () => {
   const data = sample(); const q = data.chart.result[0].indicators.quote[0];
   q.close[0] = null; delete q.open; delete q.high; delete q.low; delete q.volume;
@@ -307,6 +669,34 @@ test('pence are converted to pounds before display and FX', async () => {
   const data = sample({ symbol: 'VWRP.L', currency: 'GBp', startPrice: 10000 });
   const out = await load().run(polled(data, { symbol: 'VWRP.L', currency: 'NATIVE' }));
   assert.equal(out.stonks.currency, 'GBP'); assert.equal(out.stonks.price, data.chart.result[0].meta.regularMarketPrice / 100);
+});
+
+test('Israeli agorot normalize to shekels before quote, OHLC and previous-close formatting', async () => {
+  const fields = { symbol: 'TEVA.TA', currency: 'NATIVE', dateRanges: '1d|1' };
+  const data = sample({ symbol: 'TEVA.TA', currency: 'ILA', startPrice: 2000, interval: '1m', seconds: 60, count: 8 });
+  const r = data.chart.result[0];
+  const out = await load().run(polled(data, fields));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(out.stonks.currency, 'ILS');
+  assert.equal(out.stonks.price, r.meta.regularMarketPrice * 0.01);
+  assert.equal(out.trmnl_state.baseline, r.meta.chartPreviousClose * 0.01);
+  assert.equal(out.trmnl_state.bars[0][1], +(r.indicators.quote[0].open[0] * 0.01).toPrecision(9));
+  assert.equal(out.trmnl_state.bars[0][5], r.indicators.quote[0].volume[0]);
+});
+
+test('agorot use the ILS exchange-rate pair rather than a fabricated ILA pair', async () => {
+  const data = sample({ symbol: 'TEVA.TA', currency: 'ILA', startPrice: 2000 });
+  const fx = sample({ symbol: 'ILSUSD=X', currency: 'USD', startPrice: 0.27 });
+  let calls = 0;
+  const out = await load(async url => {
+    calls++;
+    assert.match(new URL(url).pathname, /\/ILSUSD%3DX$/);
+    return { ok: true, json: async () => fx };
+  }).run(polled(data, { symbol: 'TEVA.TA' }));
+  assert.equal(out.stonks.has_data, true, out.stonks.detail);
+  assert.equal(calls, 1);
+  assert.equal(out.stonks.native_currency, 'ILS');
+  assert.equal(out.stonks.price, data.chart.result[0].meta.regularMarketPrice * 0.01 * fx.chart.result[0].meta.regularMarketPrice);
 });
 
 test('extended-hours bars keep their latest price and timestamp', async () => {

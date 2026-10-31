@@ -8,10 +8,34 @@ polling_headers: |-
   Accept: application/json
   User-Agent: Mozilla/5.0
 polling_url: >-
-  https://query1.finance.yahoo.com/v8/finance/chart/{{ symbol | default: 'NTNX' | strip | url_decode | upcase | url_encode }}?
+  {%- assign entries = symbol | default: 'NTNX' | upcase | split: ',' -%}
+  {%- capture list -%}
+  {%- for entry in entries -%}
+  {%- assign ticker = entry | strip -%}
+  {%- if ticker != '' -%}{{ ticker }},{%- endif -%}
+  {%- endfor -%}
+  {%- endcapture -%}
+  {%- assign entries = list | split: ',' | uniq -%}
+  {%- assign list = entries | join: ',' | default: 'NTNX' -%}
+  {%- assign entries = list | split: ',' -%}
+  {%- assign alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ^.=+&-%,' -%}
+  {%- assign chars = list | split: '' -%}
+  {%- assign checksum = 0 -%}
+  {%- for char in chars -%}
+  {%- assign code = alphabet | split: char | first | size -%}
+  {%- assign checksum = checksum | times: 131 | plus: code | modulo: 2147483647 -%}
+  {%- endfor -%}
+  {%- assign key = list.size | append: ':' | append: checksum -%}
+  {%- assign index = 0 -%}
+  {%- assign saved = trmnl.state.rotation -%}
+  {%- assign integer = saved.next | floor -%}
+  {%- if saved.key == key and saved.next == integer and saved.next >= 0 and saved.next < entries.size -%}
+  {%- assign index = saved.next -%}
+  {%- endif -%}
+  https://query1.finance.yahoo.com/v8/finance/chart/{{ entries[index] | url_decode | upcase | url_encode }}?
   {%- case dateRanges -%}
   {%- when '1d|1' -%}range=1d&interval=1m
-  {%- when '1m|30' -%}range=1mo&interval=30m
+  {%- when '1m|30' -%}range=1mo&interval=15m
   {%- when '3m|60' -%}range=3mo&interval=60m
   {%- when '60m|1W' -%}range=5y&interval=1wk
   {%- when 'all|1M' -%}range=max&interval=1mo
@@ -33,10 +57,10 @@ custom_fields:
     description: Made by Ivan Perez. Yahoo Finance prices and charts for stocks, ETFs, indices, forex and crypto.
   - keyname: symbol
     field_type: string
-    name: Symbol
+    name: Symbols
     default: NTNX
-    description: Copy the symbol after /quote/ in the Yahoo Finance URL.
-    help_text: 'Examples: NTNX, VWCE.DE, %5ESTOXX50E, BTC-USD, EURUSD=X. Plain symbols such as ^STOXX50E also work. <a href="https://finance.yahoo.com/" target="_blank">Find a symbol on Yahoo Finance</a>.'
+    description: Yahoo Finance symbols, separated by commas. One symbol per data refresh, in order.
+    help_text: 'Example: NTNX,AAPL,NVDA. Copy symbols after /quote/ in Yahoo Finance URLs; plain or URL-encoded symbols work, including VWCE.DE, %5ESTOXX50E, BTC-USD and EURUSD=X. Changing the list restarts rotation. <a href="https://finance.yahoo.com/" target="_blank">Find symbols on Yahoo Finance</a>.'
     group: Market
   - keyname: currency
     field_type: string
