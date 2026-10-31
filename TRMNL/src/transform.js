@@ -52,7 +52,7 @@ function selection(input) {
 function settings(input, selected = selection(input)) {
   const f = input?.trmnl?.plugin_settings?.custom_fields_values || {};
   const symbol = symbolFor(selected.symbol);
-  const currency = String(f.currency || 'USD').trim().toUpperCase();
+  const currency = String(f.currency || '').trim().toUpperCase() || 'NATIVE';
   if (!/^(NATIVE|[A-Z]{3})$/.test(currency)) throw new Error('Use a currency code, e.g. USD, EUR, BTC or NATIVE');
   const dateRanges = choose(f.dateRanges, Object.keys(RANGES), '12m|1D');
   const extended = ['show', 'true', 'yes'].includes(String(f.extendedHours));

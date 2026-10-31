@@ -65,7 +65,7 @@ custom_fields:
   - keyname: currency
     field_type: string
     name: Currency
-    default: USD
+    default: NATIVE
     description: Display currency, or NATIVE to use the instrument's currency.
     help_text: 'Examples: USD, EUR, GBP, JPY, BTC, ETH. Conversion requires a Yahoo exchange-rate pair. Historical prices use historical rates; converted OHLC is an estimate. Unsupported pairs show an error.'
     group: Market
