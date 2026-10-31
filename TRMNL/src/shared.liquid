@@ -60,8 +60,8 @@
     --stonks-fall: var(--red-30);
     --stonks-rise-fill: var(--green-25);
   }
-  [data-stonks] [data-stonks-return="up"] { color: var(--stonks-rise); background-color: var(--stonks-gain-accent); border-color: var(--stonks-rise); }
-  [data-stonks] [data-stonks-return="down"] { color: var(--stonks-fall); border-color: var(--stonks-fall); }
+  [data-stonks] [data-stonks-return="up"] { color: var(--stonks-rise); background-color: var(--stonks-gain-accent); }
+  [data-stonks] [data-stonks-return="down"] { color: var(--stonks-fall); }
   [data-stonks] [data-stonks-change="up"] { color: var(--stonks-rise); }
   [data-stonks] [data-stonks-change="down"] { color: var(--stonks-fall); }
   [data-stonks] [data-stonks-point="up"] { background-color: var(--stonks-rise); }
@@ -87,17 +87,16 @@
 
 {% template stonks_return %}
 {% case direction %}{% when 'up' %}{% assign direction_label = words[9] %}{% when 'down' %}{% assign direction_label = words[10] %}{% else %}{% assign direction_label = words[11] %}{% endcase %}
-<div class="flex flex--col flex--left gap--xsmall no-shrink">
+<div class="flex flex--col flex--right gap--xsmall no-shrink">
   <div class="flex flex--row gap--xsmall">
-    <span class="label label--outline flex flex--row gap--xsmall" data-stonks-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ stonks.percent_label | escape }}% · {{ range_label | escape }}">
+    <span class="label flex flex--row gap--xsmall" data-stonks-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ stonks.percent_label | escape }}% · {{ range_label | escape }}">
       <svg class="w--3 h--3 no-shrink" viewBox="0 0 12 12" aria-hidden="true">
         {% if direction == 'up' %}<path d="M6 1L11 6H8V11H4V6H1Z" fill="currentColor" />{% elsif direction == 'down' %}<path d="M4 1H8V6H11L6 11L1 6H4Z" fill="currentColor" />{% else %}<path d="M1 5H11V7H1Z" fill="currentColor" />{% endif %}
       </svg>
       <span>{{ stonks.percent_label | escape }}%</span>
     </span>
-    <span class="label label--small">{{ range_label | escape }}</span>
   </div>
-  <span class="description" data-stonks-change="{{ direction | escape }}">{{ stonks.absolute_change_label | escape }} {{ stonks.currency | escape }}</span>
+  <span class="description" data-stonks-change="{{ direction | escape }}">{{ stonks.absolute_change_label | escape }} {{ stonks.currency | escape }} · {{ range_label | escape }}</span>
 </div>
 {% endtemplate %}
 
