@@ -87,7 +87,7 @@
 
 {% template stonks_return %}
 {% case direction %}{% when 'up' %}{% assign direction_label = words[9] %}{% when 'down' %}{% assign direction_label = words[10] %}{% else %}{% assign direction_label = words[11] %}{% endcase %}
-<div class="flex flex--col flex--right gap--xsmall no-shrink">
+<div class="flex flex--col flex--left gap--xsmall no-shrink">
   <div class="flex flex--row gap--xsmall">
     <span class="label label--outline flex flex--row gap--xsmall" data-stonks-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ stonks.percent_label | escape }}% · {{ range_label | escape }}">
       <svg class="w--3 h--3 no-shrink" viewBox="0 0 12 12" aria-hidden="true">
@@ -103,7 +103,7 @@
 
 {% template stonks_status %}
 <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
-  <span class="description w--min-0" title="{{ stonks.detail | escape }}{% if stonks.fx_iso != '' %} FX: {{ stonks.fx_iso | escape }}{% endif %}">{% if stonks.stale == true %}{{ stonks.detail | escape }}{% else %}Yahoo · {{ stonks.interval | escape }}{% if stonks.group > 1 %} ×{{ stonks.group }}{% endif %} · {% if stonks.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}{% if stonks.chart_type != 'line' and stonks.has_ohlc != true %} · OHLC unavailable · line shown{% endif %}{% endif %}{% if stonks.fx_iso != '' %} · {{ stonks.native_currency | escape }}→{{ stonks.currency | escape }} · {{ words[4] }}{% endif %}{% if stonks.range == '1d' and stonks.return_basis == 'first_close' %} · {{ words[8] }}{% endif %}</span>
+  <span class="description w--min-0" data-stonks-status title="{{ stonks.detail | escape }}{% if stonks.fx_iso != '' %} FX: {{ stonks.fx_iso | escape }}{% endif %}">{% if stonks.stale == true %}{{ stonks.detail | escape }}{% else %}{{ stonks.interval | escape }}{% if stonks.group > 1 %} ×{{ stonks.group }}{% endif %} · {% if stonks.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}{% if stonks.chart_type != 'line' and stonks.has_ohlc != true %} · OHLC unavailable · line shown{% endif %}{% endif %}{% if stonks.fx_iso != '' %} · {{ stonks.native_currency | escape }}→{{ stonks.currency | escape }} · {{ words[4] }}{% endif %}{% if stonks.range == '1d' and stonks.return_basis == 'first_close' %} · {{ words[8] }}{% endif %}</span>
   {% if stonks.stale == true %}<span class="label label--small label--filled no-shrink">{{ words[1] | escape }}</span>{% endif %}
 </div>
 {% endtemplate %}

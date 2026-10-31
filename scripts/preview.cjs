@@ -43,7 +43,6 @@ async function main() {
   const offline = plugin(noFetch);
   const stale = await offline.run({ trmnl: { state: fresh.trmnl_state } });
   const unavailable = await offline.run({});
-  stale.stonks.detail = 'SAMPLE · ' + stale.stonks.detail;
   const states = { fresh, stale, unavailable };
   async function scenario(fields, fixture = sample()) {
     const trmnl = { plugin_settings: { custom_fields_values: fields } };
@@ -87,7 +86,6 @@ async function main() {
     plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } }
   } });
   states.stale_large.trmnl = { plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } } };
-  states.stale_large.stonks.detail = 'SAMPLE · ' + states.stale_large.stonks.detail;
   const fxMarket = sample({ interval: '1m', seconds: 60, count: 390 });
   const fxRates = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '1m', seconds: 60, count: 1440, startPrice: 0.8 });
   states.converted_day = await plugin(async () => ({ ok: true, json: async () => fxRates })).run({ ...fxMarket,
@@ -176,7 +174,7 @@ async function main() {
           if (!viewSource.trim()) throw new Error('TRMNL requires a nonempty view: ' + layout);
           for (const [state, model] of Object.entries(states)) {
             const id = [device, orientation, layout, state].join('-');
-            const markup = (await liquid.parseAndRender(shared + '\n' + viewSource, model)).replace(/Yahoo ·/g, 'SAMPLE · Yahoo ·');
+            const markup = (await liquid.parseAndRender(shared + '\n' + viewSource, model)).replace(/(<span\b[^>]*data-stonks-status[^>]*>)/, '$1SAMPLE · ');
             const view = '<div class="view view--' + layout + '">' + markup + '</div>';
             const surface = '<div class="' + classes + '">' +
               (mashup ? '<div class="mashup mashup--' + mashup + '">' + view + '</div>' : view) + '</div>';

@@ -66,7 +66,7 @@ Changing the list or clearing Saved State restarts at the first entry. Rotation 
 - **shared.liquid:** shared UI preparation, palette styles and reusable heading, quote, status, chart and footer components.
 - **full.liquid:** prominent price and a full-size chart.
 - **half_horizontal.liquid:** short layout with a cap on the largest quote size.
-- **half_vertical.liquid:** stacked quote and return above the chart.
+- **half_vertical.liquid:** compact quote and return above the chart.
 - **quadrant.liquid:** compact typography for the smallest slot.
 - **transform.js:** Yahoo response validation, FX requests, conversion, saved-state recovery, chart coordinates and exact numeric/date formatting. No runtime packages or browser scripts.
 

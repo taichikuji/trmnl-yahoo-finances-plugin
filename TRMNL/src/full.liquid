@@ -1,7 +1,7 @@
 <div class="layout layout--col layout--top gap--small p--2" data-stonks style="--stonks-font: {{ font_size }}px;">
   {% render 'stonks_heading', stonks: stonks, header: header, size: 'title--base', large_size: 'title--large' %}
   {% if stonks.has_data == true %}
-    <div class="flex flex--row flex--wrap flex--between flex--bottom gap--xsmall w--full no-shrink">
+    <div class="flex flex--row flex--wrap flex--left flex--bottom gap--small w--full no-shrink">
       {% render 'stonks_price', stonks: stonks, header: header, size: 'value--base lg:landscape:value--large', large_size: 'value--base lg:value--large lg:landscape:value--xlarge' %}
       {% render 'stonks_return', stonks: stonks, words: words, direction: direction, range_label: range_label %}
     </div>
