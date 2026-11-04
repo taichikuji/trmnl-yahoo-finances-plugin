@@ -286,7 +286,7 @@ function curveSegments(points) {
   return segments;
 }
 
-function chart(state, config, formatNumber, limit = 96) {
+function chart(state, config, formatNumber, limit = 96, displayTimezone = state.timezone) {
   const factor = config.chartType !== 'line' && state.bars.some(b => b[1] !== null) ? Math.max(1, Math.ceil(state.bars.length / limit)) : 1;
   if (factor > 1) {
     const bars = [];
@@ -317,7 +317,7 @@ function chart(state, config, formatNumber, limit = 96) {
   const maxVolume = Math.max(1, ...state.bars.map(b => b[5] || 0));
   const volumes = hasVolume ? state.bars.flatMap((b, i) => b[5] === null ? [] : [[f(x(i)), f(274 - b[5] / maxVolume * 40)]]) : [];
   const date = new Intl.DateTimeFormat(LOCALES[config.locale], {
-    timeZone: state.timezone, ...(config.range === '1d' ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } :
+    timeZone: displayTimezone, ...(config.range === '1d' ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } :
       config.range === '1mo' || config.range === '3mo' ? { month: 'short', day: 'numeric' } : { month: 'short', year: '2-digit' })
   });
   const dates = [0, Math.round((state.bars.length - 1) / 2), state.bars.length - 1].map(i => ({
@@ -331,7 +331,7 @@ function chart(state, config, formatNumber, limit = 96) {
     has_ohlc: hasOHLC, has_volume: hasVolume, group: state.group };
 }
 
-function display(state, stale, detail, config) {
+function display(state, stale, detail, config, displayTimezone = state?.timezone || 'UTC') {
   const base = { has_data: false, stale: true, detail, symbol: config.symbol, currency: config.currency,
     range: config.range, interval: config.interval, extended: config.extended,
     chart_type: config.chartType };
@@ -343,10 +343,10 @@ function display(state, stale, detail, config) {
   }).format(n).replace('-', '−');
   const date = new Date(state.market_at * 1000);
   const marketLabel = options => date.toLocaleString(LOCALES[config.locale], {
-    timeZone: state.timezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', ...options });
+    timeZone: displayTimezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', ...options });
   const change = state.price - state.baseline;
   const percent = change / state.baseline * 100;
-  const result = { ...base, ...chart(state, config, formatter.format), has_data: true, stale, detail, name: state.name, currency: state.currency,
+  const result = { ...base, ...chart(state, config, formatter.format, 96, displayTimezone), has_data: true, stale, detail, name: state.name, currency: state.currency,
     price: state.price, change, percent, digits,
     price_label: formatter.format(state.price),
     percent_label: signed(percent, 2),
@@ -355,8 +355,8 @@ function display(state, stale, detail, config) {
     native_currency: state.native_currency, return_basis: state.return_basis,
     fx_iso: state.fx_at ? new Date(state.fx_at * 1000).toISOString() : '' };
   if (config.chartType !== 'line' && result.has_ohlc) result.charts = {
-    compact: { ...result, ...chart(state, config, formatter.format, 32) },
-    detailed: { ...result, ...chart(state, config, formatter.format, 192) }
+    compact: { ...result, ...chart(state, config, formatter.format, 32, displayTimezone) },
+    detailed: { ...result, ...chart(state, config, formatter.format, 192, displayTimezone) }
   };
   return result;
 }
@@ -390,6 +390,8 @@ async function readResponse(response) {
 
 async function run(input) {
   const now = Math.floor(Date.now() / 1000);
+  const zone = input?.trmnl?.user?.time_zone_iana;
+  const displayTimezone = typeof zone === 'string' && validZone(zone) === zone ? zone : undefined;
   const selected = selection(input);
   // Native failed polls have no payload, and TRMNL skips their state writes.
   const rotation = selected.rotation && { ...selected.rotation, next: input?.chart === undefined ? selected.index : selected.rotation.next };
@@ -397,7 +399,7 @@ async function run(input) {
   let config;
   try { config = settings(input, selected); }
   catch (error) {
-    return { quote: display(null, true, error.message, { ...settings({}), symbol: selected.symbol.slice(0, 40) }),
+    return { quote: display(null, true, error.message, { ...settings({}), symbol: selected.symbol.slice(0, 40) }, displayTimezone),
       ...(rotation ? { trmnl_state: rotateState(latest, rotation) } : {}) };
   }
   const previous = latest && validState(latest, now, config) ? latest : null;
@@ -428,10 +430,10 @@ async function run(input) {
     if (previous?.fx_at && state.fx_at && state.fx_at < previous.fx_at) throw new Error('Provider returned older exchange rate');
     const detail = now - state.market_at > MAX_MARKET_AGE ? 'Provider prices are over 7 days old' :
       state.fx_at && now - state.fx_at > MAX_MARKET_AGE ? 'Exchange rate is over 7 days old' : '';
-    return { quote: display(state, !!detail, detail, config), trmnl_state: state };
+    return { quote: display(state, !!detail, detail, config, displayTimezone), trmnl_state: state };
   } catch (error) {
     const detail = controller.signal.aborted ? 'Request timed out' : String(error?.message || 'Market data unavailable').slice(0, 160);
     const state = rotateState(rotation ? latest : previous, rotation);
-    return { quote: display(previous, true, detail, config), ...(state ? { trmnl_state: state } : {}) };
+    return { quote: display(previous, true, detail, config, displayTimezone), ...(state ? { trmnl_state: state } : {}) };
   } finally { clearTimeout(timer); controller.abort(); }
 }

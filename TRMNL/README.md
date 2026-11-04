@@ -98,7 +98,7 @@ Saved State is limited to 8,192 bytes. Long histories are grouped into OHLCV buc
 
 30-minute charts request 15-minute data and aggregate OHLCV locally, including FX series, to avoid Yahoo's unreliable 30-minute interval. A separate live daily row replaces the earlier snapshot; separate weekly/monthly live rows are folded into their candle. Yahoo error descriptions are shown when available.
 
-Prices and returns use unadjusted closes, excluding reinvested dividends. Native-currency 1D returns use the previous close when available; other returns use the first close. Currency conversion aligns historical rates at or before each asset bar. Converted OHLC values are estimates, labelled **FX estimate**; converted 1D returns start at the first aligned bar, labelled **from first bar**. Unsupported or stale FX pairs are rejected. Market times use the exchange timezone.
+Prices and returns use unadjusted closes, excluding reinvested dividends. Native-currency 1D returns use the previous close when available; other returns use the first close. Currency conversion aligns historical rates at or before each asset bar. Converted OHLC values are estimates, labelled **FX estimate**; converted 1D returns start at the first aligned bar, labelled **from first bar**. Unsupported or stale FX pairs are rejected. Market and chart labels use the TRMNL account timezone when available, falling back to the exchange timezone. Market bar grouping always uses the exchange timezone.
 
 ## Development
 

@@ -655,6 +655,35 @@ test('saved fallback never crosses symbol, currency, range or session boundaries
   }
 });
 
+test('TRMNL timezone controls display dates without changing market data or cached state', async () => {
+  const fields = { dateRanges: '1d|1' };
+  const data = sample({ interval: '1m', seconds: 60, count: 4 });
+  const withZone = (source, zone) => ({
+    ...source, trmnl: { ...source.trmnl, user: { time_zone_iana: zone } }
+  });
+  const exchange = await load().run(polled(data, fields));
+  const local = await load().run(withZone(polled(data, fields), 'Europe/Madrid'));
+  assert.equal(exchange.quote.market_label_compact, 'Oct 28, 15:55');
+  assert.equal(local.quote.market_label_compact, 'Oct 28, 20:55');
+  assert.equal(exchange.quote.dates.at(-1).label, '15:55');
+  assert.equal(local.quote.dates.at(-1).label, '20:55');
+  assert.equal(local.quote.market_iso, exchange.quote.market_iso);
+  assert.deepEqual(plain(local.trmnl_state), plain(exchange.trmnl_state));
+
+  const saved = plain(local.trmnl_state);
+  const fallback = await load().run(withZone(input(fields, saved), 'Asia/Tokyo'));
+  assert.equal(fallback.quote.stale, true);
+  assert.equal(fallback.quote.market_label_compact, 'Oct 29, 04:55');
+  assert.equal(fallback.quote.dates.at(-1).label, '04:55');
+  assert.deepEqual(plain(fallback.trmnl_state), saved);
+  const invalid = await load().run(withZone(input(fields, saved), 'Invalid/Timezone'));
+  assert.equal(invalid.quote.market_label_compact, exchange.quote.market_label_compact);
+
+  const candles = await load().run(withZone(polled(data, { ...fields, chartType: 'candles' }), 'Europe/Madrid'));
+  assert.equal(candles.quote.charts.compact.dates.at(-1).label, '20:55');
+  assert.equal(candles.quote.charts.detailed.dates.at(-1).label, '20:55');
+});
+
 test('presentation changes redraw cached data even when the provider is unavailable', async () => {
   const saved = plain((await load().run(sample())).trmnl_state);
   const out = await load(async () => ({ ok: false, status: 429 })).run(input({ chartType: 'candles', locale: 'es', showVolume: 'show' }, saved));
