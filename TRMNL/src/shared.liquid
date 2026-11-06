@@ -129,6 +129,22 @@
 {%- assign show_gridlines = fields.showGridlines | append: '' -%}
 {%- assign show_reference = fields.showReference | append: '' -%}
 {%- assign line_type = fields.lineType | default: '2' | append: '' -%}
+{%- comment -%}
+  The baseline gets its own number, unless a tick sits closer than reference_gap
+  viewBox units. That distance is identical at every view size, so each view
+  passes the gap its own slot can actually render without the two labels touching.
+{%- endcomment -%}
+{%- assign reference_gap = reference_gap | default: 30 -%}
+{%- assign show_reference_label = false -%}
+{%- if quote.reference_label -%}
+  {%- if show_reference == 'true' or show_reference == 'show' -%}
+    {%- assign show_reference_label = true -%}
+    {%- for tick in quote.ticks -%}
+      {%- assign tick_gap = tick.y | minus: quote.reference_y | abs -%}
+      {%- if tick_gap < reference_gap -%}{%- assign show_reference_label = false -%}{%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+{%- endif -%}
 {%- capture line_path -%}
   {%- for point in quote.points -%}
     {%- if forloop.first -%}M{{ point[0] }},{{ point[1] }}
@@ -212,6 +228,7 @@
         {% for tick in quote.ticks %}
           <text class="{{ label_class }}" data-price-tick x="100%" y="{{ tick.y | times: 100.0 | divided_by: 286.0 }}%" text-anchor="end" dominant-baseline="central" fill="currentColor">{{ tick.label | escape }}</text>
         {% endfor %}
+        {% if show_reference_label %}<text class="{{ label_class }}" data-reference-label x="100%" y="{{ quote.reference_y | times: 100.0 | divided_by: 286.0 }}%" text-anchor="end" dominant-baseline="central" fill="currentColor">{{ quote.reference_label | escape }}</text>{% endif %}
       </svg>
       <span class="{{ label_class }}" data-axis-spacer aria-hidden="true">{% for tick in quote.ticks %}{{ tick.label | escape }}<br />{% endfor %}</span>
     </div>
@@ -228,13 +245,13 @@
     {% assign model = quote.charts[density] | default: quote %}
     <div class="stretch flex flex--col gap--small w--full w--min-0" data-chart-density="{{ density }}">
       {% render 'quote_status', label_class: label_class, quote: model, words: words %}
-      {% render 'price_chart', label_class: label_class, quote: model, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
+      {% render 'price_chart', label_class: label_class, quote: model, fields: fields, direction: direction, range_label: range_label, line_width: line_width, reference_gap: reference_gap %}
     </div>
   {% endfor %}
 </div>
 {% else %}
   {% render 'quote_status', label_class: label_class, quote: quote, words: words %}
-  {% render 'price_chart', label_class: label_class, quote: quote, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
+  {% render 'price_chart', label_class: label_class, quote: quote, fields: fields, direction: direction, range_label: range_label, line_width: line_width, reference_gap: reference_gap %}
 {% endif %}
 {% endtemplate %}
 

@@ -5,7 +5,7 @@
       {% render 'quote_price', quote: quote, heading_size: heading_size, size: 'value--base lg:landscape:value--large', large_size: 'value--base lg:value--large' %}
       {% render 'quote_change', label_class: label_class, quote: quote, words: words, direction: direction, range_label: range_label %}
     </div>
-    {% render 'chart_section', label_class: label_class, quote: quote, words: words, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
+    {% render 'chart_section', label_class: label_class, quote: quote, words: words, fields: fields, direction: direction, range_label: range_label, line_width: line_width, reference_gap: 44 %}
   {% else %}
     {% render 'unavailable_message', label_class: label_class, quote: quote, words: words %}
   {% endif %}

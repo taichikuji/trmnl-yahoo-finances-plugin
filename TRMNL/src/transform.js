@@ -343,12 +343,15 @@ function display(state, stale, detail, config, displayTimezone = state?.timezone
   }).format(n).replace('-', '−');
   const date = new Date(state.market_at * 1000);
   const marketLabel = options => date.toLocaleString(LOCALES[config.locale], {
-    timeZone: displayTimezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', ...options });
+    timeZone: displayTimezone, day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', ...options
+  });
   const change = state.price - state.baseline;
   const percent = change / state.baseline * 100;
   const result = { ...base, ...chart(state, config, formatter.format, 96, displayTimezone), has_data: true, stale, detail, name: state.name, currency: state.currency,
     price: state.price, change, percent, digits,
     price_label: formatter.format(state.price),
+    // The baseline is drawn as its own line, so it needs its own label.
+    reference_label: formatter.format(state.baseline),
     percent_label: signed(percent, 2),
     absolute_change_label: signed(change, digits),
     market_at: state.market_at, market_iso: date.toISOString(), market_label: marketLabel({ year: 'numeric', timeZoneName: 'short' }), market_label_compact: marketLabel(),
