@@ -393,7 +393,7 @@ test('boolean chart controls retain saved Show/Hide behavior in data and all vie
     assert.equal(out.quote.has_volume, enabled);
     for (const name of layoutNames) {
       const html = await render(out, fields, name);
-      assert.equal(html.includes('stroke-dasharray="1 6"'), enabled, 'grid lines: ' + value);
+      assert.equal(html.includes('data-chart-gridline'), enabled, 'grid lines: ' + value);
       assert.equal(html.includes('stroke-dasharray="6 4"'), enabled, 'return baseline: ' + value);
       assert.equal(html.includes('data-chart-above-baseline'), enabled, 'baseline colors: ' + value);
       assert.equal(html.includes('data-chart-volume'), enabled, 'volume: ' + value);
