@@ -55,10 +55,9 @@ custom_fields:
     github_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin
     learn_more_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin/tree/main/TRMNL#setup
     description: >-
-      Made by Ivan Perez. Yahoo Finance charts for stocks, ETFs, indices, forex and crypto.
-      Rotate symbols, choose line, OHLC bar or candle charts, and convert historical prices into another currency.<br/>
-      No market-data API key needed. Quotes can be delayed; coverage and availability vary.<br/>
-      <a href="https://github.com/taichikuji/trmnl-yahoo-finances-plugin/issues" target="_blank">Support and feedback</a>.
+      STONKS brings Yahoo Finance charts to your TRMNL. Track stocks, ETFs,
+      indices, forex and crypto with customizable charts and rotating symbols.
+      No market-data API key required; quotes may be delayed.
   - keyname: symbol
     field_type: string
     name: Symbols
