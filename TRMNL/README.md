@@ -1,6 +1,6 @@
 # STONKS
 
-Yahoo Finance prices and charts for TRMNL, rendered with Framework 3.4.3 and inline SVG.
+Yahoo Finance prices and charts for TRMNL, rendered with Framework 3.4.6 and inline SVG.
 
 ## Icon
 
@@ -12,7 +12,7 @@ The original [icon.svg](media/icon.svg) shows a rising stock line on a transpare
 
 ## Previews
 
-Synthetic sample prices rendered from the actual templates with Framework 3.4.3.
+Synthetic sample prices rendered from the plugin templates.
 
 | Full View | Half Horizontal View |
 | --- | --- |
@@ -30,7 +30,7 @@ Synthetic sample prices rendered from the actual templates with Framework 3.4.3.
 
 ## Setup
 
-Create a Private Plugin with **Polling**, **Node** Serverless and Framework **3.4.3**. Use the polling URL and headers from [settings.yml](src/settings.yml), including the User-Agent header. Keep normal screen padding.
+Create a Private Plugin with **Polling**, **Node** Serverless and Framework **3.4.6**. Use the polling URL and headers from [settings.yml](src/settings.yml), including the User-Agent header. Keep normal screen padding.
 
 Copy the form and plugin settings from [settings.yml](src/settings.yml). Paste [shared.liquid](src/shared.liquid) into Shared, each layout into its matching markup tab, and the complete [transform.js](src/transform.js) into Serverless. Save, refresh and add the plugin to your playlist.
 

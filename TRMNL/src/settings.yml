@@ -44,7 +44,7 @@ polling_url: >-
   &includePrePost={% if extendedHours == 'show' or extendedHours == 'true' or extendedHours == 'yes' %}true{% else %}false{% endif %}
 serverless_language: node
 refresh_interval: 15
-framework_version: 3.4.3
+framework_version: 3.4.6
 no_screen_padding: 'no'
 dark_mode: 'no'
 custom_fields:
