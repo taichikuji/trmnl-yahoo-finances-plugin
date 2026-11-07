@@ -80,6 +80,7 @@ async function main() {
   states.long_name = await scenario({ fontSize: 'description--large' }, longName);
   states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
   states.small_price = await scenario({ symbol: 'DOGE-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'DOGE-USD', startPrice: 0.1 }));
+  states.long_price = await scenario({ precision: '6', headerFontSize: 'large', locale: 'de_DE' }, sample({ startPrice: 1234567890 }));
   states.intraday = await scenario({ dateRanges: '1d|1', extendedHours: 'show', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
   states.thirty_minute = await scenario({ dateRanges: '1m|30', chartType: 'candles', showVolume: 'show' }, sample({ interval: '15m', seconds: 900, count: 390 }));
   const agorot = sample({ symbol: 'TEVA.TA', currency: 'ILA', startPrice: 2000 });
@@ -227,6 +228,13 @@ async function main() {
               if (dates.some((r, i) => dates.slice(i + 1).some(next => overlaps(r, next)))) textOverlaps.push('date labels');
               const heading = main.querySelector('[data-quote-header]');
               if (heading && overlaps(...[...heading.children].map(el => el.getBoundingClientRect()))) textOverlaps.push('company name and ticker');
+              const session = visible('[data-quote-session]');
+              if (session) {
+                const sessionLines = [...session.querySelectorAll('span')].map(el => el.getBoundingClientRect());
+                for (const el of main.querySelectorAll('[data-quote-price], [data-quote-currency], [data-quote-return], [data-quote-change]')) {
+                  if (sessionLines.some(line => overlaps(line, el.getBoundingClientRect()))) textOverlaps.push('session and quote');
+                }
+              }
               const price = main.querySelector('[data-quote-price]');
               const currency = main.querySelector('[data-quote-currency]');
               if (price && currency) {
@@ -278,6 +286,7 @@ async function main() {
                 svgWidth: svg?.width, svgHeight: svg?.height,
                 nativeStructure: !!heading && layout.nextElementSibling?.classList.contains('title_bar'),
                 density: visible('[data-chart-density]')?.dataset.chartDensity || null,
+                sessionInterval: visible('[data-quote-status]')?.textContent.trim() || null,
                 densityCount: main.querySelectorAll('[data-chart-density]').length ? [...main.querySelectorAll('[data-chart-density]')].filter(el => el.getClientRects().length).length : 0,
                 chartAreaWidth: chartArea?.clientWidth,
                 chartAreaHeight: chartArea?.clientHeight,
@@ -300,6 +309,7 @@ async function main() {
                 measurements.chartAreaWidth >= 900 && measurements.chartAreaHeight >= 400 ? 'detailed' : 'normal';
               if (measurements.densityCount !== 1 || measurements.density !== expected) errors.push('incorrect candle density for available space');
               const geometry = model.quote.charts[measurements.density] || model.quote;
+              if (!measurements.sessionInterval?.endsWith(geometry.interval + (geometry.group > 1 ? ' ×' + geometry.group : ''))) errors.push('grouping label differs from visible chart');
               measurements.candleCount = geometry.candles.length;
               if (geometry.candles.length > 1) {
                 const scale = measurements.svgWidth / 700 / profile.scale;

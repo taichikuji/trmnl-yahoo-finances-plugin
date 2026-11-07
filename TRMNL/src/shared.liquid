@@ -6,12 +6,12 @@
 {% if fields.fontSize == 'description--large' or legacy_font_size > 12 %}{% assign label_class = 'description description--large' %}{% endif %}
 {% assign line_width = fields.lineWidth | default: 2 | plus: 0 | at_least: 1 | at_most: 5 %}
 {% case fields.locale %}
-  {% when 'de_DE' %}{% assign words = 'KEINE DATEN|ALTE DATEN|Erneuter Versuch beim nächsten Update.|Marktdaten|FX-Schätzung|Erweitert|Regulär|Keine gespeicherten Kurse für diese Auswahl|ab erstem Kurs|Gestiegen|Gefallen|Unverändert' | split: '|' %}
-  {% when 'fr' %}{% assign words = 'DONNÉES INDISPONIBLES|DONNÉES ANCIENNES|Nouvel essai à la prochaine mise à jour.|Données du marché|Estimation FX|Étendue|Normale|Aucun cours enregistré pour cette sélection|depuis le premier cours|En hausse|En baisse|Inchangé' | split: '|' %}
-  {% when 'es' %}{% assign words = 'DATOS NO DISPONIBLES|DATOS ANTIGUOS|Se intentará en la próxima actualización.|Datos de mercado|Estimación FX|Extendida|Regular|Sin precios guardados para esta selección|desde el primer precio|Sube|Baja|Sin cambios' | split: '|' %}
-  {% when 'it' %}{% assign words = 'DATI NON DISPONIBILI|DATI NON AGGIORNATI|Nuovo tentativo al prossimo aggiornamento.|Dati di mercato|Stima FX|Estesa|Regolare|Nessun prezzo salvato per questa selezione|dal primo prezzo|In rialzo|In ribasso|Invariato' | split: '|' %}
-  {% when 'pl' %}{% assign words = 'BRAK DANYCH|NIEAKTUALNE DANE|Kolejna próba przy następnym odświeżeniu.|Dane rynkowe|Szacunek FX|Rozszerzona|Zwykła|Brak zapisanych cen dla tego wyboru|od pierwszej ceny|Wzrost|Spadek|Bez zmian' | split: '|' %}
-  {% else %}{% assign words = 'DATA UNAVAILABLE|STALE DATA|Next refresh will try again.|Market data|FX estimate|Extended|Regular|No saved prices for this selection|from first bar|Up|Down|Unchanged' | split: '|' %}
+  {% when 'de_DE' %}{% assign words = 'KEINE DATEN|ALTE DATEN|Erneuter Versuch beim nächsten Update.|Marktdaten|FX-Schätzung|Erweiterte Handelszeiten|Reguläre Handelszeiten|Keine gespeicherten Kurse für diese Auswahl|ab erstem Kurs|Gestiegen|Gefallen|Unverändert' | split: '|' %}
+  {% when 'fr' %}{% assign words = 'DONNÉES INDISPONIBLES|DONNÉES ANCIENNES|Nouvel essai à la prochaine mise à jour.|Données du marché|Estimation FX|Heures étendues|Heures normales|Aucun cours enregistré pour cette sélection|depuis le premier cours|En hausse|En baisse|Inchangé' | split: '|' %}
+  {% when 'es' %}{% assign words = 'DATOS NO DISPONIBLES|DATOS ANTIGUOS|Se intentará en la próxima actualización.|Datos de mercado|Estimación FX|Horario extendido|Horario regular|Sin precios guardados para esta selección|desde el primer precio|Sube|Baja|Sin cambios' | split: '|' %}
+  {% when 'it' %}{% assign words = 'DATI NON DISPONIBILI|DATI NON AGGIORNATI|Nuovo tentativo al prossimo aggiornamento.|Dati di mercato|Stima FX|Orario esteso|Orario regolare|Nessun prezzo salvato per questa selezione|dal primo prezzo|In rialzo|In ribasso|Invariato' | split: '|' %}
+  {% when 'pl' %}{% assign words = 'BRAK DANYCH|NIEAKTUALNE DANE|Kolejna próba przy następnym odświeżeniu.|Dane rynkowe|Szacunek FX|Godziny rozszerzone|Godziny regularne|Brak zapisanych cen dla tego wyboru|od pierwszej ceny|Wzrost|Spadek|Bez zmian' | split: '|' %}
+  {% else %}{% assign words = 'DATA UNAVAILABLE|STALE DATA|Next refresh will try again.|Market data|FX estimate|Extended hours|Regular hours|No saved prices for this selection|from first bar|Up|Down|Unchanged' | split: '|' %}
 {% endcase %}
 {% case quote.range %}
   {% when '1d' %}{% assign range_label = '1D' %}
@@ -66,6 +66,14 @@
   [data-market-view] [data-quote-return="up"] { --theme-bg-white-color: var(--gain-background); --theme-bg-white-ink: var(--chart-up-color); }
   [data-market-view] [data-quote-change="up"] { --theme-text-black-color: var(--chart-up-color); }
   [data-market-view] [data-quote-return="down"], [data-market-view] [data-quote-change="down"] { --theme-text-black-color: var(--chart-down-color); }
+  [data-market-view] { position: relative; container-type: inline-size; }
+  [data-market-view] [data-quote-summary] { width: 70%; align-self: flex-start; align-items: flex-start; }
+  [data-market-view] [data-quote-performance] { justify-content: flex-start; }
+  [data-market-view] [data-quote-session] { position: absolute; top: 3em; right: 8px; text-align: right; }
+  [data-market-view] [data-quote-session].description--large { top: 2.5em; }
+  [data-market-view][data-short][data-stale] [data-quote-session].description--large { top: 1.5em; }
+  [data-market-view][data-short][data-stale][data-label-class*="description--large"] .value { font-size: 20px; line-height: 1.2; }
+  [data-market-view] [data-quote-session][data-long-price] { position: static; align-self: flex-end; }
   [data-market-view] [data-axis-spacer] { visibility: hidden; }
   [data-market-view] [data-chart-area] { container-type: size; }
   [data-market-view] [data-chart-density] { display: none; }
@@ -81,6 +89,9 @@
   }
   /* Framework breakpoints follow devices; this query follows the actual slot. */
   @container (max-width: 360px) {
+    [data-market-view] [data-quote-summary] { width: 100%; }
+    [data-market-view] [data-price-long] { font-size: 14px; line-height: 1.2; }
+    [data-market-view] [data-quote-session] { position: static; align-self: flex-end; }
     [data-market-view] [data-middle-date-label], .title_bar[data-quote-footer] [data-timestamp-full] { display: none; }
     .title_bar[data-quote-footer] [data-timestamp-short] { display: inline; }
   }
@@ -98,14 +109,14 @@
 {% template quote_price %}
 {% assign price_characters = quote.price_label | size %}
 <div class="flex flex--row flex--wrap flex--bottom gap--xsmall w--min-0">
-  <span class="value {% if price_characters > 15 %}value--xsmall lg:value--small{% elsif price_characters > 10 %}value--small lg:value--base{% elsif heading_size == 'large' %}{{ large_size }}{% elsif heading_size == 'small' %}value--small{% else %}{{ size }}{% endif %} value--tnums no-shrink" data-quote-price>{{ quote.price_label | escape }}</span>
+  <span class="value {% if price_characters > 15 %}value--xsmall lg:value--small{% elsif price_characters > 10 %}value--small lg:value--base{% elsif heading_size == 'large' %}{{ large_size }}{% elsif heading_size == 'small' %}value--small{% else %}{{ size }}{% endif %} value--tnums no-shrink" data-quote-price{% if price_characters > 15 %} data-price-long{% endif %}>{{ quote.price_label | escape }}</span>
   <span class="label label--small pb--1" data-quote-currency>{{ quote.currency | escape }}</span>
 </div>
 {% endtemplate %}
 
 {% template quote_change %}
 {% case direction %}{% when 'up' %}{% assign direction_label = words[9] %}{% when 'down' %}{% assign direction_label = words[10] %}{% else %}{% assign direction_label = words[11] %}{% endcase %}
-<div class="flex flex--col flex--right gap--xsmall no-shrink">
+<div class="flex flex--row flex--wrap flex--bottom gap--xsmall w--min-0" data-quote-performance>
   <div class="flex flex--row gap--xsmall">
     <span class="label flex flex--row gap--xsmall {% if direction == 'up' %}bg--white{% else %}text--black{% endif %}" data-quote-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ quote.percent_label | escape }}% · {{ range_label | escape }}">
       <svg class="w--3 h--3 no-shrink" viewBox="0 0 12 12" aria-hidden="true">
@@ -114,15 +125,31 @@
       <span>{{ quote.percent_label | escape }}%</span>
     </span>
   </div>
-  <span class="{{ label_class }} text--black" data-quote-change="{{ direction | escape }}">{{ quote.absolute_change_label | escape }} {{ quote.currency | escape }} · {{ range_label | escape }}</span>
+  <span class="{{ label_class }} text--black" data-quote-change="{{ direction | escape }}">· {{ quote.absolute_change_label | escape }} {{ quote.currency | escape }} · {{ range_label | escape }}</span>
 </div>
 {% endtemplate %}
 
 {% template quote_status %}
+<div class="{{ label_class }}" data-quote-session{% if quote.price_label.size > 15 %} data-long-price{% endif %}>
+  <span data-quote-status>{{ quote.interval | escape }}{% if quote.group > 1 %} ×{{ quote.group }}{% endif %}</span><br>
+  <span>{% if quote.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}</span>
+</div>
+{% assign has_notice = false %}
+{% if quote.stale == true or quote.fx_iso != '' %}{% assign has_notice = true %}{% endif %}
+{% if quote.range == '1d' and quote.return_basis == 'first_close' %}{% assign has_notice = true %}{% endif %}
+{% if quote.chart_type != 'line' and quote.has_ohlc != true %}{% assign has_notice = true %}{% endif %}
+{% if has_notice %}
 <div class="flex flex--row flex--between gap--xsmall w--full no-shrink">
-  <span class="{{ label_class }} w--min-0" data-quote-status title="{{ quote.detail | escape }}{% if quote.fx_iso != '' %} FX: {{ quote.fx_iso | escape }}{% endif %}">{% if quote.stale == true %}{{ quote.detail | escape }}{% else %}{{ quote.interval | escape }}{% if quote.group > 1 %} ×{{ quote.group }}{% endif %} · {% if quote.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}{% if quote.chart_type != 'line' and quote.has_ohlc != true %} · OHLC unavailable · line shown{% endif %}{% endif %}{% if quote.fx_iso != '' %} · {{ quote.native_currency | escape }}→{{ quote.currency | escape }} · {{ words[4] }}{% endif %}{% if quote.range == '1d' and quote.return_basis == 'first_close' %} · {{ words[8] }}{% endif %}</span>
+  <span class="{{ label_class }} w--min-0" title="{{ quote.detail | escape }}{% if quote.fx_iso != '' %} FX: {{ quote.fx_iso | escape }}{% endif %}">
+    {%- assign separator = '' -%}
+    {%- if quote.stale == true -%}{{ quote.detail | escape }}{% assign separator = ' · ' %}{%- endif -%}
+    {%- if quote.chart_type != 'line' and quote.has_ohlc != true -%}{{ separator }}OHLC unavailable · line shown{% assign separator = ' · ' %}{%- endif -%}
+    {%- if quote.fx_iso != '' -%}{{ separator }}{{ quote.native_currency | escape }}→{{ quote.currency | escape }} · {{ words[4] }}{% assign separator = ' · ' %}{%- endif -%}
+    {%- if quote.range == '1d' and quote.return_basis == 'first_close' -%}{{ separator }}{{ words[8] }}{%- endif -%}
+  </span>
   {% if quote.stale == true %}<span class="label label--small label--filled no-shrink">{{ words[1] | escape }}</span>{% endif %}
 </div>
+{% endif %}
 {% endtemplate %}
 
 {% template price_chart %}

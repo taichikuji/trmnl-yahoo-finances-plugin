@@ -1005,6 +1005,35 @@ test('falling and unchanged returns have distinct accessible indicators', async 
   assert.match(html, /aria-label="Unchanged 0.00%/);
 });
 
+test('quote summary and session details retain their meaning across layouts and languages', async () => {
+  for (const [locale, regular, extended] of [
+    ['en', 'Regular hours', 'Extended hours'], ['es', 'Horario regular', 'Horario extendido'],
+    ['de_DE', 'Reguläre Handelszeiten', 'Erweiterte Handelszeiten'], ['fr', 'Heures normales', 'Heures étendues'],
+    ['it', 'Orario regolare', 'Orario esteso'], ['pl', 'Godziny regularne', 'Godziny rozszerzone']
+  ]) {
+    for (const [extendedHours, label] of [['hide', regular], ['show', extended]]) {
+      const fields = { locale, extendedHours, chartType: 'candles' };
+      const out = await load().run(polled(sample(), fields));
+      for (const name of layoutNames) {
+        const html = await render(out, fields, name);
+        assert.match(html, /data-quote-summary>[\s\S]*data-quote-price[\s\S]*data-quote-return[\s\S]*data-quote-change/);
+        assert.ok(html.includes(label));
+        for (const density of ['normal', 'compact', 'detailed']) {
+          const chart = out.quote.charts[density] || out.quote;
+          const interval = chart.interval + (chart.group > 1 ? ' ×' + chart.group : '');
+          assert.ok(html.includes('data-quote-status>' + interval + '</span>'));
+        }
+      }
+    }
+  }
+  const fresh = await load().run(sample());
+  const stale = await load().run(input({}, fresh.trmnl_state));
+  const html = await render(stale);
+  assert.match(html, /STALE DATA/);
+  assert.match(html, /Yahoo polling failed/);
+  assert.match(html, /Regular hours/);
+});
+
 test('title-bar logo follows the selected return, including stale fallback', async () => {
   const rising = 'M18 42l12-12 10 7 14-20 M42 17h12v12';
   const falling = 'M18 22l12 12 10-7 14 20 M42 47h12V35';
