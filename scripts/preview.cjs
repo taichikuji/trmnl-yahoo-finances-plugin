@@ -323,7 +323,7 @@ async function main() {
             const fontSetting = model.trmnl?.plugin_settings?.custom_fields_values?.fontSize;
             const fontClass = fontSetting === 'description--large' || Number(fontSetting) > 12 ? 'description--large' : 'description';
             const expectedLabelSize = measurements.nativeLabelSizes[fontClass];
-            const expectedSessionSize = measurements.nativeLabelSizes[profile.size === 'lg' ? (layout === 'full' || fontClass === 'description--large' ? 'description--xlarge' : 'description--large') : fontClass];
+            const expectedSessionSize = measurements.nativeLabelSizes[profile.size === 'lg' ? 'description--xlarge' : fontClass];
             if (measurements.frameworkErrors.length) errors.push('Framework runtime error');
             if (model.quote.has_data && Math.abs(measurements.typography.labels - expectedLabelSize) > 0.01) errors.push('chart label size differs from setting');
             if (model.quote.has_data && (measurements.typography.session.length !== 2 || measurements.typography.session.some(size => Math.abs(size - expectedSessionSize) > 0.01))) errors.push('session line size differs from responsive setting');

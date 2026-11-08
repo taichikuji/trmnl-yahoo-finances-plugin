@@ -3,9 +3,9 @@
   {% if quote.has_data == true %}
     <div class="flex flex--col gap--xsmall w--min-0 no-shrink" data-quote-summary>
       {% render 'quote_price', quote: quote, heading_size: heading_size, size: 'value--base lg:landscape:value--large', large_size: 'value--base lg:value--large lg:landscape:value--xlarge' %}
-      {% render 'quote_change', label_class: label_class, quote: quote, words: words, direction: direction, range_label: range_label, full: true %}
+      {% render 'quote_change', label_class: label_class, quote: quote, words: words, direction: direction, range_label: range_label %}
     </div>
-    {% render 'chart_section', label_class: label_class, quote: quote, words: words, fields: fields, direction: direction, range_label: range_label, line_width: line_width, full: true %}
+    {% render 'chart_section', label_class: label_class, quote: quote, words: words, fields: fields, direction: direction, range_label: range_label, line_width: line_width %}
   {% else %}
     {% render 'unavailable_message', label_class: label_class, quote: quote, words: words %}
   {% endif %}

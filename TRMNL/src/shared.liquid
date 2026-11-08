@@ -114,19 +114,19 @@
 
 {% template quote_change %}
 {% case direction %}{% when 'up' %}{% assign direction_label = words[9] %}{% when 'down' %}{% assign direction_label = words[10] %}{% else %}{% assign direction_label = words[11] %}{% endcase %}
-<div class="description description--large {% if full %}lg:description--xlarge{% endif %} flex flex--row flex--wrap flex--bottom gap--xsmall w--min-0 w--[100cqw]" data-quote-performance>
+<div class="description description--large lg:description--xlarge flex flex--row flex--wrap flex--bottom gap--xsmall w--min-0 w--[100cqw]" data-quote-performance>
   <span class="flex flex--row gap--xsmall {% if direction == 'up' %}bg--white{% else %}text--black{% endif %}" data-quote-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ quote.percent_label | escape }}% · {{ range_label | escape }}">
     <svg class="w--3 h--3 no-shrink" viewBox="0 0 12 12" aria-hidden="true">
       {% if direction == 'up' %}<path d="M6 1L11 6H8V11H4V6H1Z" fill="currentColor" />{% elsif direction == 'down' %}<path d="M4 1H8V6H11L6 11L1 6H4Z" fill="currentColor" />{% else %}<path d="M1 5H11V7H1Z" fill="currentColor" />{% endif %}
     </svg>
     <span class="text--bold">{{ quote.percent_label | escape }}%</span>
   </span>
-  <span class="text--regular text--black" data-quote-change="{{ direction | escape }}">· {{ quote.absolute_change_label | escape }} {{ quote.currency | escape }} <span class="label label--small{% if full %} lg:label--base{% endif %}">· {{ range_label | escape }}</span></span>
+  <span class="text--regular text--black" data-quote-change="{{ direction | escape }}">· {{ quote.absolute_change_label | escape }} {{ quote.currency | escape }} <span class="label label--small lg:label--base">· {{ range_label | escape }}</span></span>
 </div>
 {% endtemplate %}
 
 {% template quote_status %}
-<div class="{{ label_class }} {% if full or label_class contains 'description--large' %}lg:description--xlarge{% else %}lg:description--large{% endif %}" data-quote-session{% if quote.price_label.size > 15 %} data-long-price{% endif %}>
+<div class="{{ label_class }} lg:description--xlarge" data-quote-session{% if quote.price_label.size > 15 %} data-long-price{% endif %}>
   <span class="text--regular" data-quote-status>{{ quote.interval | escape }}{% if quote.group > 1 %} ×{{ quote.group }}{% endif %}</span><br>
   <span class="text--regular">{% if quote.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}</span>
 </div>
@@ -267,13 +267,13 @@
   {% for density in densities %}
     {% assign model = quote.charts[density] | default: quote %}
     <div class="stretch flex flex--col gap--small w--full w--min-0" data-chart-density="{{ density }}">
-      {% render 'quote_status', label_class: label_class, quote: model, words: words, full: full %}
+      {% render 'quote_status', label_class: label_class, quote: model, words: words %}
       {% render 'price_chart', label_class: label_class, quote: model, fields: fields, direction: direction, range_label: range_label, line_width: line_width, reference_gap: reference_gap %}
     </div>
   {% endfor %}
 </div>
 {% else %}
-  {% render 'quote_status', label_class: label_class, quote: quote, words: words, full: full %}
+  {% render 'quote_status', label_class: label_class, quote: quote, words: words %}
   {% render 'price_chart', label_class: label_class, quote: quote, fields: fields, direction: direction, range_label: range_label, line_width: line_width, reference_gap: reference_gap %}
 {% endif %}
 {% endtemplate %}
