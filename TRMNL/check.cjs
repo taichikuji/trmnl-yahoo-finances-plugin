@@ -380,7 +380,7 @@ test('native label presets and saved numeric sizes render in every view', async 
       const html = await render(out, { fontSize: value }, name);
       assert.match(html, new RegExp('data-label-class="' + expected + '"'));
       assert.match(html, new RegExp('<text class="' + expected + '" data-price-tick'));
-      assert.doesNotMatch(html, /--description-font-size:|--label-small-font-size:/);
+      assert.doesNotMatch(html, /font-size\s*:|--label-small-font-size:/);
     }
   }
 });

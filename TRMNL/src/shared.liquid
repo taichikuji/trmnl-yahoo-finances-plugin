@@ -71,8 +71,7 @@
   [data-market-view] [data-quote-performance] { justify-content: flex-start; }
   [data-market-view] [data-quote-session] { position: absolute; top: 3em; right: 8px; text-align: right; }
   [data-market-view] [data-quote-session].description--large { top: 2.5em; }
-  [data-market-view][data-short][data-stale] [data-quote-session].description--large { top: 1.5em; }
-  [data-market-view][data-short][data-stale][data-label-class*="description--large"] .value { font-size: 20px; line-height: 1.2; }
+  [data-market-view][data-short][data-stale] [data-quote-session].description--large { top: 1.625em; }
   [data-market-view] [data-quote-session][data-long-price] { position: static; align-self: flex-end; }
   [data-market-view] [data-axis-spacer] { visibility: hidden; }
   [data-market-view] [data-chart-area] { container-type: size; }
@@ -90,7 +89,6 @@
   /* Framework breakpoints follow devices; this query follows the actual slot. */
   @container (max-width: 360px) {
     [data-market-view] [data-quote-summary] { width: 100%; }
-    [data-market-view] [data-price-long] { font-size: 14px; line-height: 1.2; }
     [data-market-view] [data-quote-session] { position: static; align-self: flex-end; }
     [data-market-view] [data-middle-date-label], .title_bar[data-quote-footer] [data-timestamp-full] { display: none; }
     .title_bar[data-quote-footer] [data-timestamp-short] { display: inline; }
@@ -109,7 +107,7 @@
 {% template quote_price %}
 {% assign price_characters = quote.price_label | size %}
 <div class="flex flex--row flex--wrap flex--bottom gap--xsmall w--min-0">
-  <span class="value {% if price_characters > 15 %}value--xsmall lg:value--small{% elsif price_characters > 10 %}value--small lg:value--base{% elsif heading_size == 'large' %}{{ large_size }}{% elsif heading_size == 'small' %}value--small{% else %}{{ size }}{% endif %} value--tnums no-shrink" data-quote-price{% if price_characters > 15 %} data-price-long{% endif %}>{{ quote.price_label | escape }}</span>
+  <span class="value {% if price_characters > 15 %}value--xxsmall lg:value--small{% elsif short and quote.stale == true and label_class contains 'description--large' %}value--xsmall lg:value--small{% elsif price_characters > 10 %}value--small lg:value--base{% elsif heading_size == 'large' %}{{ large_size }}{% elsif heading_size == 'small' %}value--small{% else %}{{ size }}{% endif %} value--tnums no-shrink" data-quote-price{% if price_characters > 15 %} data-price-long{% endif %}>{{ quote.price_label | escape }}</span>
   <span class="label label--small pb--1" data-quote-currency>{{ quote.currency | escape }}</span>
 </div>
 {% endtemplate %}
@@ -130,9 +128,10 @@
 {% endtemplate %}
 
 {% template quote_status %}
-<div class="{{ label_class }}" data-quote-session{% if quote.price_label.size > 15 %} data-long-price{% endif %}>
-  <span data-quote-status>{{ quote.interval | escape }}{% if quote.group > 1 %} ×{{ quote.group }}{% endif %}</span><br>
-  <span>{% if quote.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}</span>
+{% capture session_class %}{{ label_class }} {% if label_class contains 'description--large' %}lg:description--xlarge{% else %}lg:description--large{% endif %}{% endcapture %}
+<div class="{{ session_class }}" data-quote-session{% if quote.price_label.size > 15 %} data-long-price{% endif %}>
+  <span class="{{ session_class }}" data-quote-status>{{ quote.interval | escape }}{% if quote.group > 1 %} ×{{ quote.group }}{% endif %}</span><br>
+  <span class="{{ session_class }}">{% if quote.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}</span>
 </div>
 {% assign has_notice = false %}
 {% if quote.stale == true or quote.fx_iso != '' %}{% assign has_notice = true %}{% endif %}

@@ -231,7 +231,7 @@ async function main() {
               const session = visible('[data-quote-session]');
               if (session) {
                 const sessionLines = [...session.querySelectorAll('span')].map(el => el.getBoundingClientRect());
-                for (const el of main.querySelectorAll('[data-quote-price], [data-quote-currency], [data-quote-return], [data-quote-change]')) {
+                for (const el of main.querySelectorAll('[data-quote-header] span, [data-quote-price], [data-quote-currency], [data-quote-return], [data-quote-change]')) {
                   if (sessionLines.some(line => overlaps(line, el.getBoundingClientRect()))) textOverlaps.push('session and quote');
                 }
               }
@@ -273,8 +273,9 @@ async function main() {
                 time.closest('.instance').getBoundingClientRect().width + 1;
               const fonts = [...new Set([...document.fonts].filter(f => f.status === 'loaded').map(f => f.family))];
               const fontSize = selector => { const el = visible(selector); return el ? parseFloat(getComputedStyle(el).fontSize) : null; };
-              const typography = { heading: fontSize('[data-market-view] .title'), price: fontSize('[data-quote-price]'), labels: fontSize('[data-date-label]') };
-              const nativeLabelSizes = Object.fromEntries(['description', 'description--large'].map(className => {
+              const typography = { heading: fontSize('[data-market-view] .title'), price: fontSize('[data-quote-price]'), labels: fontSize('[data-date-label]'),
+                session: [...(session?.querySelectorAll('span') || [])].map(el => parseFloat(getComputedStyle(el).fontSize)) };
+              const nativeLabelSizes = Object.fromEntries(['description', 'description--large', 'description--xlarge'].map(className => {
                 const probe = document.createElement('span');
                 probe.className = className;
                 layout.appendChild(probe);
@@ -322,8 +323,10 @@ async function main() {
             const fontSetting = model.trmnl?.plugin_settings?.custom_fields_values?.fontSize;
             const fontClass = fontSetting === 'description--large' || Number(fontSetting) > 12 ? 'description--large' : 'description';
             const expectedLabelSize = measurements.nativeLabelSizes[fontClass];
+            const expectedSessionSize = measurements.nativeLabelSizes[profile.size === 'lg' ? (fontClass === 'description' ? 'description--large' : 'description--xlarge') : fontClass];
             if (measurements.frameworkErrors.length) errors.push('Framework runtime error');
             if (model.quote.has_data && Math.abs(measurements.typography.labels - expectedLabelSize) > 0.01) errors.push('chart label size differs from setting');
+            if (model.quote.has_data && (measurements.typography.session.length !== 2 || measurements.typography.session.some(size => Math.abs(size - expectedSessionSize) > 0.01))) errors.push('session line size differs from responsive setting');
             if (layout === 'full' && model.trmnl?.plugin_settings?.custom_fields_values?.headerFontSize !== 'small' && measurements.typography.heading < 21) errors.push('full heading too small');
             if (measurements.overflow.length || measurements.textOverflow.length) errors.push('slot overflow');
             if (measurements.textOverlaps.length) errors.push('overlapping text');
