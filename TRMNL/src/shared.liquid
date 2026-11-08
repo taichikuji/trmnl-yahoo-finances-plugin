@@ -96,10 +96,10 @@
 </style>
 
 {% template quote_header %}
-<div class="flex flex--row flex--between gap--xsmall w--full no-shrink" data-quote-header>
+<div class="flex flex--row lg:flex--top flex--between gap--xsmall w--full no-shrink" data-quote-header>
   <span class="title {% if heading_size == 'large' %}{{ large_size | default: 'title--base lg:title--large' }}{% elsif heading_size == 'small' %}title--small{% else %}{{ size }}{% endif %} w--min-0" data-clamp="1" title="{{ quote.name | default: quote.symbol | escape }}">{{ quote.name | default: quote.symbol | escape }}</span>
   <span class="no-shrink w--max-[40cqw]">
-    <span class="label label--small block" data-clamp="1" title="{{ quote.symbol | escape }}">{{ quote.symbol | escape }}</span>
+    <span class="label label--small lg:label--base block" data-clamp="1" title="{{ quote.symbol | escape }}">{{ quote.symbol | escape }}</span>
   </span>
 </div>
 {% endtemplate %}
@@ -114,24 +114,21 @@
 
 {% template quote_change %}
 {% case direction %}{% when 'up' %}{% assign direction_label = words[9] %}{% when 'down' %}{% assign direction_label = words[10] %}{% else %}{% assign direction_label = words[11] %}{% endcase %}
-<div class="flex flex--row flex--wrap flex--bottom gap--xsmall w--min-0" data-quote-performance>
-  <div class="flex flex--row gap--xsmall">
-    <span class="label flex flex--row gap--xsmall {% if direction == 'up' %}bg--white{% else %}text--black{% endif %}" data-quote-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ quote.percent_label | escape }}% · {{ range_label | escape }}">
-      <svg class="w--3 h--3 no-shrink" viewBox="0 0 12 12" aria-hidden="true">
-        {% if direction == 'up' %}<path d="M6 1L11 6H8V11H4V6H1Z" fill="currentColor" />{% elsif direction == 'down' %}<path d="M4 1H8V6H11L6 11L1 6H4Z" fill="currentColor" />{% else %}<path d="M1 5H11V7H1Z" fill="currentColor" />{% endif %}
-      </svg>
-      <span>{{ quote.percent_label | escape }}%</span>
-    </span>
-  </div>
-  <span class="{{ label_class }} text--black" data-quote-change="{{ direction | escape }}">· {{ quote.absolute_change_label | escape }} {{ quote.currency | escape }} · {{ range_label | escape }}</span>
+<div class="description description--large flex flex--row flex--wrap flex--bottom gap--xsmall w--min-0 w--[100cqw]" data-quote-performance>
+  <span class="flex flex--row gap--xsmall {% if direction == 'up' %}bg--white{% else %}text--black{% endif %}" data-quote-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ quote.percent_label | escape }}% · {{ range_label | escape }}">
+    <svg class="w--3 h--3 no-shrink" viewBox="0 0 12 12" aria-hidden="true">
+      {% if direction == 'up' %}<path d="M6 1L11 6H8V11H4V6H1Z" fill="currentColor" />{% elsif direction == 'down' %}<path d="M4 1H8V6H11L6 11L1 6H4Z" fill="currentColor" />{% else %}<path d="M1 5H11V7H1Z" fill="currentColor" />{% endif %}
+    </svg>
+    <span class="text--bold">{{ quote.percent_label | escape }}%</span>
+  </span>
+  <span class="text--regular text--black" data-quote-change="{{ direction | escape }}">· {{ quote.absolute_change_label | escape }} {{ quote.currency | escape }} <span class="label label--small">· {{ range_label | escape }}</span></span>
 </div>
 {% endtemplate %}
 
 {% template quote_status %}
-{% capture session_class %}{{ label_class }} {% if label_class contains 'description--large' %}lg:description--xlarge{% else %}lg:description--large{% endif %}{% endcapture %}
-<div class="{{ session_class }}" data-quote-session{% if quote.price_label.size > 15 %} data-long-price{% endif %}>
-  <span class="{{ session_class }}" data-quote-status>{{ quote.interval | escape }}{% if quote.group > 1 %} ×{{ quote.group }}{% endif %}</span><br>
-  <span class="{{ session_class }}">{% if quote.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}</span>
+<div class="{{ label_class }} {% if label_class contains 'description--large' %}lg:description--xlarge{% else %}lg:description--large{% endif %}" data-quote-session{% if quote.price_label.size > 15 %} data-long-price{% endif %}>
+  <span class="text--regular" data-quote-status>{{ quote.interval | escape }}{% if quote.group > 1 %} ×{{ quote.group }}{% endif %}</span><br>
+  <span class="text--regular">{% if quote.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}</span>
 </div>
 {% assign has_notice = false %}
 {% if quote.stale == true or quote.fx_iso != '' %}{% assign has_notice = true %}{% endif %}
