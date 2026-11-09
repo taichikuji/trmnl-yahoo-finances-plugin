@@ -17,7 +17,7 @@ Synthetic sample prices. [All layout previews](TRMNL/README.md#previews).
 - **Symbols:** one or more comma-separated Yahoo Finance symbols, such as `NTNX`, `VWCE.DE`, `%5ESTOXX50E` or `BTC-USD`. Lists rotate one symbol per data refresh.
 - **Currency:** native currency, available fiat pairs, BTC or ETH. Historical prices use historical exchange rates.
 - **Chart:** six date ranges, line style and width, grid, volume, return baseline, extended hours and price precision.
-- **Text:** six languages and adjustable heading and label sizes.
+- **Text:** English and Spanish and adjustable heading and label sizes.
 
 Full, half horizontal, half vertical and quadrant layouts support TRMNL OG, X and B/W/R/Y. Monochrome uses arrows and hollow/filled candles; color panels add gain/loss highlights.
 

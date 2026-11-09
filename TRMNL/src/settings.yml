@@ -143,11 +143,7 @@ custom_fields:
     default: en
     options:
       - English: en
-      - German: de_DE
-      - French: fr
       - Spanish: es
-      - Italian: it
-      - Polish: pl
     group: Text
   - keyname: headerFontSize
     field_type: select

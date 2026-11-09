@@ -61,20 +61,20 @@ async function main() {
   states.baseline = await scenario({ showReference: 'show' }, pricesFixture(crossingCloses));
   states.baseline_loss = await scenario({ showReference: 'show' }, pricesFixture(crossingCloses.map((p, i) => p - i * 0.08)));
   states.flat = await scenario({ showReference: 'show', chartType: 'candles' }, pricesFixture(Array(30).fill(100)));
-  states.step = await scenario({ lineType: '1', headerFontSize: 'small', locale: 'pl' });
-  states.small = await scenario({ lineType: '0', lineWidth: 1, headerFontSize: 'small', fontSize: 8, precision: '0', locale: 'pl' });
+  states.step = await scenario({ lineType: '1', headerFontSize: 'small', locale: 'es' });
+  states.small = await scenario({ lineType: '0', lineWidth: 1, headerFontSize: 'small', fontSize: 8, precision: '0', locale: 'es' });
   states.thick = await scenario({ lineType: '0', lineWidth: 5, precision: '4' });
-  states.large = await scenario({ headerFontSize: 'large', fontSize: 'description--large', showVolume: true, chartType: 'candles', locale: 'de_DE' });
+  states.large = await scenario({ headerFontSize: 'large', fontSize: 'description--large', showVolume: true, chartType: 'candles', locale: 'es' });
   const denseCandles = pricesFixture(Array(390).fill(100));
   denseCandles.chart.result[0].indicators.quote[0].volume.fill(1);
   states.dense_candles = await scenario({ chartType: 'candles', showVolume: true }, denseCandles);
-  states.weekly = await scenario({ dateRanges: '60m|1W', fontSize: 16, locale: 'fr' }, sample({ interval: '1wk', seconds: 7 * 86400 }));
+  states.weekly = await scenario({ dateRanges: '60m|1W', fontSize: 16, locale: 'es' }, sample({ interval: '1wk', seconds: 7 * 86400 }));
   states.monthly = await scenario({ dateRanges: 'all|1M', precision: '2' }, sample({ interval: '1mo', seconds: 31 * 86400 }));
   const longSymbol = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.ABC';
   states.long_symbol = await scenario({ symbol: longSymbol, dateRanges: '3m|60', fontSize: 16 }, sample({ symbol: longSymbol, interval: '60m', seconds: 3600 }));
   const etf = sample({ symbol: 'VWCE.DE', currency: 'EUR' });
   etf.chart.result[0].meta.longName = 'Vanguard FTSE All-World UCITS ETF USD Accumulating';
-  states.etf = await scenario({ symbol: 'VWCE.DE', locale: 'fr', fontSize: 12 }, etf);
+  states.etf = await scenario({ symbol: 'VWCE.DE', locale: 'es', fontSize: 12 }, etf);
   const longName = sample();
   longName.chart.result[0].meta.longName = 'A Very Long Company Name That Must Fit Without Overlapping the Ticker Symbol';
   states.long_name = await scenario({ fontSize: 'description--large' }, longName);
@@ -82,8 +82,8 @@ async function main() {
   states.small_price = await scenario({ symbol: 'DOGE-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'DOGE-USD', startPrice: 0.1 }));
   states.subcent = await scenario({ precision: '0' }, sample({ startPrice: 0.00001 }));
   states.narrow_range = await scenario({ showGridlines: true }, pricesFixture([100.12, 100.14, 100.11, 100.15]));
-  states.long_price = await scenario({ precision: '6', headerFontSize: 'large', locale: 'de_DE' }, sample({ startPrice: 1234567890 }));
-  states.intraday = await scenario({ dateRanges: '1d|1', extendedHours: 'show', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
+  states.long_price = await scenario({ precision: '6', headerFontSize: 'large', locale: 'es' }, sample({ startPrice: 1234567890 }));
+  states.intraday = await scenario({ dateRanges: '1d|1', extendedHours: 'show', chartType: 'candles', showVolume: 'show', locale: 'es' }, sample({ interval: '1m', seconds: 60, count: 390 }));
   states.thirty_minute = await scenario({ dateRanges: '1m|30', chartType: 'candles', showVolume: 'show' }, sample({ interval: '15m', seconds: 900, count: 390 }));
   const agorot = sample({ symbol: 'TEVA.TA', currency: 'ILA', startPrice: 2000 });
   agorot.chart.result[0].meta.longName = 'Teva Pharmaceutical Industries · SAMPLE';
@@ -93,9 +93,9 @@ async function main() {
   } } });
   states.stale_large = await offline.run({ trmnl: {
     state: states.large.trmnl_state,
-    plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } }
+    plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'es', showVolume: 'show' } }
   } });
-  states.stale_large.trmnl = { plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'de_DE', showVolume: 'show' } } };
+  states.stale_large.trmnl = { plugin_settings: { custom_fields_values: { headerFontSize: 'large', fontSize: 16, locale: 'es', showVolume: 'show' } } };
   const fxMarket = sample({ interval: '1m', seconds: 60, count: 390 });
   const fxRates = sample({ symbol: 'USDEUR=X', currency: 'EUR', interval: '1m', seconds: 60, count: 1440, startPrice: 0.8 });
   states.converted_day = await plugin(async () => ({ ok: true, json: async () => fxRates })).run({ ...fxMarket,

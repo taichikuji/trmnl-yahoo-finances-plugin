@@ -14,7 +14,7 @@ const RANGES = {
   '60m|1W': { range: '5y', interval: '1wk', seconds: 7 * DAY },
   'all|1M': { range: 'max', interval: '1mo', seconds: 31 * DAY }
 };
-const LOCALES = { en: 'en-US', de_DE: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pl: 'pl-PL' };
+const LOCALES = { en: 'en-US', es: 'es-ES' };
 const positive = n => Number.isFinite(n) && n > 0;
 const stamp = n => Number.isSafeInteger(n) && n > 0;
 const barStamp = n => Number.isSafeInteger(n) && n >= -62135596800;

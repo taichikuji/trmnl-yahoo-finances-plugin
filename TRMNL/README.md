@@ -51,7 +51,7 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 | Line style and width | Straight, stepped or smooth; 1–5 px line strokes |
 | Grid, volume, baseline | On/off checkboxes; volume requires provider data |
 | Extended hours | Available intraday pre/post-market bars |
-| Language | English, German, French, Spanish, Italian or Polish |
+| Language | English or Spanish |
 | Heading and label size | Small/normal/large heading; native Normal/Large supporting text |
 | Decimal places | Automatic, 0, 2, 4 or 6 decimals |
 

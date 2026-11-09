@@ -808,7 +808,7 @@ test('Liquid draws distinct line styles; smooth control points stay within segme
 });
 
 test('all locales format prices and dates, and every registered view renders once without network widgets', async () => {
-  for (const locale of ['en', 'de_DE', 'fr', 'es', 'it', 'pl']) {
+  for (const locale of ['en', 'es']) {
     for (const chartType of ['line', 'bars', 'candles']) {
       const out = await load().run(polled(sample(), { locale, chartType, showVolume: 'show', showGridlines: 'show', showReference: 'show' }));
       for (const name of layoutNames) {
@@ -828,12 +828,23 @@ test('all locales format prices and dates, and every registered view renders onc
   }
 });
 
+test('removed locale selections fall back to English formatting and labels', async () => {
+  const english = await load().run(polled(sample(), { locale: 'en' }));
+  for (const locale of ['de_DE', 'fr', 'it', 'pl']) {
+    const out = await load().run(polled(sample(), { locale }));
+    assert.equal(out.quote.price_label, english.quote.price_label);
+    assert.equal(JSON.stringify(out.quote.ticks), JSON.stringify(english.quote.ticks));
+    const html = await render(out, { locale });
+    assert.match(html, /Regular hours/);
+  }
+});
+
 test('form offers all recipe controls, with values matching runtime and native polling configuration', () => {
   const s = YAML.parse(fs.readFileSync(path.join(__dirname, 'src/settings.yml'), 'utf8'));
   assert.equal(s.strategy, 'polling'); assert.equal(s.serverless_language, 'node'); assert.equal(s.no_screen_padding, 'no');
   const fields = Object.fromEntries(s.custom_fields.map(f => [f.keyname, f]));
   for (const key of ['symbol', 'currency', 'chartType', 'locale', 'dateRanges', 'lineWidth', 'lineType', 'showGridlines', 'showVolume', 'headerFontSize', 'fontSize']) assert.ok(fields[key]);
-  assert.equal(fields.dateRanges.options.length, 6); assert.equal(fields.locale.options.length, 6);
+  assert.equal(fields.dateRanges.options.length, 6); assert.deepEqual(fields.locale.options, [{ English: 'en' }, { Spanish: 'es' }]);
   for (const key of ['showGridlines', 'showVolume', 'showReference']) {
     assert.equal(fields[key].field_type, 'boolean');
     assert.equal(fields[key].default, false);
@@ -1007,9 +1018,7 @@ test('falling and unchanged returns have distinct accessible indicators', async 
 
 test('quote summary and session details retain their meaning across layouts and languages', async () => {
   for (const [locale, regular, extended] of [
-    ['en', 'Regular hours', 'Extended hours'], ['es', 'Horario regular', 'Horario extendido'],
-    ['de_DE', 'Reguläre Handelszeiten', 'Erweiterte Handelszeiten'], ['fr', 'Heures normales', 'Heures étendues'],
-    ['it', 'Orario regolare', 'Orario esteso'], ['pl', 'Godziny regularne', 'Godziny rozszerzone']
+    ['en', 'Regular hours', 'Extended hours'], ['es', 'Horario regular', 'Horario extendido']
   ]) {
     for (const [extendedHours, label] of [['hide', regular], ['show', extended]]) {
       const fields = { locale, extendedHours, chartType: 'candles' };
@@ -1104,7 +1113,7 @@ test('small-price and narrow axes keep distinct fractional levels even with zero
 });
 
 test('axis formatting respects locales and keeps OHLC, volume and baseline in the same scale', async () => {
-  for (const locale of ['en', 'es', 'de_DE', 'fr', 'it', 'pl']) {
+  for (const locale of ['en', 'es']) {
     const fields = { locale, chartType: 'candles', showVolume: true, showReference: true, showGridlines: true };
     const out = await load().run(polled(sample({ startPrice: 0.1 }), fields));
     for (const chart of [out.quote, ...Object.values(out.quote.charts)]) {
