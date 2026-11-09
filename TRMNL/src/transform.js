@@ -61,7 +61,7 @@ function settings(input, selected = selection(input)) {
     key: [symbol, currency, dateRanges, extended ? 'extended' : 'regular'].join('|'),
     chartType: choose(f.chartType, ['line', 'bars', 'candles'], 'line'),
     locale: choose(f.locale, Object.keys(LOCALES), 'en'),
-    lineType: choose(f.lineType, ['0', '1', '2'], '2'),
+    lineType: choose(f.lineType, ['0', '1', '2', '3'], '2'),
     volume: f.showVolume === true || f.showVolume === 'true' || f.showVolume === 'show',
     reference: f.showReference === true || f.showReference === 'true' || f.showReference === 'show',
     precision: choose(f.precision, ['auto', '0', '2', '4', '6'], 'auto')

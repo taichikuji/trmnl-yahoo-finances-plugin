@@ -48,7 +48,7 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 | Currency | `NATIVE`, available fiat pairs, BTC or ETH |
 | Date range | 1D/minute, 1M/30 minutes, 3M/hour, 1Y/day, 5Y/week, all time/month |
 | Chart type | Line, OHLC bars or candles |
-| Line style and width | Straight, stepped or smooth; 1–5 px line strokes |
+| Line style and width | Straight, stepped, smooth or filled; 1–5 px line strokes. Filled uses straight segments, a shaded area, softer grid lines and lighter volume bars. |
 | Grid, volume, baseline | On/off checkboxes; volume requires provider data |
 | Extended hours | Available intraday pre/post-market bars |
 | Language | English or Spanish |

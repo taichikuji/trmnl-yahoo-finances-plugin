@@ -798,13 +798,52 @@ test('corrupt and oversized state is rejected before fallback', async () => {
 
 test('Liquid draws distinct line styles; smooth control points stay within segment bounds', async () => {
   const p = load(); const points = [{ x: 4, y: 100 }, { x: 20, y: 10 }, { x: 80, y: 200 }, { x: 696, y: 50 }];
-  for (const [lineType, pattern] of [['0', /L/], ['1', /H.*V/], ['2', /C/]]) {
+  for (const [lineType, pattern] of [['0', /L/], ['1', /H.*V/], ['2', /C/], ['3', /L/]]) {
     const out = await load().run(polled(sample(), { lineType }));
     const html = await render(out, { lineType });
     assert.match(html.match(/data-chart-line d="([^"]+)"/)[1], pattern);
   }
   const segments = p.curveSegments(points);
   segments.forEach((m, i) => { for (const y of [m[1], m[3]]) assert.ok(y >= Math.min(points[i].y, points[i + 1].y) && y <= Math.max(points[i].y, points[i + 1].y)); });
+});
+
+test('Filled is opt-in for Line, preserving chart data and optional grid and volume controls', async () => {
+  assert.equal(config({ lineType: '3' }).lineType, '3');
+  const straight = await load().run(polled(sample(), { lineType: '0' }));
+  for (const chartType of ['line', 'bars', 'candles']) {
+    for (const lineType of ['0', '1', '2', '3']) {
+      const fields = { chartType, lineType, showGridlines: true, showVolume: true };
+      const out = await load().run(polled(sample(), fields));
+      assert.deepEqual(plain(out.trmnl_state), plain(straight.trmnl_state));
+      const filled = chartType === 'line' && lineType === '3';
+      for (const name of layoutNames) {
+        const html = await render(out, fields, name);
+        assert.equal(html.includes('data-chart-area-fill'), filled);
+        if (filled) assert.ok(html.includes('L696,' + out.quote.ticks.at(-1).y + 'H4Z'));
+        assert.equal(html.includes('stroke-opacity=".18"'), filled);
+        assert.equal(html.includes('stroke-dasharray="4 6"'), !filled);
+        const volume = html.match(/<path data-chart-volume[^>]+>/)[0];
+        assert.equal(volume.includes('stroke-opacity=".4"'), filled);
+      }
+    }
+  }
+  const fields = { lineType: '3' };
+  const out = await load().run(polled(sample(), fields));
+  assert.equal(out.quote.curves.length, 0);
+  const html = await render(out, fields);
+  assert.match(html, /data-chart-area-fill/);
+  assert.ok(html.includes('L696,' + out.quote.ticks.at(-1).y + 'H4Z'));
+  assert.doesNotMatch(html, /data-chart-gridline|data-chart-volume/);
+  assert.equal(html.match(/data-chart-line d="([^"]+)"/)[1], (await render(straight, { lineType: '0' })).match(/data-chart-line d="([^"]+)"/)[1]);
+
+  const data = sample();
+  for (const key of ['open', 'high', 'low']) delete data.chart.result[0].indicators.quote[0][key];
+  const fallbackFields = { chartType: 'candles', lineType: '3' };
+  const fallback = await load().run(polled(data, fallbackFields));
+  const fallbackHTML = await render(fallback, fallbackFields);
+  assert.match(fallbackHTML, /OHLC unavailable/);
+  assert.match(fallbackHTML, /data-chart-line d="M[^"C]+L/);
+  assert.doesNotMatch(fallbackHTML, /data-chart-area-fill/);
 });
 
 test('all locales format prices and dates, and every registered view renders once without network widgets', async () => {
@@ -845,6 +884,8 @@ test('form offers all recipe controls, with values matching runtime and native p
   const fields = Object.fromEntries(s.custom_fields.map(f => [f.keyname, f]));
   for (const key of ['symbol', 'currency', 'chartType', 'locale', 'dateRanges', 'lineWidth', 'lineType', 'showGridlines', 'showVolume', 'headerFontSize', 'fontSize']) assert.ok(fields[key]);
   assert.equal(fields.dateRanges.options.length, 6); assert.deepEqual(fields.locale.options, [{ English: 'en' }, { Spanish: 'es' }]);
+  assert.equal(fields.lineType.default, '2');
+  assert.deepEqual(fields.lineType.options, [{ Straight: '0' }, { Stepped: '1' }, { Smooth: '2' }, { Filled: '3' }]);
   for (const key of ['showGridlines', 'showVolume', 'showReference']) {
     assert.equal(fields[key].field_type, 'boolean');
     assert.equal(fields[key].default, false);
@@ -1133,7 +1174,7 @@ test('axis formatting respects locales and keeps OHLC, volume and baseline in th
 });
 
 test('baseline clipping preserves the complete curve with unique SVG fragment ids', async () => {
-  for (const lineType of ['0', '1', '2']) {
+  for (const lineType of ['0', '1', '2', '3']) {
     const out = await load().run(polled(signalFixture(), { showReference: 'show', lineType }));
     const fields = { showReference: 'show', lineType };
     const html = await render(out, fields);
@@ -1144,6 +1185,9 @@ test('baseline clipping preserves the complete curve with unique SVG fragment id
     const ids = [...(html + second).matchAll(/<clipPath id="([^"]+)"/g)].map(m => m[1]);
     assert.equal(ids.length, 4); assert.equal(new Set(ids).size, 4);
     for (const id of ids.slice(0, 2)) assert.ok(html.includes('url(#' + id + ')'));
+    const fragmentIds = [...html.matchAll(/<(?:clipPath|linearGradient) id="([^"]+)"/g)].map(m => m[1]);
+    assert.equal(new Set(fragmentIds).size, fragmentIds.length);
+    for (const [, id] of html.matchAll(/url\(#([^)]*)\)/g)) assert.ok(fragmentIds.includes(id));
     assert.ok(out.quote.reference_y > 0 && out.quote.reference_y < 286);
   }
 });

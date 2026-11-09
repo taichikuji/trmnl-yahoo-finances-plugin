@@ -61,6 +61,15 @@ async function main() {
   states.baseline = await scenario({ showReference: 'show' }, pricesFixture(crossingCloses));
   states.baseline_loss = await scenario({ showReference: 'show' }, pricesFixture(crossingCloses.map((p, i) => p - i * 0.08)));
   states.flat = await scenario({ showReference: 'show', chartType: 'candles' }, pricesFixture(Array(30).fill(100)));
+  states.filled = await scenario({ lineType: '3' });
+  states.filled_details = await scenario({ lineType: '3', showGridlines: true, showVolume: true }, mixed);
+  states.filled_loss = await scenario({ lineType: '3' }, losses);
+  states.filled_baseline = await scenario({ lineType: '3', showReference: true }, pricesFixture(crossingCloses));
+  states.filled_flat = await scenario({ lineType: '3' }, pricesFixture(Array(30).fill(100)));
+  states.filled_large = await scenario({ lineType: '3', headerFontSize: 'large', fontSize: 'description--large', showVolume: true, locale: 'es' });
+  const missingOHLC = sample();
+  for (const key of ['open', 'high', 'low']) delete missingOHLC.chart.result[0].indicators.quote[0][key];
+  states.filled_fallback = await scenario({ chartType: 'candles', lineType: '3' }, missingOHLC);
   states.step = await scenario({ lineType: '1', headerFontSize: 'small', locale: 'es' });
   states.small = await scenario({ lineType: '0', lineWidth: 1, headerFontSize: 'small', fontSize: 8, precision: '0', locale: 'es' });
   states.thick = await scenario({ lineType: '0', lineWidth: 5, precision: '4' });
@@ -253,6 +262,7 @@ async function main() {
               const returnBadge = main.querySelector('[data-quote-return]');
               const signals = { direction: returnBadge?.dataset.quoteReturn,
                 badge: paint('[data-quote-return]'), price: paint('[data-quote-price]'),
+                line: paint('[data-chart-line]'),
                 up: paint('[data-chart-candle="up"]'), down: paint('[data-chart-candle="down"]'),
                 flat: paint('[data-chart-candle="flat"]'), above: paint('[data-chart-above-baseline]'), below: paint('[data-chart-below-baseline]') };
               const marker = visible('[data-last-price-marker]');
@@ -301,6 +311,7 @@ async function main() {
                 densityCount: main.querySelectorAll('[data-chart-density]').length ? [...main.querySelectorAll('[data-chart-density]')].filter(el => el.getClientRects().length).length : 0,
                 chartAreaWidth: chartArea?.clientWidth,
                 chartAreaHeight: chartArea?.clientHeight,
+                filled: !!visible('[data-chart-area-fill]'),
                 timeFits, axisTicksFit, axisDensityCorrect, priceTickLabels: priceTicks.map(el => el.textContent), overflow, textOverflow, textOverlaps, fonts, typography, nativeLabelSizes, signals, markerError,
                 frameworkErrors: window.__TRMNL_LAST_STATS__?.errors || [],
                 pathLength: chart?.getTotalLength() ?? null };
@@ -349,6 +360,8 @@ async function main() {
               errors.push('chart too small');
             }
             if (model.quote.has_data) {
+              const expectedFilled = model.quote.chart_type === 'line' && model.trmnl?.plugin_settings?.custom_fields_values?.lineType === '3';
+              if (measurements.filled !== expectedFilled) errors.push('filled style differs from selection');
               const signals = measurements.signals;
               const gray = value => { const c = value?.match(/^rgb\((\d+), (\d+), (\d+)\)$/); return c && c[1] === c[2] && c[2] === c[3]; };
               if (!gray(signals.price?.color)) errors.push('price contrast');
@@ -358,7 +371,8 @@ async function main() {
                 if (signals.up && signals.up.fill !== (model.quote.chart_type === 'candles' ? 'rgb(255, 255, 0)' : 'none')) errors.push('rising candle ink');
                 if (signals.down && signals.down.stroke !== 'rgb(255, 0, 0)') errors.push('falling candle ink');
                 if (signals.below && signals.below.stroke !== 'rgb(255, 0, 0)') errors.push('below-baseline ink');
-              } else if ([signals.badge?.color, signals.up?.stroke, signals.down?.stroke, signals.above?.stroke, signals.below?.stroke].filter(Boolean).some(value => !gray(value))) errors.push('non-grayscale signal');
+                if (expectedFilled && signals.direction === 'down' && signals.line?.stroke !== 'rgb(255, 0, 0)') errors.push('filled loss ink');
+              } else if ([signals.badge?.color, signals.line?.stroke, signals.up?.stroke, signals.down?.stroke, signals.above?.stroke, signals.below?.stroke].filter(Boolean).some(value => !gray(value))) errors.push('non-grayscale signal');
             }
             report.push({ id, device, orientation, layout, state, canvas: { width, height }, ...measurements, errors });
             if (errors.length) problems.push({ id, ...measurements, errors });
@@ -371,18 +385,23 @@ async function main() {
             }
             // Virtual full-color reference validates true green/red independently
             // of the target panels' grayscale and B/W/R/Y limits.
-            if (device === 'bwry' && !portrait && layout === 'full' && ['candles', 'baseline', 'loss'].includes(state)) {
+            if (device === 'bwry' && !portrait && layout === 'full' && ['candles', 'baseline', 'loss', 'filled', 'filled_loss', 'filled_flat'].includes(state)) {
               const reference = await page.evaluate(() => {
                 const screen = document.querySelector('.screen');
                 screen.classList.replace('screen--color-4bwry', 'screen--color-full');
                 const style = selector => { const el = document.querySelector(selector); return el ? getComputedStyle(el) : null; };
+                const fill = document.querySelector('[data-chart-area-fill]')?.getAttribute('fill');
+                const stop = fill && document.getElementById(fill.slice(5, -1))?.querySelector('stop');
                 return { up: style('[data-chart-candle="up"]')?.stroke,
                   down: style('[data-chart-candle="down"]')?.stroke,
                   above: style('[data-chart-above-baseline]')?.stroke,
                   below: style('[data-chart-below-baseline]')?.stroke,
+                  line: style('[data-chart-line]')?.stroke,
+                  area: stop ? getComputedStyle(stop).stopColor : null,
                   badge: style('[data-quote-return]')?.color };
               });
-              const good = state === 'candles' ? reference.up === 'rgb(0, 136, 0)' && reference.down === 'rgb(170, 0, 0)' :
+              const filledColor = state === 'filled_loss' ? 'rgb(170, 0, 0)' : state === 'filled_flat' ? 'rgb(0, 0, 0)' : 'rgb(0, 136, 0)';
+              const good = state.startsWith('filled') ? reference.line === filledColor && reference.area === filledColor : state === 'candles' ? reference.up === 'rgb(0, 136, 0)' && reference.down === 'rgb(170, 0, 0)' :
                 state === 'baseline' ? reference.above === 'rgb(0, 136, 0)' && reference.below === 'rgb(170, 0, 0)' : reference.badge === 'rgb(170, 0, 0)';
               if (!good) throw new Error('Full-color ink mismatch: ' + JSON.stringify(reference));
               await page.screenshot({ path: path.join(outputDir, 'full-color-reference-' + state + '.png') });

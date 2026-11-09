@@ -155,6 +155,8 @@
 {%- assign show_gridlines = fields.showGridlines | append: '' -%}
 {%- assign show_reference = fields.showReference | append: '' -%}
 {%- assign line_type = fields.lineType | default: '2' | append: '' -%}
+{%- assign filled = false -%}
+{%- if quote.chart_type == 'line' and line_type == '3' -%}{%- assign filled = true -%}{%- endif -%}
 {%- comment -%}
   The baseline gets its own number, unless a tick sits closer than reference_gap
   viewBox units. That distance is identical at every view size, so each view
@@ -174,7 +176,7 @@
 {%- capture line_path -%}
   {%- for point in quote.points -%}
     {%- if forloop.first -%}M{{ point[0] }},{{ point[1] }}
-    {%- elsif line_type == '0' -%}L{{ point[0] }},{{ point[1] }}
+    {%- elsif line_type == '0' or line_type == '3' -%}L{{ point[0] }},{{ point[1] }}
     {%- elsif line_type == '1' -%}H{{ point[0] }}V{{ point[1] }}
     {%- else -%}
       {%- assign segment_index = forloop.index0 | minus: 1 -%}
@@ -210,15 +212,36 @@
     <div class="stretch relative w--full">
       <svg class="block" data-price-plot xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none" role="img" aria-label="{{ quote.name | escape }} · {{ range_label | escape }} · {{ quote.currency | escape }}">
         <title>{{ quote.symbol | escape }} · {{ quote.price_label | escape }} {{ quote.currency | escape }} · {{ quote.market_label | escape }}</title>
+        {% if filled %}
+          {% assign clip_id = 'price-chart-' | append_random %}
+          {% assign bottom_tick = quote.ticks | last %}
+          {% capture area_path %}{{ line_path }}L696,{{ bottom_tick.y }}H4Z{% endcapture %}
+          <defs>
+            {% assign fill_directions = 'up,down,flat' | split: ',' %}
+            {% for fill_direction in fill_directions %}
+              {% capture fill_color %}{% if fill_direction == 'flat' %}currentColor{% else %}var(--chart-{{ fill_direction }}-color){% endif %}{% endcapture %}
+              <linearGradient id="{{ clip_id }}-fill-{{ fill_direction }}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="{{ fill_color }}" stop-opacity=".22" />
+                <stop offset="100%" stop-color="{{ fill_color }}" stop-opacity=".02" />
+              </linearGradient>
+            {% endfor %}
+          </defs>
+          {% if show_reference == 'true' or show_reference == 'show' %}
+            <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-up)" clip-path="url(#{{ clip_id }}-above)" />
+            <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-down)" clip-path="url(#{{ clip_id }}-below)" />
+          {% else %}
+            <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-{{ direction }})" />
+          {% endif %}
+        {% endif %}
         {% if show_gridlines == 'true' or show_gridlines == 'show' %}
-          {% for tick in quote.ticks %}<path data-chart-gridline{% if tick.detail %} data-axis-detail{% endif %}{% if tick.middle %} data-axis-middle{% endif %} d="M4,{{ tick.y }}H696" fill="none" stroke="currentColor" stroke-dasharray="4 6" stroke-width="1" vector-effect="non-scaling-stroke" />{% endfor %}
-          {% for date in quote.dates %}<path data-chart-gridline d="M{{ date.x }},12V274" fill="none" stroke="currentColor" stroke-dasharray="4 6" stroke-width="1" vector-effect="non-scaling-stroke" />{% endfor %}
+          {% for tick in quote.ticks %}<path data-chart-gridline{% if tick.detail %} data-axis-detail{% endif %}{% if tick.middle %} data-axis-middle{% endif %} d="M4,{{ tick.y }}H696" fill="none" stroke="currentColor" {% if filled %}stroke-opacity=".18"{% else %}stroke-dasharray="4 6"{% endif %} stroke-width="1" vector-effect="non-scaling-stroke" />{% endfor %}
+          {% for date in quote.dates %}<path data-chart-gridline d="M{{ date.x }},12V274" fill="none" stroke="currentColor" {% if filled %}stroke-opacity=".18"{% else %}stroke-dasharray="4 6"{% endif %} stroke-width="1" vector-effect="non-scaling-stroke" />{% endfor %}
         {% endif %}
         {% if show_reference == 'true' or show_reference == 'show' %}<path d="M4,{{ quote.reference_y }}H696" fill="none" stroke="currentColor" stroke-dasharray="6 4" stroke-width="1" vector-effect="non-scaling-stroke" />{% endif %}
         {% if line_path != empty %}
           <g stroke-width="{{ line_width }}" stroke-linecap="round" stroke-linejoin="round">
             {% if show_reference == 'true' or show_reference == 'show' %}
-              {% assign clip_id = 'price-chart-' | append_random %}
+              {% unless filled %}{% assign clip_id = 'price-chart-' | append_random %}{% endunless %}
               {% assign below_height = 286 | minus: quote.reference_y %}
               <defs>
                 <clipPath id="{{ clip_id }}-above"><rect x="0" y="0" width="700" height="{{ quote.reference_y }}" /></clipPath>
@@ -227,7 +250,7 @@
               <path data-chart-line data-chart-above-baseline d="{{ line_path | escape }}" clip-path="url(#{{ clip_id }}-above)" fill="none" stroke="var(--chart-up-color)" vector-effect="non-scaling-stroke" />
               <path data-chart-below-baseline d="{{ line_path | escape }}" clip-path="url(#{{ clip_id }}-below)" fill="none" stroke="var(--chart-down-color)" vector-effect="non-scaling-stroke" />
             {% else %}
-              <path data-chart-line d="{{ line_path | escape }}" fill="none" stroke="currentColor" vector-effect="non-scaling-stroke" />
+              <path data-chart-line d="{{ line_path | escape }}" fill="none" stroke="{% if filled and direction != 'flat' %}var(--chart-{{ direction }}-color){% else %}currentColor{% endif %}" vector-effect="non-scaling-stroke" />
             {% endif %}
           </g>
         {% else %}
@@ -238,7 +261,7 @@
             <path d="{{ missing_path | escape }}" fill="none" vector-effect="non-scaling-stroke" />
           </g>
         {% endif %}
-        {% if quote.has_volume == true %}<path data-chart-volume d="{% for point in quote.volumes %}M{{ point[0] }},274V{{ point[1] }}{% endfor %}" fill="none" stroke="currentColor" stroke-width="{{ quote.volume_width }}" />{% endif %}
+        {% if quote.has_volume == true %}<path data-chart-volume d="{% for point in quote.volumes %}M{{ point[0] }},274V{{ point[1] }}{% endfor %}" fill="none" stroke="currentColor" stroke-width="{% if filled %}{{ quote.volume_width | at_most: 2 }}{% else %}{{ quote.volume_width }}{% endif %}"{% if filled %} stroke-opacity=".4" stroke-linecap="round" vector-effect="non-scaling-stroke"{% endif %} />{% endif %}
       </svg>
       {% if line_path != empty %}
         <svg class="absolute top--0 left--0 w--full h--full" overflow="visible" aria-hidden="true"><circle data-last-price-marker="{{ direction | escape }}" cx="99.428571%" cy="{{ quote.last_y | times: 100.0 | divided_by: 286.0 }}%" r="4" fill="{% if direction == 'up' %}var(--chart-up-color){% elsif direction == 'down' %}var(--chart-down-color){% else %}currentColor{% endif %}" /></svg>
