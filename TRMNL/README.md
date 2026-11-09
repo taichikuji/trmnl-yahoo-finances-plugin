@@ -36,7 +36,7 @@ Copy the form and plugin settings from [settings.yml](src/settings.yml). Paste [
 
 Upload [media/icon.svg](media/icon.svg) in the plugin's icon field. MCP source imports do not upload icon assets.
 
-For automatic publishing, add `TRMNL_API_KEY` and `TRMNL_PLUGIN_SETTING_ID` as GitHub Actions repository secrets. The plugin setting ID is the number in its `/plugin_settings/<ID>/edit` URL. The **Publish to TRMNL** workflow runs the tests and device previews before deploying source or media changes on `main`; it can also run manually.
+For automatic publishing, add `TRMNL_API_KEY` and `TRMNL_PLUGIN_SETTING_ID` as GitHub Actions repository secrets. The plugin setting ID is the number in its `/plugin_settings/<ID>/edit` URL. The **Publish to TRMNL** workflow deploys source or media changes on `main`; it can also run manually.
 
 The existing private installation can also be updated through TRMNL MCP. Keep MCP credentials in the client's private configuration.
 
@@ -115,7 +115,7 @@ npx playwright-core install --with-deps chromium
 TRMNL_BROWSER=chromium node scripts/preview.cjs
 ```
 
-These packages are development tools only. The test suite covers market data, FX, saved-state isolation, failures, chart geometry, locales and Liquid rendering. GitHub Actions runs the same checks on `main` pushes and pull requests.
+These packages are development tools only. The local test suite covers market data, FX, saved-state isolation, failures, chart geometry, locales and Liquid rendering.
 
 Open `dist/preview/index.html` for sample previews across four device profiles, both orientations, all four layouts and data/customization scenarios. The script runs the pinned Framework JavaScript, including native clamping, with actual fonts, checks chart density, computed text sizes, bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
 
