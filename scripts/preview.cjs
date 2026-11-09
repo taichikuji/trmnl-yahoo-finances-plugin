@@ -312,6 +312,7 @@ async function main() {
                 chartAreaWidth: chartArea?.clientWidth,
                 chartAreaHeight: chartArea?.clientHeight,
                 filled: !!visible('[data-chart-area-fill]'),
+                fillEndOpacity: main.querySelector('[data-fill-end]') ? Number(getComputedStyle(main.querySelector('[data-fill-end]')).stopOpacity) : null,
                 timeFits, axisTicksFit, axisDensityCorrect, priceTickLabels: priceTicks.map(el => el.textContent), overflow, textOverflow, textOverlaps, fonts, typography, nativeLabelSizes, signals, markerError,
                 frameworkErrors: window.__TRMNL_LAST_STATS__?.errors || [],
                 pathLength: chart?.getTotalLength() ?? null };
@@ -362,6 +363,7 @@ async function main() {
             if (model.quote.has_data) {
               const expectedFilled = model.quote.chart_type === 'line' && model.trmnl?.plugin_settings?.custom_fields_values?.lineType === '3';
               if (measurements.filled !== expectedFilled) errors.push('filled style differs from selection');
+              if (device === 'ogv2' && expectedFilled && Math.round((1 - measurements.fillEndOpacity) * 3) === 3) errors.push('filled area disappears after 2-bit conversion');
               const signals = measurements.signals;
               const gray = value => { const c = value?.match(/^rgb\((\d+), (\d+), (\d+)\)$/); return c && c[1] === c[2] && c[2] === c[3]; };
               if (!gray(signals.price?.color)) errors.push('price contrast');

@@ -70,6 +70,8 @@
   [data-market-view][data-short][data-stale] [data-quote-session].description--large { top: 1.625em; }
   [data-market-view] [data-quote-session][data-long-price] { position: static; align-self: flex-end; }
   [data-market-view] [data-axis-spacer] { visibility: hidden; }
+  /* Four gray levels turn a faint gradient into a clipped-looking band. */
+  .screen--2bit [data-fill-end] { stop-opacity: .22; }
   [data-market-view] [data-price-chart] { container: price-chart / size; }
   @container price-chart (max-height: 200px) {
     [data-market-view] [data-axis-detail] { display: none; }
@@ -222,7 +224,7 @@
               {% capture fill_color %}{% if fill_direction == 'flat' %}currentColor{% else %}var(--chart-{{ fill_direction }}-color){% endif %}{% endcapture %}
               <linearGradient id="{{ clip_id }}-fill-{{ fill_direction }}" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="{{ fill_color }}" stop-opacity=".22" />
-                <stop offset="100%" stop-color="{{ fill_color }}" stop-opacity=".02" />
+                <stop data-fill-end offset="100%" stop-color="{{ fill_color }}" stop-opacity=".02" />
               </linearGradient>
             {% endfor %}
           </defs>
