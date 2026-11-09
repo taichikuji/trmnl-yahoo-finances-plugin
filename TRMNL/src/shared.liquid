@@ -70,8 +70,8 @@
   [data-market-view][data-short][data-stale] [data-quote-session].description--large { top: 1.625em; }
   [data-market-view] [data-quote-session][data-long-price] { position: static; align-self: flex-end; }
   [data-market-view] [data-axis-spacer] { visibility: hidden; }
-  /* Four gray levels turn a faint gradient into a clipped-looking band. */
-  .screen--2bit [data-fill-end] { stop-opacity: .22; }
+  /* Pre-dithered SVG pixels avoid hard gradient cutoffs on low-bit screens. */
+  :is(.screen--1bit, .screen--2bit) [data-market-view] [data-chart-area-fill] { fill: var(--chart-dither); }
   [data-market-view] [data-price-chart] { container: price-chart / size; }
   @container price-chart (max-height: 200px) {
     [data-market-view] [data-axis-detail] { display: none; }
@@ -219,20 +219,22 @@
           {% assign bottom_tick = quote.ticks | last %}
           {% capture area_path %}{{ line_path }}L696,{{ bottom_tick.y }}H4Z{% endcapture %}
           <defs>
+            {% comment %}Ordered Bayer dither; fixed black/white dots fade without gray banding.{% endcomment %}
+            <pattern id="{{ clip_id }}-dots" patternUnits="userSpaceOnUse" width="16" height="286"><path fill="currentColor" d="M0,0h1.4v1.4h-1.4zM4,0h1.4v1.4h-1.4zM8,0h1.4v1.4h-1.4zM12,0h1.4v1.4h-1.4zM2,2h1.4v1.4h-1.4zM10,2h1.4v1.4h-1.4zM0,4h1.4v1.4h-1.4zM4,4h1.4v1.4h-1.4zM8,4h1.4v1.4h-1.4zM12,4h1.4v1.4h-1.4zM6,6h1.4v1.4h-1.4zM0,8h1.4v1.4h-1.4zM4,8h1.4v1.4h-1.4zM8,8h1.4v1.4h-1.4zM12,8h1.4v1.4h-1.4zM2,10h1.4v1.4h-1.4zM10,10h1.4v1.4h-1.4zM0,12h1.4v1.4h-1.4zM4,12h1.4v1.4h-1.4zM8,12h1.4v1.4h-1.4zM12,12h1.4v1.4h-1.4zM0,16h1.4v1.4h-1.4zM4,16h1.4v1.4h-1.4zM8,16h1.4v1.4h-1.4zM12,16h1.4v1.4h-1.4zM2,18h1.4v1.4h-1.4zM10,18h1.4v1.4h-1.4zM0,20h1.4v1.4h-1.4zM4,20h1.4v1.4h-1.4zM8,20h1.4v1.4h-1.4zM12,20h1.4v1.4h-1.4zM0,24h1.4v1.4h-1.4zM4,24h1.4v1.4h-1.4zM8,24h1.4v1.4h-1.4zM12,24h1.4v1.4h-1.4zM2,26h1.4v1.4h-1.4zM10,26h1.4v1.4h-1.4zM0,28h1.4v1.4h-1.4zM4,28h1.4v1.4h-1.4zM8,28h1.4v1.4h-1.4zM12,28h1.4v1.4h-1.4zM0,32h1.4v1.4h-1.4zM4,32h1.4v1.4h-1.4zM8,32h1.4v1.4h-1.4zM12,32h1.4v1.4h-1.4zM2,34h1.4v1.4h-1.4zM0,36h1.4v1.4h-1.4zM4,36h1.4v1.4h-1.4zM8,36h1.4v1.4h-1.4zM12,36h1.4v1.4h-1.4zM0,40h1.4v1.4h-1.4zM4,40h1.4v1.4h-1.4zM8,40h1.4v1.4h-1.4zM12,40h1.4v1.4h-1.4zM2,42h1.4v1.4h-1.4zM10,42h1.4v1.4h-1.4zM0,44h1.4v1.4h-1.4zM4,44h1.4v1.4h-1.4zM8,44h1.4v1.4h-1.4zM12,44h1.4v1.4h-1.4zM0,48h1.4v1.4h-1.4zM4,48h1.4v1.4h-1.4zM8,48h1.4v1.4h-1.4zM12,48h1.4v1.4h-1.4zM2,50h1.4v1.4h-1.4zM0,52h1.4v1.4h-1.4zM4,52h1.4v1.4h-1.4zM8,52h1.4v1.4h-1.4zM12,52h1.4v1.4h-1.4zM0,56h1.4v1.4h-1.4zM4,56h1.4v1.4h-1.4zM8,56h1.4v1.4h-1.4zM12,56h1.4v1.4h-1.4zM0,60h1.4v1.4h-1.4zM4,60h1.4v1.4h-1.4zM8,60h1.4v1.4h-1.4zM12,60h1.4v1.4h-1.4zM0,64h1.4v1.4h-1.4zM4,64h1.4v1.4h-1.4zM8,64h1.4v1.4h-1.4zM12,64h1.4v1.4h-1.4zM2,66h1.4v1.4h-1.4zM0,68h1.4v1.4h-1.4zM4,68h1.4v1.4h-1.4zM8,68h1.4v1.4h-1.4zM12,68h1.4v1.4h-1.4zM0,72h1.4v1.4h-1.4zM4,72h1.4v1.4h-1.4zM8,72h1.4v1.4h-1.4zM12,72h1.4v1.4h-1.4zM0,76h1.4v1.4h-1.4zM4,76h1.4v1.4h-1.4zM8,76h1.4v1.4h-1.4zM12,76h1.4v1.4h-1.4zM0,80h1.4v1.4h-1.4zM4,80h1.4v1.4h-1.4zM8,80h1.4v1.4h-1.4zM0,84h1.4v1.4h-1.4zM4,84h1.4v1.4h-1.4zM8,84h1.4v1.4h-1.4zM12,84h1.4v1.4h-1.4zM0,88h1.4v1.4h-1.4zM4,88h1.4v1.4h-1.4zM8,88h1.4v1.4h-1.4zM12,88h1.4v1.4h-1.4zM0,92h1.4v1.4h-1.4zM4,92h1.4v1.4h-1.4zM8,92h1.4v1.4h-1.4zM12,92h1.4v1.4h-1.4zM0,96h1.4v1.4h-1.4zM4,96h1.4v1.4h-1.4zM8,96h1.4v1.4h-1.4zM0,100h1.4v1.4h-1.4zM4,100h1.4v1.4h-1.4zM8,100h1.4v1.4h-1.4zM12,100h1.4v1.4h-1.4zM0,104h1.4v1.4h-1.4zM8,104h1.4v1.4h-1.4zM0,108h1.4v1.4h-1.4zM4,108h1.4v1.4h-1.4zM8,108h1.4v1.4h-1.4zM12,108h1.4v1.4h-1.4zM0,112h1.4v1.4h-1.4zM4,112h1.4v1.4h-1.4zM8,112h1.4v1.4h-1.4zM0,116h1.4v1.4h-1.4zM4,116h1.4v1.4h-1.4zM8,116h1.4v1.4h-1.4zM12,116h1.4v1.4h-1.4zM0,120h1.4v1.4h-1.4zM8,120h1.4v1.4h-1.4zM0,124h1.4v1.4h-1.4zM4,124h1.4v1.4h-1.4zM8,124h1.4v1.4h-1.4zM12,124h1.4v1.4h-1.4zM0,128h1.4v1.4h-1.4zM8,128h1.4v1.4h-1.4zM0,132h1.4v1.4h-1.4zM4,132h1.4v1.4h-1.4zM12,132h1.4v1.4h-1.4zM0,136h1.4v1.4h-1.4zM8,136h1.4v1.4h-1.4zM4,140h1.4v1.4h-1.4zM8,140h1.4v1.4h-1.4zM12,140h1.4v1.4h-1.4zM0,144h1.4v1.4h-1.4zM8,144h1.4v1.4h-1.4zM0,148h1.4v1.4h-1.4zM4,148h1.4v1.4h-1.4zM12,148h1.4v1.4h-1.4zM0,152h1.4v1.4h-1.4zM8,152h1.4v1.4h-1.4zM4,156h1.4v1.4h-1.4zM12,156h1.4v1.4h-1.4zM0,160h1.4v1.4h-1.4zM8,160h1.4v1.4h-1.4zM4,164h1.4v1.4h-1.4zM12,164h1.4v1.4h-1.4zM0,168h1.4v1.4h-1.4zM8,168h1.4v1.4h-1.4zM4,172h1.4v1.4h-1.4zM12,172h1.4v1.4h-1.4zM0,176h1.4v1.4h-1.4zM8,176h1.4v1.4h-1.4zM4,180h1.4v1.4h-1.4zM0,184h1.4v1.4h-1.4zM8,184h1.4v1.4h-1.4zM4,188h1.4v1.4h-1.4zM12,188h1.4v1.4h-1.4zM0,192h1.4v1.4h-1.4zM8,192h1.4v1.4h-1.4zM4,196h1.4v1.4h-1.4zM0,200h1.4v1.4h-1.4zM8,200h1.4v1.4h-1.4zM0,208h1.4v1.4h-1.4zM8,208h1.4v1.4h-1.4zM4,212h1.4v1.4h-1.4zM0,216h1.4v1.4h-1.4zM8,216h1.4v1.4h-1.4zM0,224h1.4v1.4h-1.4zM8,224h1.4v1.4h-1.4zM0,232h1.4v1.4h-1.4zM8,232h1.4v1.4h-1.4zM0,240h1.4v1.4h-1.4zM8,248h1.4v1.4h-1.4zM0,256h1.4v1.4h-1.4zM0,272h1.4v1.4h-1.4z" /></pattern>
             {% assign fill_directions = 'up,down,flat' | split: ',' %}
             {% for fill_direction in fill_directions %}
               {% capture fill_color %}{% if fill_direction == 'flat' %}currentColor{% else %}var(--chart-{{ fill_direction }}-color){% endif %}{% endcapture %}
               <linearGradient id="{{ clip_id }}-fill-{{ fill_direction }}" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="{{ fill_color }}" stop-opacity=".22" />
-                <stop data-fill-end offset="100%" stop-color="{{ fill_color }}" stop-opacity=".02" />
+                <stop offset="100%" stop-color="{{ fill_color }}" stop-opacity=".02" />
               </linearGradient>
             {% endfor %}
           </defs>
           {% if show_reference == 'true' or show_reference == 'show' %}
-            <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-up)" clip-path="url(#{{ clip_id }}-above)" />
-            <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-down)" clip-path="url(#{{ clip_id }}-below)" />
+            <path data-chart-area-fill style="--chart-dither:url(#{{ clip_id }}-dots)" d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-up)" clip-path="url(#{{ clip_id }}-above)" />
+            <path data-chart-area-fill style="--chart-dither:url(#{{ clip_id }}-dots)" d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-down)" clip-path="url(#{{ clip_id }}-below)" />
           {% else %}
-            <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-{{ direction }})" />
+            <path data-chart-area-fill style="--chart-dither:url(#{{ clip_id }}-dots)" d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-{{ direction }})" />
           {% endif %}
         {% endif %}
         {% if show_gridlines == 'true' or show_gridlines == 'show' %}

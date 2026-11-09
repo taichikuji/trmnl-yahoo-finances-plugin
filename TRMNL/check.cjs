@@ -818,7 +818,7 @@ test('Filled is opt-in for Line, preserving chart data and optional grid and vol
       const filled = chartType === 'line' && lineType === '3';
       for (const name of layoutNames) {
         const html = await render(out, fields, name);
-        assert.equal(html.includes('data-chart-area-fill'), filled);
+        assert.equal(html.includes('<path data-chart-area-fill '), filled);
         if (filled) assert.ok(html.includes('L696,' + out.quote.ticks.at(-1).y + 'H4Z'));
         assert.equal(html.includes('stroke-opacity=".18"'), filled);
         assert.equal(html.includes('stroke-dasharray="4 6"'), !filled);
@@ -832,6 +832,8 @@ test('Filled is opt-in for Line, preserving chart data and optional grid and vol
   assert.equal(out.quote.curves.length, 0);
   const html = await render(out, fields);
   assert.match(html, /data-chart-area-fill/);
+  assert.match(html, /<pattern id="[^"]+-dots"[^>]*><path fill="currentColor" d="M[^"]+" \/><\/pattern>/);
+  assert.match(html, /--chart-dither:url\(#price-chart-[^)]+-dots\)/);
   assert.ok(html.includes('L696,' + out.quote.ticks.at(-1).y + 'H4Z'));
   assert.doesNotMatch(html, /data-chart-gridline|data-chart-volume/);
   assert.equal(html.match(/data-chart-line d="([^"]+)"/)[1], (await render(straight, { lineType: '0' })).match(/data-chart-line d="([^"]+)"/)[1]);
@@ -843,7 +845,7 @@ test('Filled is opt-in for Line, preserving chart data and optional grid and vol
   const fallbackHTML = await render(fallback, fallbackFields);
   assert.match(fallbackHTML, /OHLC unavailable/);
   assert.match(fallbackHTML, /data-chart-line d="M[^"C]+L/);
-  assert.doesNotMatch(fallbackHTML, /data-chart-area-fill/);
+  assert.doesNotMatch(fallbackHTML, /<path data-chart-area-fill/);
 });
 
 test('all locales format prices and dates, and every registered view renders once without network widgets', async () => {
@@ -1185,7 +1187,7 @@ test('baseline clipping preserves the complete curve with unique SVG fragment id
     const ids = [...(html + second).matchAll(/<clipPath id="([^"]+)"/g)].map(m => m[1]);
     assert.equal(ids.length, 4); assert.equal(new Set(ids).size, 4);
     for (const id of ids.slice(0, 2)) assert.ok(html.includes('url(#' + id + ')'));
-    const fragmentIds = [...html.matchAll(/<(?:clipPath|linearGradient) id="([^"]+)"/g)].map(m => m[1]);
+    const fragmentIds = [...html.matchAll(/<(?:clipPath|linearGradient|pattern) id="([^"]+)"/g)].map(m => m[1]);
     assert.equal(new Set(fragmentIds).size, fragmentIds.length);
     for (const [, id] of html.matchAll(/url\(#([^)]*)\)/g)) assert.ok(fragmentIds.includes(id));
     assert.ok(out.quote.reference_y > 0 && out.quote.reference_y < 286);
