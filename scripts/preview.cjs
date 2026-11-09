@@ -14,11 +14,13 @@ const devices = {
   bwry: { name: 'TRMNL OG (B/W/R/Y)', css: 'og', size: 'md', mode: 'color-4bwry', width: 800, height: 480, scale: 1 },
   x: { name: 'TRMNL X', css: 'v2', size: 'lg', mode: '4bit', width: 1040, height: 780, scale: 1.8 }
 };
+devices.x1bit = { ...devices.x, name: 'TRMNL X (1-bit)', mode: '1bit' };
+devices.x2bit = { ...devices.x, name: 'TRMNL X (2-bit)', mode: '2bit' };
 const layouts = { full: null, half_horizontal: '1Tx1B', half_vertical: '1Lx1R', quadrant: '2x2' };
 // Match the user's review priority; X portrait is intentionally last.
 const surfaces = [
-  ['og', 'landscape'], ['ogv2', 'landscape'], ['x', 'landscape'], ['bwry', 'landscape'],
-  ['og', 'portrait'], ['ogv2', 'portrait'], ['bwry', 'portrait'], ['x', 'portrait']
+  ['og', 'landscape'], ['ogv2', 'landscape'], ['x1bit', 'landscape'], ['x2bit', 'landscape'], ['x', 'landscape'], ['bwry', 'landscape'],
+  ['og', 'portrait'], ['ogv2', 'portrait'], ['bwry', 'portrait'], ['x1bit', 'portrait'], ['x2bit', 'portrait'], ['x', 'portrait']
 ];
 function pricesFixture(closes) {
   const data = sample({ count: closes.length });
@@ -311,8 +313,7 @@ async function main() {
                 densityCount: main.querySelectorAll('[data-chart-density]').length ? [...main.querySelectorAll('[data-chart-density]')].filter(el => el.getClientRects().length).length : 0,
                 chartAreaWidth: chartArea?.clientWidth,
                 chartAreaHeight: chartArea?.clientHeight,
-                filled: !!visible('[data-chart-area-fill]'),
-                fillEndOpacity: main.querySelector('[data-fill-end]') ? Number(getComputedStyle(main.querySelector('[data-fill-end]')).stopOpacity) : null,
+                filled: !!visible('[data-chart-native-fill], [data-chart-dither]'),
                 timeFits, axisTicksFit, axisDensityCorrect, priceTickLabels: priceTicks.map(el => el.textContent), overflow, textOverflow, textOverlaps, fonts, typography, nativeLabelSizes, signals, markerError,
                 frameworkErrors: window.__TRMNL_LAST_STATS__?.errors || [],
                 pathLength: chart?.getTotalLength() ?? null };
@@ -363,7 +364,45 @@ async function main() {
             if (model.quote.has_data) {
               const expectedFilled = model.quote.chart_type === 'line' && model.trmnl?.plugin_settings?.custom_fields_values?.lineType === '3';
               if (measurements.filled !== expectedFilled) errors.push('filled style differs from selection');
-              if (device === 'ogv2' && expectedFilled && Math.round((1 - measurements.fillEndOpacity) * 3) === 3) errors.push('filled area disappears after 2-bit conversion');
+              if (expectedFilled && ['1bit', '2bit'].includes(profile.mode)) {
+                const hidden = await page.addStyleTag({ content: '[data-price-plot] > path:not([data-chart-area-fill]), [data-price-plot] > g > path, [data-last-price-marker] { visibility: hidden !important; }' });
+                const pixels = await page.locator('[data-price-plot]').screenshot();
+                await hidden.evaluate(el => el.remove());
+                measurements.fillBands = await page.evaluate(async ({ png, points, bottom, levels }) => {
+                  const image = new Image();
+                  image.src = 'data:image/png;base64,' + png;
+                  await image.decode();
+                  const canvas = document.createElement('canvas');
+                  canvas.width = image.width; canvas.height = image.height;
+                  const context = canvas.getContext('2d');
+                  context.drawImage(image, 0, 0);
+                  const rgba = context.getImageData(0, 0, image.width, image.height).data;
+                  const top = Math.min(...points.map(p => p[1]));
+                  // Compare broad bands and outside white, allowing one edge pixel for crop rounding.
+                  const bands = Array.from({ length: 3 }, () => ({ pixels: 0, actual: 0, expected: 0 }));
+                  let segment = 0;
+                  for (let x = 2; x < image.width - 2; x++) {
+                    const sx = (x + .5) * 700 / image.width;
+                    while (segment < points.length - 2 && points[segment + 1][0] < sx) segment++;
+                    const a = points[segment], b = points[segment + 1];
+                    if (sx < a[0] || sx > b[0]) continue;
+                    const line = a[1] + (b[1] - a[1]) * (sx - a[0]) / (b[0] - a[0]);
+                    for (let y = 0; y < image.height; y++) {
+                      const sy = (y + .5) * 286 / image.height;
+                      const gap = 2 * (286 / image.height + Math.abs((b[1] - a[1]) / (b[0] - a[0])) * 700 / image.width);
+                      const outside = sy < line - gap || sy > bottom + gap;
+                      if (!outside && (sy < line + gap || sy >= bottom - gap)) continue;
+                      const t = (sy - top) / (bottom - top);
+                      const band = bands[outside ? 2 : Math.min(1, Math.floor(t * 2))];
+                      band.pixels++;
+                      band.actual += 1 - Math.round(rgba[(y * image.width + x) * 4] / 255 * (levels - 1)) / (levels - 1);
+                      band.expected += outside ? 0 : .22 - .2 * t;
+                    }
+                  }
+                  return bands.filter(b => b.pixels >= 64).map(b => ({ pixels: b.pixels, actual: b.actual / b.pixels, expected: b.expected / b.pixels }));
+                }, { png: pixels.toString('base64'), points: model.quote.points, bottom: model.quote.ticks.at(-1).y, levels: profile.mode === '1bit' ? 2 : 4 });
+                if (measurements.fillBands.length < 2 || measurements.fillBands.some(b => b.expected === 0 ? b.actual * b.pixels > 1 : Math.abs(b.actual - b.expected) > .035)) errors.push('filled pixels lose the gradient after palette conversion');
+              }
               const signals = measurements.signals;
               const gray = value => { const c = value?.match(/^rgb\((\d+), (\d+), (\d+)\)$/); return c && c[1] === c[2] && c[2] === c[3]; };
               if (!gray(signals.price?.color)) errors.push('price contrast');
@@ -421,7 +460,7 @@ async function main() {
       '<style>body{font:14px system-ui;margin:24px;background:#eee}main{display:grid;grid-template-columns:' +
       'repeat(auto-fit,minmax(300px,1fr));gap:20px}figure{margin:0}img{display:block;max-width:100%;' +
       'max-height:400px;background:white}figcaption{padding:8px 0}</style>' +
-      '<h1>STONKS · ' + report.length + ' local previews</h1><p>Synthetic sample prices. Four native device profiles, ' +
+      '<h1>STONKS · ' + report.length + ' local previews</h1><p>Synthetic sample prices. ' + Object.keys(devices).length + ' native device/mode profiles, ' +
       'both orientations, four views, and ' + Object.keys(states).length + ' data/customization scenarios. Click a preview to open its markup.</p><main>' +
       figures.join('\n') + '</main></html>');
     if (problems.length) throw new Error(problems.length + ' preview failures:\n' + JSON.stringify(problems.slice(0, 8), null, 2));

@@ -70,8 +70,14 @@
   [data-market-view][data-short][data-stale] [data-quote-session].description--large { top: 1.625em; }
   [data-market-view] [data-quote-session][data-long-price] { position: static; align-self: flex-end; }
   [data-market-view] [data-axis-spacer] { visibility: hidden; }
-  /* Four gray levels turn a faint gradient into a clipped-looking band. */
-  .screen--2bit [data-fill-end] { stop-opacity: .22; }
+  [data-market-view] [data-chart-dither], [data-market-view] [data-fill-depth] { display: none; }
+  [data-market-view] [data-chart-dither] {
+    width: calc(100% * var(--pixel-ratio, 1)); height: calc(100% * var(--pixel-ratio, 1));
+    transform: scale(calc(1 / var(--pixel-ratio, 1))); transform-origin: 0 0;
+  }
+  :is(.screen--1bit, .screen--2bit) [data-market-view] [data-chart-dither] { display: block; }
+  :is(.screen--1bit, .screen--2bit) [data-market-view] [data-chart-native-fill] { display: none; }
+  .screen--1bit [data-market-view] [data-fill-depth="1"], .screen--2bit [data-market-view] [data-fill-depth="2"] { display: block; }
   [data-market-view] [data-price-chart] { container: price-chart / size; }
   @container price-chart (max-height: 200px) {
     [data-market-view] [data-axis-detail] { display: none; }
@@ -212,28 +218,53 @@
 <div class="stretch flex flex--row gap--xsmall w--full" data-price-chart>
   <div class="stretch flex flex--col gap--xsmall h--full w--min-0">
     <div class="stretch relative w--full">
-      <svg class="block" data-price-plot xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none" role="img" aria-label="{{ quote.name | escape }} · {{ range_label | escape }} · {{ quote.currency | escape }}">
+      {% if filled %}
+        {% assign clip_id = 'price-chart-' | append_random %}
+        {% assign bottom_tick = quote.ticks | last %}
+        {% capture area_path %}{{ line_path }}L696,{{ bottom_tick.y }}H4Z{% endcapture %}
+        {% comment %}Equalized SVG noise avoids resampling; the bias keeps white pixels white after palette rounding.{% endcomment %}
+        <svg class="absolute top--0 left--0 w--full h--full" data-chart-dither aria-hidden="true">
+          <defs>
+            {% for depth in (1..2) %}
+              {% if depth == 1 %}{% assign shade_weight = '.5' %}{% assign noise_weight = '.5' %}{% assign levels = '0 1' %}{% else %}{% assign shade_weight = '.75' %}{% assign noise_weight = '.25' %}{% assign levels = '0 .333333 .666667 1' %}{% endif %}
+              <filter id="{{ clip_id }}-dither-{{ depth }}" x="0" y="0" width="100%" height="100%" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+                <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="1" seed="1" />
+                <feComponentTransfer><feFuncR type="table" tableValues="0 0 0 0 0 0 0.0002 0.0012 0.0044 0.0161 0.0398 0.0765 0.126 0.1951 0.2835 0.3981 0.5148 0.6176 0.7326 0.8156 0.8798 0.926 0.9614 0.9851 0.9965 0.9991 0.9999 1 1 1 1 1 1" /></feComponentTransfer>
+                <feColorMatrix values="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1" result="noise" />
+                <feFlood flood-color="var(--chart-background)" result="paper" />
+                <feComposite in="SourceGraphic" in2="paper" operator="over" result="shade" />
+                <feComposite in="shade" in2="noise" operator="arithmetic" k2="{{ shade_weight }}" k3="{{ noise_weight }}" k4=".004" />
+                <feComponentTransfer><feFuncR type="discrete" tableValues="{{ levels }}" /><feFuncG type="discrete" tableValues="{{ levels }}" /><feFuncB type="discrete" tableValues="{{ levels }}" /></feComponentTransfer>
+              </filter>
+            {% endfor %}
+          </defs>
+          {% for depth in (1..2) %}
+            <g data-fill-depth="{{ depth }}" filter="url(#{{ clip_id }}-dither-{{ depth }})"><svg width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none"><use href="#{{ clip_id }}-area" /></svg></g>
+          {% endfor %}
+        </svg>
+      {% endif %}
+      <svg class="block{% if filled %} relative{% endif %}" data-price-plot xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none" role="img" aria-label="{{ quote.name | escape }} · {{ range_label | escape }} · {{ quote.currency | escape }}">
         <title>{{ quote.symbol | escape }} · {{ quote.price_label | escape }} {{ quote.currency | escape }} · {{ quote.market_label | escape }}</title>
         {% if filled %}
-          {% assign clip_id = 'price-chart-' | append_random %}
-          {% assign bottom_tick = quote.ticks | last %}
-          {% capture area_path %}{{ line_path }}L696,{{ bottom_tick.y }}H4Z{% endcapture %}
           <defs>
             {% assign fill_directions = 'up,down,flat' | split: ',' %}
             {% for fill_direction in fill_directions %}
               {% capture fill_color %}{% if fill_direction == 'flat' %}currentColor{% else %}var(--chart-{{ fill_direction }}-color){% endif %}{% endcapture %}
               <linearGradient id="{{ clip_id }}-fill-{{ fill_direction }}" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stop-color="{{ fill_color }}" stop-opacity=".22" />
-                <stop data-fill-end offset="100%" stop-color="{{ fill_color }}" stop-opacity=".02" />
+                <stop offset="100%" stop-color="{{ fill_color }}" stop-opacity=".02" />
               </linearGradient>
             {% endfor %}
+            <g id="{{ clip_id }}-area">
+              {% if show_reference == 'true' or show_reference == 'show' %}
+                <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-up)" clip-path="url(#{{ clip_id }}-above)" />
+                <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-down)" clip-path="url(#{{ clip_id }}-below)" />
+              {% else %}
+                <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-{{ direction }})" />
+              {% endif %}
+            </g>
           </defs>
-          {% if show_reference == 'true' or show_reference == 'show' %}
-            <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-up)" clip-path="url(#{{ clip_id }}-above)" />
-            <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-down)" clip-path="url(#{{ clip_id }}-below)" />
-          {% else %}
-            <path data-chart-area-fill d="{{ area_path | escape }}" fill="url(#{{ clip_id }}-fill-{{ direction }})" />
-          {% endif %}
+          <use data-chart-native-fill href="#{{ clip_id }}-area" />
         {% endif %}
         {% if show_gridlines == 'true' or show_gridlines == 'show' %}
           {% for tick in quote.ticks %}<path data-chart-gridline{% if tick.detail %} data-axis-detail{% endif %}{% if tick.middle %} data-axis-middle{% endif %} d="M4,{{ tick.y }}H696" fill="none" stroke="currentColor" {% if filled %}stroke-opacity=".18"{% else %}stroke-dasharray="4 6"{% endif %} stroke-width="1" vector-effect="non-scaling-stroke" />{% endfor %}

@@ -1185,9 +1185,10 @@ test('baseline clipping preserves the complete curve with unique SVG fragment id
     const ids = [...(html + second).matchAll(/<clipPath id="([^"]+)"/g)].map(m => m[1]);
     assert.equal(ids.length, 4); assert.equal(new Set(ids).size, 4);
     for (const id of ids.slice(0, 2)) assert.ok(html.includes('url(#' + id + ')'));
-    const fragmentIds = [...html.matchAll(/<(?:clipPath|linearGradient) id="([^"]+)"/g)].map(m => m[1]);
+    const fragmentIds = [...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
     assert.equal(new Set(fragmentIds).size, fragmentIds.length);
     for (const [, id] of html.matchAll(/url\(#([^)]*)\)/g)) assert.ok(fragmentIds.includes(id));
+    for (const [, id] of html.matchAll(/href="#([^"]+)"/g)) assert.ok(fragmentIds.includes(id));
     assert.ok(out.quote.reference_y > 0 && out.quote.reference_y < 286);
   }
 });
