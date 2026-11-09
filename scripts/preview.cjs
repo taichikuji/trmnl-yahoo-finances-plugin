@@ -80,6 +80,8 @@ async function main() {
   states.long_name = await scenario({ fontSize: 'description--large' }, longName);
   states.crypto = await scenario({ symbol: 'BTC-USD', currency: 'NATIVE', locale: 'es' }, sample({ symbol: 'BTC-USD', startPrice: 65000 }));
   states.small_price = await scenario({ symbol: 'DOGE-USD', currency: 'NATIVE', locale: 'es', precision: '6' }, sample({ symbol: 'DOGE-USD', startPrice: 0.1 }));
+  states.subcent = await scenario({ precision: '0' }, sample({ startPrice: 0.00001 }));
+  states.narrow_range = await scenario({ showGridlines: true }, pricesFixture([100.12, 100.14, 100.11, 100.15]));
   states.long_price = await scenario({ precision: '6', headerFontSize: 'large', locale: 'de_DE' }, sample({ startPrice: 1234567890 }));
   states.intraday = await scenario({ dateRanges: '1d|1', extendedHours: 'show', chartType: 'candles', showVolume: 'show', locale: 'it' }, sample({ interval: '1m', seconds: 60, count: 390 }));
   states.thirty_minute = await scenario({ dateRanges: '1m|30', chartType: 'candles', showVolume: 'show' }, sample({ interval: '15m', seconds: 900, count: 390 }));
@@ -255,6 +257,14 @@ async function main() {
                 flat: paint('[data-chart-candle="flat"]'), above: paint('[data-chart-above-baseline]'), below: paint('[data-chart-below-baseline]') };
               const marker = visible('[data-last-price-marker]');
               const axis = visible('[data-price-axis]')?.getBoundingClientRect();
+              const priceTicks = [...main.querySelectorAll('[data-price-tick]')].filter(el => el.getClientRects().length);
+              const tickBounds = priceTicks.map(el => el.getBoundingClientRect());
+              if (tickBounds.some((r, i) => tickBounds.slice(i + 1).some(next => overlaps(r, next)))) textOverlaps.push('price labels');
+              const priceChart = visible('[data-price-chart]');
+              const axisHeight = priceChart ? parseFloat(getComputedStyle(priceChart).height) : 0;
+              const largeAxisLabels = main.querySelector('[data-market-view]')?.dataset.labelClass.includes('description--large');
+              const axisDensityCorrect = !axis || priceTicks.length === (largeAxisLabels && axisHeight <= 80 ? 2 : axisHeight <= 200 ? 3 :
+                priceChart.querySelectorAll('[data-price-tick]').length);
               const glyphOverhang = bounds.width / main.offsetWidth;
               const axisTicksFit = !axis || [...main.querySelectorAll('[data-price-tick]')].filter(el => el.getClientRects().length).every(el => {
                 const tick = el.getBoundingClientRect();
@@ -291,7 +301,7 @@ async function main() {
                 densityCount: main.querySelectorAll('[data-chart-density]').length ? [...main.querySelectorAll('[data-chart-density]')].filter(el => el.getClientRects().length).length : 0,
                 chartAreaWidth: chartArea?.clientWidth,
                 chartAreaHeight: chartArea?.clientHeight,
-                timeFits, axisTicksFit, overflow, textOverflow, textOverlaps, fonts, typography, nativeLabelSizes, signals, markerError,
+                timeFits, axisTicksFit, axisDensityCorrect, priceTickLabels: priceTicks.map(el => el.textContent), overflow, textOverflow, textOverlaps, fonts, typography, nativeLabelSizes, signals, markerError,
                 frameworkErrors: window.__TRMNL_LAST_STATS__?.errors || [],
                 pathLength: chart?.getTotalLength() ?? null };
             });
@@ -332,6 +342,7 @@ async function main() {
             if (measurements.textOverlaps.length) errors.push('overlapping text');
             if (!measurements.timeFits) errors.push('market timestamp truncated');
             if (!measurements.axisTicksFit) errors.push('price labels clipped');
+            if (!measurements.axisDensityCorrect) errors.push('price label density differs from available height');
             if (measurements.markerError !== null && measurements.markerError > 1) errors.push('price marker misaligned');
             if (model.quote.has_data && (!(measurements.pathLength > 100) ||
                 measurements.svgWidth < 80 * profile.scale || measurements.svgHeight < 40 * profile.scale)) {

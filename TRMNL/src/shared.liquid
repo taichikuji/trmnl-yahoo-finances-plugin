@@ -74,6 +74,13 @@
   [data-market-view][data-short][data-stale] [data-quote-session].description--large { top: 1.625em; }
   [data-market-view] [data-quote-session][data-long-price] { position: static; align-self: flex-end; }
   [data-market-view] [data-axis-spacer] { visibility: hidden; }
+  [data-market-view] [data-price-chart] { container: price-chart / size; }
+  @container price-chart (max-height: 200px) {
+    [data-market-view] [data-axis-detail] { display: none; }
+  }
+  @container price-chart (max-height: 80px) {
+    [data-market-view][data-label-class~="description--large"] [data-axis-middle] { display: none; }
+  }
   [data-market-view] [data-chart-area] { container-type: size; }
   [data-market-view] [data-chart-density] { display: none; }
   [data-market-view] [data-chart-density="normal"] { display: flex; }
@@ -208,7 +215,7 @@
       <svg class="block" data-price-plot xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none" role="img" aria-label="{{ quote.name | escape }} · {{ range_label | escape }} · {{ quote.currency | escape }}">
         <title>{{ quote.symbol | escape }} · {{ quote.price_label | escape }} {{ quote.currency | escape }} · {{ quote.market_label | escape }}</title>
         {% if show_gridlines == 'true' or show_gridlines == 'show' %}
-          {% for tick in quote.ticks %}<path data-chart-gridline d="M4,{{ tick.y }}H696" fill="none" stroke="currentColor" stroke-dasharray="4 6" stroke-width="1" vector-effect="non-scaling-stroke" />{% endfor %}
+          {% for tick in quote.ticks %}<path data-chart-gridline{% if tick.detail %} data-axis-detail{% endif %}{% if tick.middle %} data-axis-middle{% endif %} d="M4,{{ tick.y }}H696" fill="none" stroke="currentColor" stroke-dasharray="4 6" stroke-width="1" vector-effect="non-scaling-stroke" />{% endfor %}
           {% for date in quote.dates %}<path data-chart-gridline d="M{{ date.x }},12V274" fill="none" stroke="currentColor" stroke-dasharray="4 6" stroke-width="1" vector-effect="non-scaling-stroke" />{% endfor %}
         {% endif %}
         {% if show_reference == 'true' or show_reference == 'show' %}<path d="M4,{{ quote.reference_y }}H696" fill="none" stroke="currentColor" stroke-dasharray="6 4" stroke-width="1" vector-effect="non-scaling-stroke" />{% endif %}
@@ -249,11 +256,11 @@
     <div class="stretch relative w--full">
       <svg class="absolute top--0 left--0 w--full h--full" overflow="visible" data-price-axis>
         {% for tick in quote.ticks %}
-          <text class="{{ label_class }}" data-price-tick x="100%" y="{{ tick.y | times: 100.0 | divided_by: 286.0 }}%" text-anchor="end" dominant-baseline="central" fill="currentColor">{{ tick.label | escape }}</text>
+          <text class="{{ label_class }}" data-price-tick{% if tick.detail %} data-axis-detail{% endif %}{% if tick.middle %} data-axis-middle{% endif %} x="100%" y="{{ tick.y | times: 100.0 | divided_by: 286.0 }}%" text-anchor="end" dominant-baseline="central" fill="currentColor">{{ tick.label | escape }}</text>
         {% endfor %}
         {% if show_reference_label %}<text class="{{ label_class }}" data-reference-label x="100%" y="{{ quote.reference_y | times: 100.0 | divided_by: 286.0 }}%" text-anchor="end" dominant-baseline="central" fill="currentColor">{{ quote.reference_label | escape }}</text>{% endif %}
       </svg>
-      <span class="{{ label_class }}" data-axis-spacer aria-hidden="true">{% for tick in quote.ticks %}{{ tick.label | escape }}<br />{% endfor %}</span>
+      <span class="{{ label_class }}" data-axis-spacer aria-hidden="true">{% for tick in quote.ticks %}<span{% if tick.detail %} data-axis-detail{% endif %}{% if tick.middle %} data-axis-middle{% endif %}>{{ tick.label | escape }}<br /></span>{% endfor %}</span>
     </div>
     <span class="{{ label_class }} text--right no-shrink">{{ quote.currency | escape }}</span>
   </div>

@@ -65,6 +65,8 @@ Changing the list or clearing Saved State restarts at the first entry. Rotation 
 
 Candles and OHLC bars adapt to the space left after the heading and quote. Chart areas at most 460 CSS px wide or 160 CSS px high use up to 32 bars; other areas use up to 96, rising to 192 when at least 900 × 400 CSS px are available. These are rendered chart-area dimensions, not device names or physical panel pixels. Larger X slots retain more detail while narrow portrait slots can still use the compact chart.
 
+The price axis uses five to seven rounded levels, reduced to three when the chart is at most 200 CSS px high, or two with Large labels when the chart is at most 80 CSS px high. Whole numbers are used where the price range allows; narrow ranges and small prices retain the decimals needed to distinguish levels. The Decimal places setting still controls the quote and return amounts.
+
 Grouping keeps the whole date range: first open, highest high, lowest low, last close and summed volume. The visible `×N` label reports the grouping actually drawn. Saved history, latest price and return stay unchanged. Candle outlines and OHLC strokes are 1 px; the Line width setting applies to line charts.
 
 ## Templates

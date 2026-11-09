@@ -1066,6 +1066,63 @@ test('changes that round to zero do not show negative zero or a misleading direc
   }
 });
 
+test('price axes use rounded levels independently of quote precision and saved state', async () => {
+  const original = await load().run(sample());
+  const fields = { precision: '6' };
+  const out = await load().run(polled(sample(), fields));
+  assert.deepEqual(plain(out.trmnl_state), plain(original.trmnl_state));
+  assert.deepEqual(plain(out.quote.ticks.map(t => t.label)), ['60', '55', '50', '45', '40']);
+  assert.match(out.quote.price_label, /\.\d{6}$/);
+  const ticks = out.quote.ticks;
+  assert.deepEqual(plain(ticks.filter(t => !t.detail).map(t => t.label)), ['60', '50', '40']);
+  for (const tick of ticks) {
+    const expected = ticks[0].y + (60 - Number(tick.label)) / 20 * (ticks.at(-1).y - ticks[0].y);
+    assert.ok(Math.abs(tick.y - expected) < 1e-9);
+  }
+  const stale = await load().run(input(fields, out.trmnl_state));
+  assert.equal(stale.quote.stale, true);
+  assert.deepEqual(plain(stale.quote.ticks), plain(ticks));
+});
+
+test('small-price and narrow axes keep distinct fractional levels even with zero-decimal quotes', async () => {
+  for (const price of [0.000001, 0.1, 1, 100, 65000, 1234567890]) {
+    const data = sample({ startPrice: price });
+    for (const key of ['open', 'high', 'low', 'close']) data.chart.result[0].indicators.quote[0][key].fill(price);
+    data.chart.result[0].meta.regularMarketPrice = price;
+    const out = await load().run(polled(data, { precision: '0' }));
+    for (const chart of [out.quote, ...Object.values(out.quote.charts || {})]) {
+      const ticks = chart.ticks;
+      assert.ok(ticks.length === 5 || ticks.length === 7, 'tick count: ' + ticks.length);
+      const values = ticks.map(t => Number(t.label.replaceAll(',', '')));
+      assert.equal(new Set(values).size, ticks.length);
+      assert.equal(ticks.filter(t => !t.detail).length, 3);
+      assert.ok(values[0] > price && values.at(-1) >= 0 && values.at(-1) < price);
+      assert.ok(values.every((n, i) => Number.isFinite(n) && (i === 0 || n < values[i - 1])));
+      assert.ok(chart.points.every(p => p[1] >= ticks[0].y && p[1] <= ticks.at(-1).y));
+    }
+  }
+});
+
+test('axis formatting respects locales and keeps OHLC, volume and baseline in the same scale', async () => {
+  for (const locale of ['en', 'es', 'de_DE', 'fr', 'it', 'pl']) {
+    const fields = { locale, chartType: 'candles', showVolume: true, showReference: true, showGridlines: true };
+    const out = await load().run(polled(sample({ startPrice: 0.1 }), fields));
+    for (const chart of [out.quote, ...Object.values(out.quote.charts)]) {
+      const ticks = chart.ticks;
+      assert.equal(new Set(ticks.map(t => t.label)).size, ticks.length);
+      assert.equal(ticks.at(-1).y, 216);
+      assert.ok(chart.reference_y > ticks[0].y && chart.reference_y < ticks.at(-1).y);
+      assert.ok(chart.candles.every(c => c.slice(3, 7).every(y => y >= ticks[0].y && y <= ticks.at(-1).y)));
+      assert.ok(ticks.every(t => locale === 'en' ? t.label.includes('.') : t.label.includes(',')));
+    }
+    for (const name of layoutNames) {
+      const html = await render(out, fields, name);
+      assert.match(html, /data-price-tick data-axis-detail/);
+      assert.match(html, /data-chart-gridline data-axis-detail/);
+    }
+  }
+});
+
 test('baseline clipping preserves the complete curve with unique SVG fragment ids', async () => {
   for (const lineType of ['0', '1', '2']) {
     const out = await load().run(polled(signalFixture(), { showReference: 'show', lineType }));

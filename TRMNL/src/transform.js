@@ -286,7 +286,7 @@ function curveSegments(points) {
   return segments;
 }
 
-function chart(state, config, formatNumber, limit = 96, displayTimezone = state.timezone) {
+function chart(state, config, limit = 96, displayTimezone = state.timezone) {
   const factor = config.chartType !== 'line' && state.bars.some(b => b[1] !== null) ? Math.max(1, Math.ceil(state.bars.length / limit)) : 1;
   if (factor > 1) {
     const bars = [];
@@ -299,7 +299,17 @@ function chart(state, config, formatNumber, limit = 96, displayTimezone = state.
   if (config.reference) values.push(state.baseline);
   const low = Math.min(...values), high = Math.max(...values);
   const padding = Math.max((high - low) * 0.08, high * 0.005, 1e-9);
-  const min = Math.max(0, low - padding), max = high + padding;
+  const paddedMin = Math.max(0, low - padding), paddedMax = high + padding;
+  const roughStep = (paddedMax - paddedMin) / 5;
+  const magnitude = 10 ** Math.floor(Math.log10(roughStep));
+  const step = [1, 2, 5, 10].find(n => n * magnitude >= roughStep) * magnitude;
+  const min = Math.floor(paddedMin / step) * step;
+  // Four or six intervals give short charts three evenly spaced major labels.
+  const intervals = Math.max(4, Math.ceil((paddedMax - min) / step / 2 - 1e-10) * 2);
+  const max = min + intervals * step;
+  const axisNumber = new Intl.NumberFormat(LOCALES[config.locale], {
+    maximumFractionDigits: Math.max(0, -Math.floor(Math.log10(step)))
+  });
   const hasVolume = config.volume && state.bars.some(b => b[5] !== null && b[5] > 0);
   const bottom = hasVolume ? 216 : PLOT.bottom;
   const y = p => bottom - (p - min) / (max - min) * (bottom - PLOT.top);
@@ -327,7 +337,10 @@ function chart(state, config, formatNumber, limit = 96, displayTimezone = state.
     curves: !candles && config.lineType === '2' ? curveSegments(points) : [], candles: candlePoints, volumes,
     body_width: f(width), volume_width: width,
     reference_y: y(state.baseline), last_y: points.at(-1).y,
-    ticks: [0, 0.5, 1].map(r => ({ y: PLOT.top + r * (bottom - PLOT.top), label: formatNumber(max - r * (max - min)) })), dates,
+    ticks: Array.from({ length: intervals + 1 }, (_, i) => ({
+      y: PLOT.top + i / intervals * (bottom - PLOT.top),
+      label: axisNumber.format(min + (intervals - i) * step), detail: i % (intervals / 2) !== 0, middle: i === intervals / 2
+    })), dates,
     has_ohlc: hasOHLC, has_volume: hasVolume, group: state.group };
 }
 
@@ -347,7 +360,7 @@ function display(state, stale, detail, config, displayTimezone = state?.timezone
   });
   const change = state.price - state.baseline;
   const percent = change / state.baseline * 100;
-  const result = { ...base, ...chart(state, config, formatter.format, 96, displayTimezone), has_data: true, stale, detail, name: state.name, currency: state.currency,
+  const result = { ...base, ...chart(state, config, 96, displayTimezone), has_data: true, stale, detail, name: state.name, currency: state.currency,
     price: state.price, change, percent, digits,
     price_label: formatter.format(state.price),
     // The baseline is drawn as its own line, so it needs its own label.
@@ -358,8 +371,8 @@ function display(state, stale, detail, config, displayTimezone = state?.timezone
     native_currency: state.native_currency, return_basis: state.return_basis,
     fx_iso: state.fx_at ? new Date(state.fx_at * 1000).toISOString() : '' };
   if (config.chartType !== 'line' && result.has_ohlc) result.charts = {
-    compact: { ...result, ...chart(state, config, formatter.format, 32, displayTimezone) },
-    detailed: { ...result, ...chart(state, config, formatter.format, 192, displayTimezone) }
+    compact: { ...result, ...chart(state, config, 32, displayTimezone) },
+    detailed: { ...result, ...chart(state, config, 192, displayTimezone) }
   };
   return result;
 }
