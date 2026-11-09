@@ -35,6 +35,7 @@ function pricesFixture(closes) {
 async function main() {
   const root = path.join(__dirname, '..');
   const outputDir = path.join(root, 'dist/preview');
+  const saveScreenshots = process.env.TRMNL_SCREENSHOTS !== '0';
   fs.mkdirSync(outputDir, { recursive: true });
   class Clock extends Date { static now() { return NOW; } }
   const plugin = fetch => loadPlugin({ fetch, Date: Clock });
@@ -378,12 +379,14 @@ async function main() {
             }
             report.push({ id, device, orientation, layout, state, canvas: { width, height }, ...measurements, errors });
             if (errors.length) problems.push({ id, ...measurements, errors });
-            const file = path.join(outputDir, id + '.png');
-            if (layout === 'full') await page.screenshot({ path: file });
-            else await page.locator('.view').screenshot({ path: file });
-            if (device === 'og' && !portrait && layout === 'full') {
-              fs.copyFileSync(file, path.join(outputDir, state + '.png'));
-              fs.copyFileSync(path.join(outputDir, id + '.html'), path.join(outputDir, state + '.html'));
+            if (saveScreenshots) {
+              const file = path.join(outputDir, id + '.png');
+              if (layout === 'full') await page.screenshot({ path: file });
+              else await page.locator('.view').screenshot({ path: file });
+              if (device === 'og' && !portrait && layout === 'full') {
+                fs.copyFileSync(file, path.join(outputDir, state + '.png'));
+                fs.copyFileSync(path.join(outputDir, id + '.html'), path.join(outputDir, state + '.html'));
+              }
             }
             // Virtual full-color reference validates true green/red independently
             // of the target panels' grayscale and B/W/R/Y limits.
@@ -406,9 +409,9 @@ async function main() {
               const good = state.startsWith('filled') ? reference.line === filledColor && reference.area === filledColor : state === 'candles' ? reference.up === 'rgb(0, 136, 0)' && reference.down === 'rgb(170, 0, 0)' :
                 state === 'baseline' ? reference.above === 'rgb(0, 136, 0)' && reference.below === 'rgb(170, 0, 0)' : reference.badge === 'rgb(170, 0, 0)';
               if (!good) throw new Error('Full-color ink mismatch: ' + JSON.stringify(reference));
-              await page.screenshot({ path: path.join(outputDir, 'full-color-reference-' + state + '.png') });
+              if (saveScreenshots) await page.screenshot({ path: path.join(outputDir, 'full-color-reference-' + state + '.png') });
             }
-            figures.push('<figure><a href="' + id + '.html"><img loading="lazy" src="' + id +
+            if (saveScreenshots) figures.push('<figure><a href="' + id + '.html"><img loading="lazy" src="' + id +
               '.png" alt="' + id + '"></a><figcaption>' + profile.name + ' · ' + orientation +
               ' · ' + layout + ' · ' + state + '</figcaption></figure>');
           }
@@ -416,7 +419,7 @@ async function main() {
         console.log(device + '/' + orientation + ': 4 views × ' + Object.keys(states).length + ' scenarios checked on ' + width + '×' + height);
     }
     fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify(report, null, 2) + '\n');
-    fs.writeFileSync(path.join(outputDir, 'index.html'),
+    if (saveScreenshots) fs.writeFileSync(path.join(outputDir, 'index.html'),
       '<!doctype html><html lang="en"><meta charset="utf-8"><title>STONKS preview matrix</title>' +
       '<style>body{font:14px system-ui;margin:24px;background:#eee}main{display:grid;grid-template-columns:' +
       'repeat(auto-fit,minmax(300px,1fr));gap:20px}figure{margin:0}img{display:block;max-width:100%;' +
@@ -425,7 +428,7 @@ async function main() {
       'both orientations, four views, and ' + Object.keys(states).length + ' data/customization scenarios. Click a preview to open its markup.</p><main>' +
       figures.join('\n') + '</main></html>');
     if (problems.length) throw new Error(problems.length + ' preview failures:\n' + JSON.stringify(problems.slice(0, 8), null, 2));
-    console.log('All ' + report.length + ' cases passed. Gallery: ' + path.join(outputDir, 'index.html'));
+    console.log('All ' + report.length + ' cases passed.' + (saveScreenshots ? ' Gallery: ' + path.join(outputDir, 'index.html') : ' Screenshots disabled.'));
   } finally {
     await browser.close();
   }
