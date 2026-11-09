@@ -4,6 +4,10 @@ A TRMNL Yahoo Finances plugin to display ETFs, Stocks and even Crypto!
 
 Yahoo Finance prices and charts for your TRMNL. Rotate stocks, ETFs, indices, forex and crypto with line, OHLC bar or candle charts and historical currency conversion. No market-data API key needed.
 
+<a href="https://trmnl.com/recipes/522884"><img width="150" alt="Works with TRMNL" src="https://trmnl.com/images/brand/badges/light/works-with-trmnl/trmnl-badge-works-with-light.svg" /></a>
+
+[Install on TRMNL](https://trmnl.com/recipes/522884)
+
 ![STONKS sample stock chart on TRMNL OG](TRMNL/media/preview_full.webp)
 
 Synthetic sample prices. [All layout previews](TRMNL/README.md#previews).
