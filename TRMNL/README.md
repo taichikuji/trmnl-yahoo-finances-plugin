@@ -106,16 +106,15 @@ Prices and returns use unadjusted closes, excluding reinvested dividends. Native
 
 [.trmnlp.yml](.trmnlp.yml) supplies a fixed, clearly labelled synthetic quote with Serverless disabled for local preview. It contains no credentials or live market history. Use `trmnlp serve` from this directory for native local rendering.
 
-For the adapter tests and full device matrix, run from the repository root with Node 20+:
+For the local device preview matrix, run from the repository root with Node 20+:
 
 ```sh
 npm install --no-save --package-lock=false --ignore-scripts liquidjs@10.30.1 playwright-core@1.64.1 yaml@2.9.1
-node --test TRMNL/check.cjs
 npx playwright-core install --with-deps chromium
 TRMNL_BROWSER=chromium node scripts/preview.cjs
 ```
 
-These packages are development tools only. The local test suite covers market data, FX, saved-state isolation, failures, chart geometry, locales and Liquid rendering.
+These packages are development tools only.
 
 Open `dist/preview/index.html` for sample previews across four device profiles, both orientations, all four layouts and data/customization scenarios. The script runs the pinned Framework JavaScript, including native clamping, with actual fonts, checks chart density, computed text sizes, bounds, overlapping text, chart endpoints and palette colors, and caches assets under `.cache/`. Native B/W/R/Y server thumbnails are grayscale; physical ink and dithering require a device check.
 
