@@ -118,7 +118,7 @@ custom_fields:
       - Stepped: '1'
       - Smooth: '2'
       - Filled: '3'
-    description: Applies to line charts. Filled uses straight segments with a shaded area.
+    description: Applies to line charts.
     group: Chart
   - keyname: showGridlines
     field_type: boolean
