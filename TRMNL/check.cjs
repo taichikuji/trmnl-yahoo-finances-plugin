@@ -393,7 +393,7 @@ test('boolean chart controls retain saved Show/Hide behavior in data and all vie
     assert.equal(out.quote.has_volume, enabled);
     for (const name of layoutNames) {
       const html = await render(out, fields, name);
-      assert.equal(html.includes('data-chart-gridline'), enabled, 'grid lines: ' + value);
+      assert.equal(html.includes('<path data-chart-gridline'), enabled, 'grid lines: ' + value);
       assert.equal(html.includes('stroke-dasharray="6 4"'), enabled, 'return baseline: ' + value);
       assert.equal(html.includes('data-chart-above-baseline'), enabled, 'baseline colors: ' + value);
       assert.equal(html.includes('data-chart-volume'), enabled, 'volume: ' + value);
@@ -833,7 +833,7 @@ test('Filled is opt-in for Line, preserving chart data and optional grid and vol
   const html = await render(out, fields);
   assert.match(html, /data-chart-area-fill/);
   assert.ok(html.includes('L696,' + out.quote.ticks.at(-1).y + 'H4Z'));
-  assert.doesNotMatch(html, /data-chart-gridline|data-chart-volume/);
+  assert.doesNotMatch(html, /<path data-chart-(?:gridline|volume)\b/);
   assert.equal(html.match(/data-chart-line d="([^"]+)"/)[1], (await render(straight, { lineType: '0' })).match(/data-chart-line d="([^"]+)"/)[1]);
 
   const data = sample();

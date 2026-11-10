@@ -78,6 +78,7 @@
   :is(.screen--1bit, .screen--2bit) [data-market-view] [data-chart-dither] { display: block; }
   :is(.screen--1bit, .screen--2bit) [data-market-view] [data-chart-native-fill] { display: none; }
   .screen--1bit [data-market-view] [data-fill-depth="1"], .screen--2bit [data-market-view] [data-fill-depth="2"] { display: block; }
+  :is(.screen--1bit, .screen--2bit) [data-market-view] [data-chart-gridline][stroke-opacity] { stroke-opacity: 1; stroke-width: 1.5; stroke-dasharray: 1 3; shape-rendering: crispEdges; }
   [data-market-view] [data-price-chart] { container: price-chart / size; }
   @container price-chart (max-height: 200px) {
     [data-market-view] [data-axis-detail] { display: none; }

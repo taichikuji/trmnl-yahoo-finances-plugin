@@ -64,6 +64,7 @@ async function main() {
   states.baseline_loss = await scenario({ showReference: 'show' }, pricesFixture(crossingCloses.map((p, i) => p - i * 0.08)));
   states.flat = await scenario({ showReference: 'show', chartType: 'candles' }, pricesFixture(Array(30).fill(100)));
   states.filled = await scenario({ lineType: '3' });
+  states.filled_grid = await scenario({ lineType: '3', showGridlines: true });
   states.filled_details = await scenario({ lineType: '3', showGridlines: true, showVolume: true }, mixed);
   states.filled_loss = await scenario({ lineType: '3' }, losses);
   states.filled_baseline = await scenario({ lineType: '3', showReference: true }, pricesFixture(crossingCloses));
@@ -369,7 +370,13 @@ async function main() {
                 const bounds = await page.locator('[data-price-plot]').boundingBox();
                 const pixels = await page.locator('[data-price-plot]').screenshot();
                 await hidden.evaluate(el => el.remove());
-                measurements.fillBands = await page.evaluate(async ({ png, points, bottom, levels, bounds }) => {
+                let grid;
+                if (await page.locator('[data-chart-gridline]').count()) {
+                  const mask = await page.addStyleTag({ content: '[data-chart-dither], [data-last-price-marker], [data-price-plot] > :not([data-chart-gridline]) { visibility: hidden !important; }' });
+                  grid = (await page.locator('[data-price-plot]').screenshot()).toString('base64');
+                  await mask.evaluate(el => el.remove());
+                }
+                Object.assign(measurements, await page.evaluate(async ({ png, grid, points, bottom, levels, bounds }) => {
                   const image = new Image();
                   image.src = 'data:image/png;base64,' + png;
                   await image.decode();
@@ -400,9 +407,27 @@ async function main() {
                       band.expected += outside ? 0 : .22 - .2 * t;
                     }
                   }
-                  return bands.filter(b => b.pixels >= 64).map(b => ({ pixels: b.pixels, actual: b.actual / b.pixels, expected: b.expected / b.pixels }));
-                }, { png: pixels.toString('base64'), points: model.quote.points, bottom: model.quote.ticks.at(-1).y, levels: profile.mode === '1bit' ? 2 : 4, bounds });
+                  const gridCoverage = [];
+                  if (grid) {
+                    image.src = 'data:image/png;base64,' + grid;
+                    await image.decode();
+                    context.drawImage(image, 0, 0);
+                    const gray = context.getImageData(0, 0, image.width, image.height).data;
+                    for (const path of document.querySelectorAll('[data-chart-gridline]')) {
+                      if (!path.getClientRects().length || !path.getAttribute('d').includes('H')) continue;
+                      const at = path.getPointAtLength(0).matrixTransform(path.getScreenCTM());
+                      const y = Math.round(at.y - Math.floor(bounds.y));
+                      let hits = 0;
+                      for (let x = 4; x < image.width - 4; x++) {
+                        if ([-2, -1, 0, 1, 2].some(dy => y + dy >= 0 && y + dy < image.height && Math.round(gray[((y + dy) * image.width + x) * 4] / 255 * (levels - 1)) < levels - 1)) hits++;
+                      }
+                      gridCoverage.push(hits / (image.width - 8));
+                    }
+                  }
+                  return { fillBands: bands.filter(b => b.pixels >= 64).map(b => ({ pixels: b.pixels, actual: b.actual / b.pixels, expected: b.expected / b.pixels })), gridCoverage };
+                }, { png: pixels.toString('base64'), grid, points: model.quote.points, bottom: model.quote.ticks.at(-1).y, levels: profile.mode === '1bit' ? 2 : 4, bounds }));
                 if (measurements.fillBands.length < 2 || measurements.fillBands.some(b => b.expected === 0 ? b.actual * b.pixels > 1 : Math.abs(b.actual - b.expected) > .035)) errors.push('filled pixels lose the gradient after palette conversion');
+                if (grid && (!measurements.gridCoverage.length || measurements.gridCoverage.some(coverage => coverage < .08))) errors.push('filled gridlines disappear after palette conversion');
               }
               const signals = measurements.signals;
               const gray = value => { const c = value?.match(/^rgb\((\d+), (\d+), (\d+)\)$/); return c && c[1] === c[2] && c[2] === c[3]; };
