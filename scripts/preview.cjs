@@ -366,9 +366,10 @@ async function main() {
               if (measurements.filled !== expectedFilled) errors.push('filled style differs from selection');
               if (expectedFilled && ['1bit', '2bit'].includes(profile.mode)) {
                 const hidden = await page.addStyleTag({ content: '[data-price-plot] > path:not([data-chart-area-fill]), [data-price-plot] > g > path, [data-last-price-marker] { visibility: hidden !important; }' });
+                const bounds = await page.locator('[data-price-plot]').boundingBox();
                 const pixels = await page.locator('[data-price-plot]').screenshot();
                 await hidden.evaluate(el => el.remove());
-                measurements.fillBands = await page.evaluate(async ({ png, points, bottom, levels }) => {
+                measurements.fillBands = await page.evaluate(async ({ png, points, bottom, levels, bounds }) => {
                   const image = new Image();
                   image.src = 'data:image/png;base64,' + png;
                   await image.decode();
@@ -378,18 +379,18 @@ async function main() {
                   context.drawImage(image, 0, 0);
                   const rgba = context.getImageData(0, 0, image.width, image.height).data;
                   const top = Math.min(...points.map(p => p[1]));
-                  // Compare broad bands and outside white, allowing one edge pixel for crop rounding.
+                  // Screenshot crops round outward; map pixels back to the actual SVG bounds.
                   const bands = Array.from({ length: 3 }, () => ({ pixels: 0, actual: 0, expected: 0 }));
                   let segment = 0;
                   for (let x = 2; x < image.width - 2; x++) {
-                    const sx = (x + .5) * 700 / image.width;
+                    const sx = (x + .5 + Math.floor(bounds.x) - bounds.x) * 700 / bounds.width;
                     while (segment < points.length - 2 && points[segment + 1][0] < sx) segment++;
                     const a = points[segment], b = points[segment + 1];
                     if (sx < a[0] || sx > b[0]) continue;
                     const line = a[1] + (b[1] - a[1]) * (sx - a[0]) / (b[0] - a[0]);
                     for (let y = 0; y < image.height; y++) {
-                      const sy = (y + .5) * 286 / image.height;
-                      const gap = 2 * (286 / image.height + Math.abs((b[1] - a[1]) / (b[0] - a[0])) * 700 / image.width);
+                      const sy = (y + .5 + Math.floor(bounds.y) - bounds.y) * 286 / bounds.height;
+                      const gap = 2 * (286 / bounds.height + Math.abs((b[1] - a[1]) / (b[0] - a[0])) * 700 / bounds.width);
                       const outside = sy < line - gap || sy > bottom + gap;
                       if (!outside && (sy < line + gap || sy >= bottom - gap)) continue;
                       const t = (sy - top) / (bottom - top);
@@ -400,7 +401,7 @@ async function main() {
                     }
                   }
                   return bands.filter(b => b.pixels >= 64).map(b => ({ pixels: b.pixels, actual: b.actual / b.pixels, expected: b.expected / b.pixels }));
-                }, { png: pixels.toString('base64'), points: model.quote.points, bottom: model.quote.ticks.at(-1).y, levels: profile.mode === '1bit' ? 2 : 4 });
+                }, { png: pixels.toString('base64'), points: model.quote.points, bottom: model.quote.ticks.at(-1).y, levels: profile.mode === '1bit' ? 2 : 4, bounds });
                 if (measurements.fillBands.length < 2 || measurements.fillBands.some(b => b.expected === 0 ? b.actual * b.pixels > 1 : Math.abs(b.actual - b.expected) > .035)) errors.push('filled pixels lose the gradient after palette conversion');
               }
               const signals = measurements.signals;

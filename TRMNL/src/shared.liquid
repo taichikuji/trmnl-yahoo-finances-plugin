@@ -228,7 +228,7 @@
             {% for depth in (1..2) %}
               {% if depth == 1 %}{% assign shade_weight = '.5' %}{% assign noise_weight = '.5' %}{% assign levels = '0 1' %}{% else %}{% assign shade_weight = '.75' %}{% assign noise_weight = '.25' %}{% assign levels = '0 .333333 .666667 1' %}{% endif %}
               <filter id="{{ clip_id }}-dither-{{ depth }}" x="0" y="0" width="100%" height="100%" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-                <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="1" seed="1" />
+                <feTurbulence type="fractalNoise" baseFrequency=".83" numOctaves="1" seed="1" />
                 <feComponentTransfer><feFuncR type="table" tableValues="0 0 0 0 0 0 0.0002 0.0012 0.0044 0.0161 0.0398 0.0765 0.126 0.1951 0.2835 0.3981 0.5148 0.6176 0.7326 0.8156 0.8798 0.926 0.9614 0.9851 0.9965 0.9991 0.9999 1 1 1 1 1 1" /></feComponentTransfer>
                 <feColorMatrix values="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1" result="noise" />
                 <feFlood flood-color="var(--chart-background)" result="paper" />
