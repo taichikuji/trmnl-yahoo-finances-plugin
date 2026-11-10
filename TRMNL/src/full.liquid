@@ -1,7 +1,7 @@
-<div class="layout layout--col layout--top gap--small p--2" data-market-view data-label-class="{{ label_class }}">
+<div class="layout layout--col layout--top gap--small p--2 relative" data-market-view data-label-class="{{ label_class }}">
   {% render 'quote_header', quote: quote, heading_size: heading_size, size: 'title--base', large_size: 'title--large' %}
   {% if quote.has_data == true %}
-    <div class="flex flex--col gap--xsmall w--min-0 no-shrink" data-quote-summary>
+    <div class="flex flex--col flex--left self--start gap--xsmall w--[70cqw] w--min-0 no-shrink" data-quote-summary>
       {% render 'quote_price', quote: quote, heading_size: heading_size, size: 'value--base lg:landscape:value--large', large_size: 'value--base lg:value--large lg:landscape:value--xlarge' %}
       {% render 'quote_change', label_class: label_class, quote: quote, words: words, direction: direction, range_label: range_label %}
     </div>

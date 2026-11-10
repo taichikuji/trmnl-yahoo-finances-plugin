@@ -29,11 +29,7 @@
 </svg>
 {%- endcapture -%}
 <style>
-  .title_bar[data-quote-footer] > .title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .title_bar[data-quote-footer] { container-type: inline-size; }
-  .title_bar[data-quote-footer] > .title { flex-shrink: 1; min-width: 0; }
-  .title_bar[data-quote-footer] > .instance { flex-shrink: 0; }
-  .title_bar[data-quote-footer] [data-timestamp-short] { display: none; }
   [data-market-view] {
     --chart-background: var(--framework-semantic-canvas-bg-color, #fff);
     --chart-foreground: var(--framework-semantic-text-primary-text-solid, #000);
@@ -62,15 +58,8 @@
   [data-market-view] [data-quote-return="up"] { --theme-bg-white-color: var(--gain-background); --theme-bg-white-ink: var(--chart-up-color); }
   [data-market-view] [data-quote-change="up"] { --theme-text-black-color: var(--chart-up-color); }
   [data-market-view] [data-quote-return="down"], [data-market-view] [data-quote-change="down"] { --theme-text-black-color: var(--chart-down-color); }
-  [data-market-view] { position: relative; container-type: inline-size; }
-  [data-market-view] [data-quote-summary] { width: 70%; align-self: flex-start; align-items: flex-start; }
-  [data-market-view] [data-quote-performance] { justify-content: flex-start; }
-  [data-market-view] [data-quote-session] { position: absolute; top: 3em; right: 8px; text-align: right; }
-  [data-market-view] [data-quote-session].description--large { top: 2.5em; }
   [data-market-view][data-short][data-stale] [data-quote-session].description--large { top: 1.625em; }
-  [data-market-view] [data-quote-session][data-long-price] { position: static; align-self: flex-end; }
   [data-market-view] [data-axis-spacer] { visibility: hidden; }
-  [data-market-view] [data-chart-dither], [data-market-view] [data-fill-depth] { display: none; }
   [data-market-view] [data-chart-dither] {
     width: calc(100% * var(--pixel-ratio, 1)); height: calc(100% * var(--pixel-ratio, 1));
     transform: scale(calc(1 / var(--pixel-ratio, 1))); transform-origin: 0 0;
@@ -87,8 +76,6 @@
     [data-market-view][data-label-class~="description--large"] [data-axis-middle] { display: none; }
   }
   [data-market-view] [data-chart-area] { container-type: size; }
-  [data-market-view] [data-chart-density] { display: none; }
-  [data-market-view] [data-chart-density="normal"] { display: flex; }
   /* Measure the area left after the heading and quote, not a device name. */
   @container (max-width: 460px) or (max-height: 160px) {
     [data-market-view] [data-chart-density="normal"] { display: none; }
@@ -101,7 +88,7 @@
   /* Framework breakpoints follow devices; this query follows the actual slot. */
   @container (max-width: 360px) {
     [data-market-view] [data-quote-summary] { width: 100%; }
-    [data-market-view] [data-quote-session] { position: static; align-self: flex-end; }
+    [data-market-view] [data-quote-session] { position: static; }
     [data-market-view] [data-middle-date-label], .title_bar[data-quote-footer] [data-timestamp-full] { display: none; }
     .title_bar[data-quote-footer] [data-timestamp-short] { display: inline; }
   }
@@ -126,7 +113,7 @@
 
 {% template quote_change %}
 {% case direction %}{% when 'up' %}{% assign direction_label = words[9] %}{% when 'down' %}{% assign direction_label = words[10] %}{% else %}{% assign direction_label = words[11] %}{% endcase %}
-<div class="description description--large lg:description--xlarge flex flex--row flex--wrap flex--bottom gap--xsmall w--min-0 w--[100cqw]" data-quote-performance>
+<div class="description description--large lg:description--xlarge flex flex--row flex--left flex--wrap flex--bottom gap--xsmall w--min-0 w--[100cqw]" data-quote-performance>
   <span class="flex flex--row gap--xsmall {% if direction == 'up' %}bg--white{% else %}text--black{% endif %}" data-quote-return="{{ direction | escape }}" aria-label="{{ direction_label | escape }} {{ quote.percent_label | escape }}% · {{ range_label | escape }}">
     <svg class="w--3 h--3 no-shrink" viewBox="0 0 12 12" aria-hidden="true">
       {% if direction == 'up' %}<path d="M6 1L11 6H8V11H4V6H1Z" fill="currentColor" />{% elsif direction == 'down' %}<path d="M4 1H8V6H11L6 11L1 6H4Z" fill="currentColor" />{% else %}<path d="M1 5H11V7H1Z" fill="currentColor" />{% endif %}
@@ -138,7 +125,7 @@
 {% endtemplate %}
 
 {% template quote_status %}
-<div class="{{ label_class }} lg:description--xlarge" data-quote-session{% if quote.price_label.size > 15 %} data-long-price{% endif %}>
+<div class="{{ label_class }} lg:description--xlarge{% unless quote.price_label.size > 15 %} absolute{% endunless %} self--end right--2 text--right {% if label_class contains 'description--large' %}top--10 lg:top--14{% else %}top--9 lg:top--16{% endif %}" data-quote-session>
   <span class="text--regular" data-quote-status>{{ quote.interval | escape }}{% if quote.group > 1 %} ×{{ quote.group }}{% endif %}</span><br>
   <span class="text--regular">{% if quote.extended %}{{ words[5] }}{% else %}{{ words[6] }}{% endif %}</span>
 </div>
@@ -224,7 +211,7 @@
         {% assign bottom_tick = quote.ticks | last %}
         {% capture area_path %}{{ line_path }}L696,{{ bottom_tick.y }}H4Z{% endcapture %}
         {% comment %}Equalized SVG noise avoids resampling; the bias keeps white pixels white after palette rounding.{% endcomment %}
-        <svg class="absolute top--0 left--0 w--full h--full" data-chart-dither aria-hidden="true">
+        <svg class="hidden absolute top--0 left--0 w--full h--full" data-chart-dither aria-hidden="true">
           <defs>
             {% for depth in (1..2) %}
               {% if depth == 1 %}{% assign shade_weight = '.5' %}{% assign noise_weight = '.5' %}{% assign levels = '0 1' %}{% else %}{% assign shade_weight = '.75' %}{% assign noise_weight = '.25' %}{% assign levels = '0 .333333 .666667 1' %}{% endif %}
@@ -240,7 +227,7 @@
             {% endfor %}
           </defs>
           {% for depth in (1..2) %}
-            <g data-fill-depth="{{ depth }}" filter="url(#{{ clip_id }}-dither-{{ depth }})"><svg width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none"><use href="#{{ clip_id }}-area" /></svg></g>
+            <g class="hidden" data-fill-depth="{{ depth }}" filter="url(#{{ clip_id }}-dither-{{ depth }})"><svg width="100%" height="100%" viewBox="0 0 700 286" preserveAspectRatio="none"><use href="#{{ clip_id }}-area" /></svg></g>
           {% endfor %}
         </svg>
       {% endif %}
@@ -326,7 +313,7 @@
   {% assign densities = 'normal,compact,detailed' | split: ',' %}
   {% for density in densities %}
     {% assign model = quote.charts[density] | default: quote %}
-    <div class="stretch flex flex--col gap--small w--full w--min-0" data-chart-density="{{ density }}">
+    <div class="stretch flex flex--col gap--small w--full w--min-0{% unless density == 'normal' %} hidden{% endunless %}" data-chart-density="{{ density }}">
       {% render 'quote_status', label_class: label_class, quote: model, words: words %}
       {% render 'price_chart', label_class: label_class, quote: model, fields: fields, direction: direction, range_label: range_label, line_width: line_width, reference_gap: reference_gap %}
     </div>
@@ -350,6 +337,6 @@
 <div class="title_bar" data-quote-footer>
   <img class="image image--adaptive w--7 h--7" src="data:image/svg+xml;base64,{{ svg_logo | base64_encode }}" alt="STONKS logo">
   <span class="title">{{ title | default: 'STONKS' | escape }}</span>
-  <span class="instance">{% if quote.has_data == true %}<time datetime="{{ quote.market_iso | escape }}" title="{{ words[3] | escape }}: {{ quote.market_label | escape }}" aria-label="{{ words[3] | escape }}: {{ quote.market_label | escape }}"><span data-timestamp-full>{{ quote.market_label_compact | escape }}</span><span data-timestamp-short>{{ quote.market_label_compact | slice: -5, 5 | escape }}</span></time>{% else %}{{ quote.symbol | escape }} · {{ range_label | escape }}{% endif %}</span>
+  <span class="instance no-shrink">{% if quote.has_data == true %}<time datetime="{{ quote.market_iso | escape }}" title="{{ words[3] | escape }}: {{ quote.market_label | escape }}" aria-label="{{ words[3] | escape }}: {{ quote.market_label | escape }}"><span data-timestamp-full>{{ quote.market_label_compact | escape }}</span><span class="hidden" data-timestamp-short>{{ quote.market_label_compact | slice: -5, 5 | escape }}</span></time>{% else %}{{ quote.symbol | escape }} · {{ range_label | escape }}{% endif %}</span>
 </div>
 {% endtemplate %}
