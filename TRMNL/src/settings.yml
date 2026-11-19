@@ -58,12 +58,12 @@ custom_fields:
       Follow stocks, ETFs, market indices, currency pairs and crypto on your TRMNL with
       STONKS. It displays prices and historical charts from Yahoo Finance, using one or more
       symbols you choose. Track a single ticker or rotate through a comma-separated list on
-      each refresh. Choose line, OHLC bar or candlestick charts, adjust the date range and
-      optionally show volume, grid lines and a return baseline. You can also choose a
-      supported display currency and language. Common symbols include NTNX, IWDA.AS, VWCE.DE,
-      BTC-USD and EURUSD=X; Yahoo's exact symbol format matters, so look up the instrument
-      before entering it. No market-data API key is needed. Quotes can be delayed and
-      coverage depends on Yahoo Finance. Created by Ivan Perez.
+      each refresh. <br/><br/> Choose line, OHLC bar or candlestick charts, adjust the date
+      range and optionally show volume, grid lines and a return baseline. You can also choose
+      a supported display currency and language. <br/><br/> Common symbols include NTNX,
+      IWDA.AS, VWCE.DE, BTC-USD and EURUSD=X; Yahoo's exact symbol format matters, so look up
+      the instrument before entering it. <br/><br/> No market-data API key is needed. Quotes
+      can be delayed and coverage depends on Yahoo Finance. Created by Ivan Perez.
   - keyname: symbol
     field_type: string
     name: Symbols
