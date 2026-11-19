@@ -1,6 +1,6 @@
 ---
 name: STONKS
-description: watch line go up
+description: Stocks, ETFs and crypto charts
 icon: media/icon.svg
 strategy: polling
 polling_verb: get
@@ -55,15 +55,21 @@ custom_fields:
     github_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin
     learn_more_url: https://github.com/taichikuji/trmnl-yahoo-finances-plugin/tree/main/TRMNL#setup
     description: >-
-      STONKS brings Yahoo Finance charts to your TRMNL. Track stocks, ETFs,
-      indices, forex and crypto with customizable charts and rotating symbols.
-      No market-data API key required; quotes may be delayed.
+      Follow stocks, ETFs, market indices, currency pairs and crypto on your TRMNL with
+      STONKS. It displays prices and historical charts from Yahoo Finance, using one or more
+      symbols you choose. Track a single ticker or rotate through a comma-separated list on
+      each refresh. Choose line, OHLC bar or candlestick charts, adjust the date range and
+      optionally show volume, grid lines and a return baseline. You can also choose a
+      supported display currency and language. Common symbols include NTNX, IWDA.AS, VWCE.DE,
+      BTC-USD and EURUSD=X; Yahoo's exact symbol format matters, so look up the instrument
+      before entering it. No market-data API key is needed. Quotes can be delayed and
+      coverage depends on Yahoo Finance. Created by Ivan Perez.
   - keyname: symbol
     field_type: string
     name: Symbols
     default: NTNX
     description: Yahoo Finance symbols, separated by commas. One symbol per data refresh, in order.
-    help_text: 'Example: NTNX,AAPL,NVDA. Copy symbols after /quote/ in Yahoo Finance URLs; plain or URL-encoded symbols work, including VWCE.DE, %5ESTOXX50E, BTC-USD and EURUSD=X. Changing the list restarts rotation. <a href="https://finance.yahoo.com/" target="_blank">Find symbols on Yahoo Finance</a>.'
+    help_text: 'Example: NTNX,AAPL,NVDA. Copy symbols after /quote/ in Yahoo Finance URLs; plain or URL-encoded symbols work, including IWDA.AS, VWCE.DE, %5ESTOXX50E, BTC-USD and EURUSD=X. Use the correct exchange suffix. Changing the list restarts rotation. <a href="https://finance.yahoo.com/" target="_blank">Find symbols on Yahoo Finance</a>.'
     group: Market
   - keyname: currency
     field_type: string
