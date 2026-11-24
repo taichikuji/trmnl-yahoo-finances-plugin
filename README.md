@@ -14,7 +14,7 @@ Synthetic sample prices. [All layout previews](TRMNL/README.md#previews).
 
 ## Settings
 
-- **Symbols:** one or more comma-separated Yahoo Finance symbols, such as `NTNX`, `VWCE.DE`, `%5ESTOXX50E` or `BTC-USD`. Lists rotate one symbol per data refresh.
+- **Symbols:** one Yahoo Finance symbol per row, such as `NTNX`, `VWCE.DE`, `%5ESTOXX50E` or `BTC-USD`. Use **Add another** to rotate through more symbols, one per data refresh.
 - **Currency:** native currency, available fiat pairs, BTC or ETH. Historical prices use historical exchange rates.
 - **Chart:** six date ranges, line style and width, grid, volume, return baseline, extended hours and price precision.
 - **Text:** English and Spanish and adjustable heading and label sizes.

@@ -44,7 +44,7 @@ The existing private installation can also be updated through TRMNL MCP. Keep MC
 
 | Control | Options |
 | --- | --- |
-| Symbols | One or more comma-separated Yahoo Finance symbols, plain or URL-encoded |
+| Symbols | One Yahoo Finance symbol per row, plain or URL-encoded |
 | Currency | `NATIVE`, available fiat pairs, BTC or ETH |
 | Date range | 1D/minute, 1M/30 minutes, 3M/hour, 1Y/day, 5Y/week, all time/month |
 | Chart type | Line, OHLC bars or candles |
@@ -59,7 +59,7 @@ Existing settings retain their keys. Saved Show/Hide choices remain supported al
 
 Examples: `NTNX`, `VWCE.DE`, `%5ESTOXX50E`, `BTC-USD`, `EURUSD=X`. Some instruments lack particular ranges, FX pairs, OHLC or volume.
 
-For rotation, enter a list such as `NTNX,AAPL,NVDA`. Each data refresh polls one symbol, in order, wrapping to the first after the last. Spaces around entries, empty entries and repeated entries are ignored. One symbol retains the existing behavior. There is no plugin-imposed ticker count limit; normal TRMNL form and runtime limits still apply. Currency, range and chart settings apply to every symbol.
+Use **Add another** to add a row for each symbol you want to rotate, such as `NTNX`, `AAPL` and `NVDA`. Each data refresh polls one symbol, in order, wrapping to the first after the last. Spaces around entries, empty entries and repeated entries are ignored. There is no plugin-imposed ticker count limit; normal TRMNL form and runtime limits still apply. Currency, range and chart settings apply to every symbol.
 
 Changing the list or clearing Saved State restarts at the first entry. Rotation follows data refreshes, rather than every playlist appearance or layout render. The refresh interval is the minimum time between eligible updates; actual updates follow TRMNL's device/playlist cadence.
 
